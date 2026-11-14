@@ -1,0 +1,26 @@
+{
+  "name": "mind",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Local attention manager — events in, Thoughts out.",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "extension"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=packages/server",
+    "test": "vitest run",
+    "lint": "tsc --build --noEmit",
+    "migrate": "npm run migrate --workspace=packages/core"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "allowScripts": {
+    "esbuild@0.18.20": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "better-sqlite3@13.2.0": true
+  }
+}

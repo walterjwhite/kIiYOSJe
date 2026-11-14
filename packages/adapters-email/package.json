@@ -1,0 +1,29 @@
+{
+  "name": "@mind/adapters-email",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsc --build --watch"
+  },
+  "dependencies": {
+    "@mind/core": "*",
+    "imapflow": "2.11.0",
+    "nodemailer": "10.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/nodemailer": "^6.4.17",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}

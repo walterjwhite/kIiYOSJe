@@ -1,0 +1,103 @@
+/**
+ * Drizzle schema — five tables, enums stored as text.
+ */
+
+import { sql } from "drizzle-orm";
+import {
+  integer,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
+
+// ── directions ───────────────────────────────────────────────────────────────
+
+export const directions = sqliteTable("directions", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  scopeKind: text("scope_kind").notNull(), // ScopeKind
+  scopeValue: text("scope_value").notNull(),
+  posture: text("posture").notNull(), // DirectionPosture
+  standard: text("standard").notNull(),
+  autonomy: text("autonomy").notNull().default("observe"), // DirectionAutonomy
+  confidenceMin: real("confidence_min").notNull().default(0.7),
+  guards: text("guards"), // JSON blob of DirectionGuards
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  version: integer("version").notNull().default(1),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
+// ── signals ──────────────────────────────────────────────────────────────────
+
+export const signals = sqliteTable(
+  "signals",
+  {
+    id: text("id").primaryKey(),
+    adapter: text("adapter").notNull(),
+    externalId: text("external_id").notNull(),
+    threadId: text("thread_id"),
+    sender: text("sender").notNull(),
+    recipients: text("recipients").notNull(), // JSON string[]
+    kind: text("kind").notNull(),
+    body: text("body").notNull(),
+    receivedAt: text("received_at").notNull(),
+    urgencyHint: real("urgency_hint"),
+    disposition: text("disposition").notNull().default("new"), // SignalDisposition
+    thoughtId: text("thought_id").references(() => thoughts.id),
+    directionId: text("direction_id").references(() => directions.id),
+    dedupeKey: text("dedupe_key").notNull(),
+  },
+  (t) => [uniqueIndex("signals_dedupe_key_idx").on(t.dedupeKey)],
+);
+
+// ── thoughts ─────────────────────────────────────────────────────────────────
+
+export const thoughts = sqliteTable("thoughts", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  state: text("state").notNull().default("seedling"), // ThoughtState
+  directionId: text("direction_id").references(() => directions.id),
+  nextAction: text("next_action"),
+  reviewAt: text("review_at"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
+// ── actions ──────────────────────────────────────────────────────────────────
+
+export const actions = sqliteTable("actions", {
+  id: text("id").primaryKey(),
+  thoughtId: text("thought_id").references(() => thoughts.id),
+  signalId: text("signal_id").references(() => signals.id),
+  kind: text("kind").notNull(), // "reply" | "draft"
+  payload: text("payload").notNull(), // JSON OutboundDraft
+  status: text("status").notNull().default("proposed"), // ActionStatus
+  adapter: text("adapter").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  sentAt: text("sent_at"),
+});
+
+// ── events (append-only audit log) ───────────────────────────────────────────
+
+export const events = sqliteTable("events", {
+  id: text("id").primaryKey(),
+  at: text("at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  actor: text("actor").notNull(), // "system" | "user"
+  kind: text("kind").notNull(),
+  payload: text("payload").notNull(), // JSON
+});

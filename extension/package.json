@@ -1,0 +1,72 @@
+{
+  "name": "mind-vscode",
+  "displayName": "mind",
+  "description": "Local attention manager — Thoughts, Review, and Today brief",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "vscode": "^1.146.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mind.capture",
+        "title": "mind: Capture Thought"
+      },
+      {
+        "command": "mind.pause",
+        "title": "mind: Pause Sends (kill switch)"
+      },
+      {
+        "command": "mind.brief",
+        "title": "mind: Open Today Brief"
+      },
+      {
+        "command": "mind.direction.edit",
+        "title": "mind: Edit Directions"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "mind.thoughts",
+          "name": "Thoughts",
+          "type": "tree"
+        },
+        {
+          "id": "mind.review",
+          "name": "Review",
+          "type": "tree"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "mind",
+      "properties": {
+        "mind.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8787",
+          "description": "mind server URL (must be localhost)"
+        },
+        "mind.tokenPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to token file. Leave empty to use default (~/.config/mind/token)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsc --build --watch"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "1.146.0",
+    "typescript": "7.0.2"
+  }
+}

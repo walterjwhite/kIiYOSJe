@@ -1,0 +1,20 @@
+# Example direction — edit to match your reality.
+# See §6 of PLAN.md for field documentation.
+name: boss-requests
+scope:
+  kind: person
+  value: boss@corp.example  # replace with actual sender address
+posture: absorb
+autonomy: draft             # start at draft; promote to send after P4
+confidenceMin: 0.75
+standard: |
+  Acknowledge same day. Restate the ask in one line. State when a plan or
+  answer will arrive. Never commit to a date you were not given.
+  Escalate if the request implies headcount, budget, or external commitment.
+guards:
+  maxPerThreadPerHour: 1
+  escalateOn:
+    - headcount
+    - budget
+    - legal
+    - external-commitment
