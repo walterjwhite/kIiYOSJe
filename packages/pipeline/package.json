@@ -16,10 +16,16 @@
     "dev": "tsc --build --watch"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "4.0.105",
+    "@ai-sdk/google": "4.0.121",
+    "@ai-sdk/openai": "4.0.118",
     "@mind/core": "*",
+    "ai": "7.0.173",
+    "js-yaml": "5.5.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.0.0",
     "typescript": "7.0.2",
     "vitest": "5.1.0"

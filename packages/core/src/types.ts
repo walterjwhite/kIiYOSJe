@@ -94,8 +94,8 @@ export interface Adapter {
 // ── Direction config (loaded from YAML) ─────────────────────────────────────
 
 export interface DirectionGuards {
-  maxPerThreadPerHour?: number;
-  escalateOn?: string[];
+  maxPerThreadPerHour?: number | undefined;
+  escalateOn?: string[] | undefined;
 }
 
 export interface DirectionConfig {
@@ -103,7 +103,7 @@ export interface DirectionConfig {
   scope: { kind: ScopeKind; value: string };
   posture: DirectionPosture;
   autonomy: DirectionAutonomy;
-  confidenceMin?: number;
+  confidenceMin?: number | undefined;
   standard: string;
-  guards?: DirectionGuards;
+  guards?: DirectionGuards | undefined;
 }

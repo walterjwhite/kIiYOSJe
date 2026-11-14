@@ -11,6 +11,7 @@ import { dedupeKey, isDuplicate } from "./dedupe.js";
 import { normalize } from "./normalize.js";
 import { matchSignal } from "./match.js";
 import { classify } from "./classify.js";
+import { draft } from "./draft.js";
 import { decide } from "./decide.js";
 import type { AdapterRegistry } from "./adapter-registry.js";
 
@@ -117,6 +118,14 @@ export async function ingest(
   }
 
   if (match && disposition === "absorbed") {
+    const dir = match.direction;
+    const draftBody = await draft({
+      senderBody: normalizedBody,
+      sender: signal.sender,
+      standard: dir.standard,
+      classifierOutput: classifierOut,
+    });
+
     const actionId = newId();
     db.insert(actions)
       .values({
@@ -124,8 +133,13 @@ export async function ingest(
         thoughtId: thoughtId ?? null,
         signalId,
         kind: "reply",
-        payload: JSON.stringify({ to: [signal.sender], body: "", threadId: signal.threadId, replyToExternalId: signal.externalId }),
-        status: shouldSend ? "proposed" : "proposed", // always proposed until send happens
+        payload: JSON.stringify({
+          to: [signal.sender],
+          body: draftBody ?? "",
+          threadId: signal.threadId,
+          replyToExternalId: signal.externalId,
+        }),
+        status: "proposed",
         adapter: signal.adapter,
       })
       .run();
