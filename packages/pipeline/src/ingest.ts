@@ -13,6 +13,7 @@ import { matchSignal } from "./match.js";
 import { classify } from "./classify.js";
 import { draft } from "./draft.js";
 import { decide } from "./decide.js";
+import { computeEscalateBy } from "./escalation.js";
 import type { AdapterRegistry } from "./adapter-registry.js";
 
 export async function ingest(
@@ -43,20 +44,23 @@ export async function ingest(
     standard: match?.direction.standard ?? null,
   });
 
+  // ── 4b. Compute escalation deadline ──────────────────────────────────────
+  const escalateBy = computeEscalateBy(classifierOut, signal.receivedAt);
+
   // ── 5. Decide ─────────────────────────────────────────────────────────────
   let disposition: SignalDisposition;
   let createThought = false;
   let shouldSend = false;
 
   if (!match) {
-    // No direction matched — escalate if addressed to me (all signals for now),
-    // else file. For P0, escalate all unmatched.
+    // No direction and no fallback — this shouldn't happen once ensureFallbackDirection
+    // has run, but be safe: escalate so nothing is silently dropped.
     disposition = "escalated";
     createThought = true;
   } else {
     const dir = match.direction;
     const adapter = adapters.get(signal.adapter);
-    const guards = evaluateGuards(dir, signal, db);
+    const guards = evaluateGuards(dir, signal);
 
     const outcome = decide({
       posture: dir.posture as any,
@@ -70,13 +74,11 @@ export async function ingest(
 
     disposition = outcome.disposition;
     shouldSend = "shouldSend" in outcome ? outcome.shouldSend : false;
-    createThought =
-      disposition === "promoted" || disposition === "escalated";
+    createThought = disposition === "promoted" || disposition === "escalated";
   }
 
   // ── 6. Record ─────────────────────────────────────────────────────────────
   const signalId = newId();
-  const now = new Date().toISOString();
 
   db.insert(signals)
     .values({
@@ -92,6 +94,8 @@ export async function ingest(
       urgencyHint: signal.urgencyHint,
       disposition,
       directionId: match?.direction.id ?? null,
+      signalKind: classifierOut.signalKind,
+      escalateBy,
       dedupeKey: key,
     })
     .run();
@@ -102,15 +106,15 @@ export async function ingest(
     db.insert(thoughts)
       .values({
         id: thoughtId,
-        title: `Signal from ${signal.sender}`,
+        title: buildThoughtTitle(classifierOut, signal.sender),
         body: normalizedBody,
         state: "seedling",
         directionId: match?.direction.id ?? null,
         nextAction: classifierOut.commitment,
+        escalateBy,
       })
       .run();
 
-    // Link signal → thought
     db.update(signals)
       .set({ thoughtId })
       .where(eq(signals.id, signalId))
@@ -126,10 +130,9 @@ export async function ingest(
       classifierOutput: classifierOut,
     });
 
-    const actionId = newId();
     db.insert(actions)
       .values({
-        id: actionId,
+        id: newId(),
         thoughtId: thoughtId ?? null,
         signalId,
         kind: "reply",
@@ -151,18 +154,44 @@ export async function ingest(
       id: newId(),
       actor: "system",
       kind: "signal.processed",
-      payload: JSON.stringify({ signalId, disposition, directionId: match?.direction.id ?? null, confidence: classifierOut.confidence }),
+      payload: JSON.stringify({
+        signalId,
+        disposition,
+        directionId: match?.direction.id ?? null,
+        confidence: classifierOut.confidence,
+        signalKind: classifierOut.signalKind,
+        answerable: classifierOut.answerable,
+        escalateBy,
+      }),
     })
     .run();
 
-  log.info({ disposition, directionId: match?.direction.id ?? null }, "signal processed");
+  log.info(
+    {
+      disposition,
+      directionId: match?.direction.id ?? null,
+      signalKind: classifierOut.signalKind,
+      answerable: classifierOut.answerable,
+      escalateBy,
+    },
+    "signal processed",
+  );
   return disposition;
+}
+
+function buildThoughtTitle(
+  classifierOut: ReturnType<typeof classify> extends Promise<infer T> ? T : never,
+  sender: string,
+): string {
+  if (classifierOut.intent && classifierOut.intent !== "unclassified — no API key or LLM error") {
+    return `${classifierOut.intent} — ${sender}`;
+  }
+  return `Signal from ${sender}`;
 }
 
 function evaluateGuards(
   dir: typeof import("@mind/core").directions.$inferSelect,
   signal: NewSignal,
-  db: Db,
 ): { triggered: boolean } {
   if (!dir.guards) return { triggered: false };
 

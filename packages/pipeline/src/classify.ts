@@ -2,9 +2,8 @@
  * Step 4 — Classify.
  * Calls the LLM for structured classification output via the Vercel AI SDK.
  *
- * Uses the cheap/fast model for classification (MIND_CLASSIFY_MODEL).
- * Falls back to a zero-confidence stub when no API key is configured so the
- * rest of the pipeline still runs — signals are escalated rather than lost.
+ * Uses the cheap/fast model (MIND_CLASSIFY_MODEL).
+ * Falls back to a zero-confidence stub when no API key is configured.
  */
 
 import { generateObject } from "ai";
@@ -28,25 +27,32 @@ export interface ClassifyInput {
 
 const SYSTEM = `You are a signal classifier for a local attention-management system.
 Your job is to read an incoming message and return structured metadata.
-Be conservative: when uncertain, lower confidence. Never fabricate commitments.`;
+
+Be conservative:
+- Lower confidence when uncertain.
+- Never fabricate commitments or deadlines.
+- Set answerable=true only if the message is a question you can answer directly
+  from general knowledge, or a task that is clearly defined and can be handled
+  without human input.
+- Set answerable=false if the message involves sensitive topics, requires
+  personal authority, or cannot be resolved without information you don't have.`;
 
 function buildPrompt(input: ClassifyInput): string {
   const directionContext = input.standard
-    ? `\nMatched direction standard:\n${input.standard}`
-    : "\nNo direction matched.";
+    ? `Matched direction standard:\n${input.standard}\n`
+    : "No specific direction matched — apply the catch-all standard.\n";
 
-  return `From: ${input.sender}${directionContext}
+  return `${directionContext}
+From: ${input.sender}
 
 Message:
 ${input.signalBody}
 
-Classify this message. Return:
-- directionId: the matched direction ID (${input.directionId ?? "null — no match"})
-- confidence: 0.0–1.0 reflecting how well the message fits the direction standard
-- intent: a short phrase describing what the sender wants
-- urgency: low | medium | high
-- commitment: any explicit promise or deadline in the message (null if none)
-- sensitiveTopics: list any sensitive topics present (headcount, budget, legal, external-commitment, personnel)`;
+Classify this message and return all required fields.
+For escalateBy: if the message contains an explicit deadline (e.g. "by Friday",
+"EOD", "within 24 hours"), compute the ISO-8601 datetime. Otherwise return null.
+For signalKind: question | task | acknowledgement | information | other.
+For answerBlocker: if answerable=false, name the single thing that blocks an answer.`;
 }
 
 async function buildModel(key: string) {
@@ -60,7 +66,6 @@ async function buildModel(key: string) {
     const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
     return createGoogleGenerativeAI({ apiKey: key })(classifyModel());
   }
-  // default: openai
   const { createOpenAI } = await import("@ai-sdk/openai");
   return createOpenAI({ apiKey: key })(classifyModel());
 }
@@ -68,10 +73,7 @@ async function buildModel(key: string) {
 export async function classify(input: ClassifyInput): Promise<ClassifierOutput> {
   const key = loadApiKey();
   if (!key) {
-    logger.debug(
-      { sender: input.sender },
-      "classify: no API key configured, returning stub result",
-    );
+    logger.debug({ sender: input.sender }, "classify: no API key configured, returning stub");
     return stub(input);
   }
 
@@ -95,8 +97,12 @@ function stub(input: ClassifyInput): ClassifierOutput {
     directionId: input.directionId,
     confidence: 0,
     intent: "unclassified — no API key or LLM error",
+    signalKind: "other",
     urgency: "low",
     commitment: null,
+    escalateBy: null,
     sensitiveTopics: [],
+    answerable: false,
+    answerBlocker: "classifier not configured",
   };
 }

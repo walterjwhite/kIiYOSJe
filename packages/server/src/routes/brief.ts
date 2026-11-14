@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { thoughts, actions, directions, signals } from "@mind/core";
 import type { Db } from "@mind/core";
 
@@ -11,25 +11,59 @@ export function briefRouter(db: Db) {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const since = todayStart.toISOString();
+    const now = new Date().toISOString();
 
+    // Active thoughts: explicitly promoted by the escalation checker or by the user.
     const activeThoughts = db
       .select()
       .from(thoughts)
-      .where(sql`${thoughts.state} in ('active', 'seedling')`)
+      .where(eq(thoughts.state, "active"))
+      .all();
+
+    // New seedlings created today (not yet overdue).
+    const newSeedlings = db
+      .select()
+      .from(thoughts)
+      .where(
+        sql`
+          ${thoughts.state} = 'seedling'
+          and ${thoughts.createdAt} >= ${since}
+          and (${thoughts.escalateBy} is null or ${thoughts.escalateBy} > ${now})
+        `,
+      )
+      .all();
+
+    // Overdue seedlings: escalateBy in the past but not yet promoted (checker
+    // runs async; this catches the gap before the next tick).
+    const overdueThoughts = db
+      .select()
+      .from(thoughts)
+      .where(
+        sql`
+          ${thoughts.state} = 'seedling'
+          and ${thoughts.escalateBy} is not null
+          and ${thoughts.escalateBy} <= ${now}
+        `,
+      )
+      .all();
+
+    // Thoughts with reviewAt due (any state except closed).
+    const reviewDue = db
+      .select()
+      .from(thoughts)
+      .where(
+        sql`
+          ${thoughts.reviewAt} is not null
+          and ${thoughts.reviewAt} <= ${now}
+          and ${thoughts.state} != 'closed'
+        `,
+      )
       .all();
 
     const proposed = db
       .select()
       .from(actions)
       .where(eq(actions.status, "proposed"))
-      .all();
-
-    const reviewDue = db
-      .select()
-      .from(thoughts)
-      .where(
-        sql`${thoughts.reviewAt} is not null and ${thoughts.reviewAt} <= datetime('now') and ${thoughts.state} != 'closed'`,
-      )
       .all();
 
     const absorbedToday = db
@@ -40,14 +74,8 @@ export function briefRouter(db: Db) {
       )
       .get();
 
-    const escalatedToday = db
-      .select()
-      .from(thoughts)
-      .where(sql`${thoughts.createdAt} >= ${since} and ${thoughts.state} = 'seedling'`)
-      .all();
-
     const activeDirections = db
-      .select({ id: directions.id, name: directions.name })
+      .select({ id: directions.id, name: directions.name, posture: directions.posture })
       .from(directions)
       .where(eq(directions.enabled, true))
       .all();
@@ -56,13 +84,12 @@ export function briefRouter(db: Db) {
       date: new Date().toISOString().slice(0, 10),
       thoughts: {
         active: activeThoughts,
+        overdue: overdueThoughts,
         reviewDue,
-        escalatedToday,
+        newToday: newSeedlings,
       },
       actions: { proposed },
-      absorb: {
-        today: absorbedToday?.count ?? 0,
-      },
+      absorb: { today: absorbedToday?.count ?? 0 },
       directions: { active: activeDirections },
     });
   });

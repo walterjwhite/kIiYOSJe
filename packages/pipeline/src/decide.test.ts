@@ -5,10 +5,14 @@ import type { DecideInput } from "./decide.js";
 const baseClassifier = {
   directionId: "d-1",
   confidence: 0.9,
-  intent: "request",
+  intent: "request for report",
+  signalKind: "task" as const,
   urgency: "medium" as const,
   commitment: null,
+  escalateBy: null,
   sensitiveTopics: [],
+  answerable: true,
+  answerBlocker: null,
 };
 
 const base: DecideInput = {

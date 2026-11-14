@@ -22,6 +22,9 @@ describe("classify (no API key)", () => {
     expect(result.directionId).toBe("work/boss");
     expect(result.commitment).toBeNull();
     expect(result.sensitiveTopics).toBeInstanceOf(Array);
+    expect(result.signalKind).toBe("other");
+    expect(result.answerable).toBe(false);
+    expect(typeof result.escalateBy === "string" || result.escalateBy === null).toBe(true);
   });
 
   it("preserves directionId null in stub", async () => {

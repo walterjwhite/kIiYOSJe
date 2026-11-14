@@ -4,27 +4,31 @@
 
 import { serve } from "@hono/node-server";
 import { openDb, SERVER_HOST, SERVER_PORT, logger } from "@mind/core";
-import { AdapterRegistry, loadDirections } from "@mind/pipeline";
+import {
+  AdapterRegistry,
+  loadDirections,
+  ensureFallbackDirection,
+  startEscalationChecker,
+  ingest,
+} from "@mind/pipeline";
 import { TeamsAdapter } from "@mind/adapters-teams";
 import { EmailAdapter } from "@mind/adapters-email";
 import { buildApp } from "./app.js";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 
-// Directions root: <project root>/directions  (two levels up from packages/server/dist)
-// Resolved relative to this file at runtime.
 function directionsRoot(): string {
-  // In production the dist layout is packages/server/dist/index.js
-  // so ../../.. walks to the workspace root.
-  const candidate = join(import.meta.dirname, "..", "..", "..", "directions");
-  return candidate;
+  // packages/server/dist/index.js → walk up to workspace root → directions/
+  return join(import.meta.dirname, "..", "..", "..", "directions");
 }
 
 export async function startServer(): Promise<void> {
   const db = openDb();
 
-  // Load directions from YAML before starting adapters so the first signal
-  // already has direction coverage.
+  // Ensure the catch-all direction exists before loading YAML, so explicit
+  // directions always take precedence.
+  ensureFallbackDirection(db);
+
   const dRoot = directionsRoot();
   if (existsSync(dRoot)) {
     loadDirections(db, dRoot);
@@ -32,7 +36,6 @@ export async function startServer(): Promise<void> {
     logger.warn({ path: dRoot }, "directions directory not found, skipping load");
   }
 
-  // Reload on SIGHUP without restarting.
   process.on("SIGHUP", () => {
     logger.info("SIGHUP: reloading directions");
     loadDirections(db, dRoot);
@@ -42,7 +45,6 @@ export async function startServer(): Promise<void> {
   adapters.register(new TeamsAdapter());
   adapters.register(new EmailAdapter());
 
-  const { ingest } = await import("@mind/pipeline");
   for (const adapter of adapters.all()) {
     await adapter.start((signal) => {
       ingest(db, signal, adapters).catch((err) =>
@@ -50,6 +52,9 @@ export async function startServer(): Promise<void> {
       );
     });
   }
+
+  // Background checker: promote overdue thoughts to 'active' every 60 s.
+  startEscalationChecker(db);
 
   const app = buildApp(db, adapters);
 

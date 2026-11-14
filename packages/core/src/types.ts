@@ -56,6 +56,8 @@ export const ScopeKind = {
 } as const;
 export type ScopeKind = (typeof ScopeKind)[keyof typeof ScopeKind];
 
+export type SignalKind = "question" | "task" | "acknowledgement" | "information" | "other";
+
 // ── Adapter types ────────────────────────────────────────────────────────────
 
 export interface NewSignal {

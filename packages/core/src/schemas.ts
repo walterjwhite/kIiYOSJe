@@ -38,13 +38,28 @@ export const DirectionConfigSchema = z.object({
 });
 
 // LLM classifier structured output schema
+export const SignalKindSchema = z.enum([
+  "question",   // sender is asking for information or an answer
+  "task",       // sender is assigning or requesting work
+  "acknowledgement", // sender confirming receipt or saying thanks
+  "information",    // sender providing info, no action expected
+  "other",
+]);
+
 export const ClassifierOutputSchema = z.object({
   directionId: z.string().nullable(),
   confidence: z.number().min(0).max(1),
   intent: z.string(),
+  signalKind: SignalKindSchema,
   urgency: z.enum(["low", "medium", "high"]),
   commitment: z.string().nullable(),
+  /** ISO-8601 datetime by which a reply is expected, or null. */
+  escalateBy: z.string().datetime().nullable(),
   sensitiveTopics: z.array(z.string()),
+  /** Whether the system believes it can answer without human input. */
+  answerable: z.boolean(),
+  /** If answerable=false, what specifically needs human judgement. */
+  answerBlocker: z.string().nullable(),
 });
 
 // HTTP request/response schemas

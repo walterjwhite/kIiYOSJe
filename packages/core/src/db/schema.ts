@@ -51,6 +51,8 @@ export const signals = sqliteTable(
     disposition: text("disposition").notNull().default("new"), // SignalDisposition
     thoughtId: text("thought_id").references(() => thoughts.id),
     directionId: text("direction_id").references(() => directions.id),
+    signalKind: text("signal_kind"),   // SignalKind from classifier
+    escalateBy: text("escalate_by"),   // ISO-8601, computed at ingest
     dedupeKey: text("dedupe_key").notNull(),
   },
   (t) => [uniqueIndex("signals_dedupe_key_idx").on(t.dedupeKey)],
@@ -66,6 +68,7 @@ export const thoughts = sqliteTable("thoughts", {
   directionId: text("direction_id").references(() => directions.id),
   nextAction: text("next_action"),
   reviewAt: text("review_at"),
+  escalateBy: text("escalate_by"),   // deadline; checker promotes thought when this passes
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
