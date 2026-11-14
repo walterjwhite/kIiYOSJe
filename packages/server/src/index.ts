@@ -9,6 +9,10 @@ import {
   loadDirections,
   ensureFallbackDirection,
   startEscalationChecker,
+  startRetentionJob,
+  startBackupJob,
+  startStatusWriter,
+  updateStatus,
   ingest,
 } from "@mind/pipeline";
 import { TeamsAdapter } from "@mind/adapters-teams";
@@ -18,15 +22,12 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 
 function directionsRoot(): string {
-  // packages/server/dist/index.js → walk up to workspace root → directions/
   return join(import.meta.dirname, "..", "..", "..", "directions");
 }
 
 export async function startServer(): Promise<void> {
   const db = openDb();
 
-  // Ensure the catch-all direction exists before loading YAML, so explicit
-  // directions always take precedence.
   ensureFallbackDirection(db);
 
   const dRoot = directionsRoot();
@@ -47,14 +48,16 @@ export async function startServer(): Promise<void> {
 
   for (const adapter of adapters.all()) {
     await adapter.start((signal) => {
-      ingest(db, signal, adapters).catch((err) =>
-        logger.error({ err }, "Pipeline error"),
-      );
+      ingest(db, signal, adapters)
+        .then(() => updateStatus(db, adapters))
+        .catch((err) => logger.error({ err }, "Pipeline error"));
     });
   }
 
-  // Background checker: promote overdue thoughts to 'active' every 60 s.
   startEscalationChecker(db);
+  startRetentionJob(db);
+  startBackupJob();
+  startStatusWriter(db, adapters);
 
   const app = buildApp(db, adapters);
 
@@ -67,6 +70,8 @@ export async function startServer(): Promise<void> {
     () => {
       logger.info({ host: SERVER_HOST, port: SERVER_PORT }, "mind server started");
       logger.debug({ tokenPath: "~/.config/mind/token" }, "API token location");
+      // Write initial status immediately.
+      updateStatus(db, adapters);
     },
   );
 }

@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
 
-interface Thought {
+export interface Thought {
   id: string;
   title: string;
   body: string;
@@ -9,6 +9,9 @@ interface Thought {
   directionId: string | null;
   nextAction: string | null;
   reviewAt: string | null;
+  escalateBy: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export class ThoughtsProvider implements vscode.TreeDataProvider<Thought> {
@@ -29,6 +32,11 @@ export class ThoughtsProvider implements vscode.TreeDataProvider<Thought> {
     item.description = thought.state;
     item.tooltip = thought.nextAction ?? undefined;
     item.contextValue = "thought";
+    item.command = {
+      command: "mind.thought.open",
+      title: "Open thought",
+      arguments: [thought],
+    };
     return item;
   }
 

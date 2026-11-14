@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
 import * as os from "node:os";
-import { ThoughtsProvider } from "./thoughts-provider.js";
+import * as fs from "node:fs";
+import { ThoughtsProvider, Thought } from "./thoughts-provider.js";
 import { ReviewProvider } from "./review-provider.js";
 import { BriefPanel } from "./brief-panel.js";
 import { apiFetch } from "./api-client.js";
@@ -39,12 +40,59 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
+  // Open thought body as a temporary markdown file
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "mind.thought.open",
+      async (thought: Thought) => {
+        const tmpFile = path.join(
+          os.tmpdir(),
+          `mind-thought-${thought.id}.md`,
+        );
+        const content = [
+          `# ${thought.title}`,
+          "",
+          thought.body,
+          "",
+          "---",
+          `**State:** ${thought.state}`,
+          `**Next action:** ${thought.nextAction ?? "—"}`,
+          "",
+        ].join("\n");
+
+        fs.writeFileSync(tmpFile, content, "utf8");
+
+        const doc = await vscode.workspace.openTextDocument(
+          vscode.Uri.file(tmpFile),
+        );
+        await vscode.window.showTextDocument(doc, { preview: true });
+      },
+    ),
+  );
+
+  // Pause all sends via the server
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.pause", async () => {
-      vscode.window.showInformationMessage(
-        "To pause all sends: restart the server without MIND_SEND_ENABLED=true. " +
-          "Proposed actions remain in the Review panel for manual discard.",
-      );
+      try {
+        await apiFetch("/admin/pause", { method: "POST" });
+        vscode.window.showInformationMessage(
+          "mind: sends paused. Use 'mind: Resume Sends' to re-enable.",
+        );
+      } catch (err) {
+        vscode.window.showErrorMessage(String(err));
+      }
+    }),
+  );
+
+  // Resume sends via the server
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.resume", async () => {
+      try {
+        await apiFetch("/admin/resume", { method: "POST" });
+        vscode.window.showInformationMessage("mind: sends resumed.");
+      } catch (err) {
+        vscode.window.showErrorMessage(String(err));
+      }
     }),
   );
 
@@ -54,14 +102,46 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
+  // Edit a direction yaml file via QuickPick
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.direction.edit", async () => {
-      const dirPath = path.join(
-        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? os.homedir(),
-        "directions",
+      const yamlFiles = await vscode.workspace.findFiles(
+        "directions/**/*.yaml",
+        null,
+        50,
       );
-      const uri = vscode.Uri.file(dirPath);
-      await vscode.commands.executeCommand("revealInExplorer", uri);
+
+      if (yamlFiles.length === 0) {
+        vscode.window.showInformationMessage(
+          "No direction yaml files found under directions/.",
+        );
+        const dirPath = path.join(
+          vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? os.homedir(),
+          "directions",
+        );
+        await vscode.commands.executeCommand(
+          "revealInExplorer",
+          vscode.Uri.file(dirPath),
+        );
+        return;
+      }
+
+      const workspaceRoot =
+        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+
+      const items = yamlFiles.map((uri) => ({
+        label: path.relative(workspaceRoot, uri.fsPath),
+        uri,
+      }));
+
+      const picked = await vscode.window.showQuickPick(items, {
+        placeHolder: "Select a direction file to edit",
+      });
+
+      if (!picked) return;
+
+      const doc = await vscode.workspace.openTextDocument(picked.uri);
+      await vscode.window.showTextDocument(doc);
     }),
   );
 
@@ -74,6 +154,7 @@ export function activate(context: vscode.ExtensionContext): void {
         if (!id) return;
         await apiFetch(`/actions/${id}/send`, { method: "POST" });
         reviewProvider.refresh();
+        thoughtsProvider.refresh();
       },
     ),
   );
@@ -87,6 +168,7 @@ export function activate(context: vscode.ExtensionContext): void {
         if (!id) return;
         await apiFetch(`/actions/${id}/discard`, { method: "POST" });
         reviewProvider.refresh();
+        thoughtsProvider.refresh();
       },
     ),
   );

@@ -6,8 +6,9 @@
     "composite": true,
     "lib": ["ES2023"],
     "module": "CommonJS",
-    "moduleResolution": "Node10",
-    "verbatimModuleSyntax": false
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": false,
+    "types": ["node", "vscode"]
   },
   "include": ["src/**/*"]
 }

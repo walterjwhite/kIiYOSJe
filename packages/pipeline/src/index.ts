@@ -10,3 +10,6 @@ export * from "./escalation-checker.js";
 export * from "./adapter-registry.js";
 export * from "./directions-loader.js";
 export * from "./fallback-direction.js";
+export * from "./retention.js";
+export * from "./backup.js";
+export * from "./status-writer.js";

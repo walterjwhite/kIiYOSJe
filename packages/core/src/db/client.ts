@@ -16,11 +16,15 @@ const MIGRATIONS_DIR = join(__dirname, "..", "..", "migrations");
 
 export type Db = ReturnType<typeof buildDb>;
 
+// Keep the raw better-sqlite3 instance so backup can call .backup() directly.
+let _sqlite: InstanceType<typeof Database> | undefined;
+
 function buildDb(path: string) {
   const sqlite = new Database(path, { fileMustExist: false });
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   sqlite.pragma("synchronous = NORMAL");
+  _sqlite = sqlite;
   return drizzle(sqlite, { schema });
 }
 
@@ -39,6 +43,12 @@ export function openDb(path?: string): Db {
   _db = buildDb(p);
   migrate(_db, { migrationsFolder: MIGRATIONS_DIR });
   return _db;
+}
+
+/** Returns the raw better-sqlite3 Database instance for backup operations. */
+export function getRawDb(): InstanceType<typeof Database> {
+  if (!_sqlite) throw new Error("Database not initialised. Call openDb() first.");
+  return _sqlite;
 }
 
 /** For tests: open an in-memory database without running migrations from disk. */

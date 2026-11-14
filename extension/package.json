@@ -21,14 +21,44 @@
         "title": "mind: Pause Sends (kill switch)"
       },
       {
+        "command": "mind.resume",
+        "title": "mind: Resume Sends"
+      },
+      {
         "command": "mind.brief",
         "title": "mind: Open Today Brief"
       },
       {
         "command": "mind.direction.edit",
         "title": "mind: Edit Directions"
+      },
+      {
+        "command": "mind.thought.open",
+        "title": "mind: Open Thought"
+      },
+      {
+        "command": "mind.action.send",
+        "title": "mind: Approve & Send"
+      },
+      {
+        "command": "mind.action.discard",
+        "title": "mind: Discard"
       }
     ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "mind.action.send",
+          "when": "view == mind.review && viewItem == action",
+          "group": "inline@1"
+        },
+        {
+          "command": "mind.action.discard",
+          "when": "view == mind.review && viewItem == action",
+          "group": "inline@2"
+        }
+      ]
+    },
     "views": {
       "explorer": [
         {

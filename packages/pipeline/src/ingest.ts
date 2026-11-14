@@ -4,7 +4,7 @@
  * Returns the disposition for callers that want to log or count.
  */
 
-import { eq } from "drizzle-orm";
+import { eq, and, gte, or, sql } from "drizzle-orm";
 import type { Db, NewSignal, SignalDisposition } from "@mind/core";
 import { events, signals, thoughts, actions, logger, newId } from "@mind/core";
 import { dedupeKey, isDuplicate } from "./dedupe.js";
@@ -60,7 +60,7 @@ export async function ingest(
   } else {
     const dir = match.direction;
     const adapter = adapters.get(signal.adapter);
-    const guards = evaluateGuards(dir, signal);
+    const guards = evaluateGuards(dir, signal, db);
 
     const outcome = decide({
       posture: dir.posture as any,
@@ -192,6 +192,7 @@ function buildThoughtTitle(
 function evaluateGuards(
   dir: typeof import("@mind/core").directions.$inferSelect,
   signal: NewSignal,
+  db: Db,
 ): { triggered: boolean } {
   if (!dir.guards) return { triggered: false };
 
@@ -208,6 +209,29 @@ function evaluateGuards(
       if (bodyLower.includes(topic.toLowerCase())) {
         return { triggered: true };
       }
+    }
+  }
+
+  if (guards.maxPerThreadPerHour != null && signal.threadId != null) {
+    const oneHourAgo = new Date(signal.receivedAt.getTime() - 60 * 60 * 1000).toISOString();
+    const result = db
+      .select({ count: sql<number>`count(*)` })
+      .from(signals)
+      .where(
+        and(
+          eq(signals.threadId, signal.threadId),
+          or(
+            eq(signals.disposition, "absorbed"),
+            eq(signals.disposition, "new"),
+          ),
+          gte(signals.receivedAt, oneHourAgo),
+        ),
+      )
+      .get();
+
+    const count = result?.count ?? 0;
+    if (count >= guards.maxPerThreadPerHour) {
+      return { triggered: true };
     }
   }
 

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { directions, events, newId } from "@mind/core";
+import { directions, events, signals, actions, newId } from "@mind/core";
 import type { Db } from "@mind/core";
 
 const UpdateDirectionSchema = z.object({
@@ -14,10 +14,72 @@ const UpdateDirectionSchema = z.object({
 export function directionsRouter(db: Db) {
   const app = new Hono();
 
-  // GET /directions — all directions with signal counts
+  // GET /directions — all directions with signal/action counts
   app.get("/", (c) => {
     const rows = db.select().from(directions).all();
-    return c.json(rows);
+
+    const enriched = rows.map((dir) => {
+      const totalSignals =
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(signals)
+          .where(eq(signals.directionId, dir.id))
+          .get()?.count ?? 0;
+
+      const absorbedSignals =
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(signals)
+          .where(
+            sql`${signals.directionId} = ${dir.id} and ${signals.disposition} = 'absorbed'`,
+          )
+          .get()?.count ?? 0;
+
+      // Actions linked via signalId → signals → directionId
+      const proposedActions =
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(actions)
+          .innerJoin(signals, eq(actions.signalId, signals.id))
+          .where(
+            sql`${signals.directionId} = ${dir.id} and ${actions.status} = 'proposed'`,
+          )
+          .get()?.count ?? 0;
+
+      const discardedActions =
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(actions)
+          .innerJoin(signals, eq(actions.signalId, signals.id))
+          .where(
+            sql`${signals.directionId} = ${dir.id} and ${actions.status} = 'discarded'`,
+          )
+          .get()?.count ?? 0;
+
+      const totalDecidedActions =
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(actions)
+          .innerJoin(signals, eq(actions.signalId, signals.id))
+          .where(
+            sql`${signals.directionId} = ${dir.id} and ${actions.status} in ('proposed','sent','discarded')`,
+          )
+          .get()?.count ?? 0;
+
+      return {
+        ...dir,
+        signals: totalSignals,
+        absorbed: absorbedSignals,
+        proposed: proposedActions,
+        discarded: discardedActions,
+        overrideRate:
+          totalDecidedActions > 0
+            ? +(discardedActions / totalDecidedActions).toFixed(4)
+            : null,
+      };
+    });
+
+    return c.json(enriched);
   });
 
   // PUT /directions/:id — update guarded fields only

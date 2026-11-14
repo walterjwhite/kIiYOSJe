@@ -5,7 +5,7 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
 
 export function dataDir(): string {
   return join(homedir(), ".local", "share", "mind");
@@ -35,6 +35,14 @@ export function aiConfigPath(): string {
   return join(configDir(), "ai.json");
 }
 
+export function statusPath(): string {
+  return join(dataDir(), "status.json");
+}
+
+export function pausedFlagPath(): string {
+  return join(configDir(), "paused");
+}
+
 /** Create data and config directories if they do not exist. */
 export function ensureDirs(): void {
   mkdirSync(dataDir(), { recursive: true, mode: 0o700 });
@@ -50,7 +58,22 @@ export function retentionDays(): number {
 
 /** Global send kill switch. Default false — must be explicitly enabled. */
 export function globalSendEnabled(): boolean {
-  return process.env["MIND_SEND_ENABLED"] === "true";
+  return process.env["MIND_SEND_ENABLED"] === "true" && !existsSync(pausedFlagPath());
+}
+
+/** Create the paused flag file. Sends are blocked while this file exists. */
+export function pause(): void {
+  ensureDirs();
+  writeFileSync(pausedFlagPath(), "", { mode: 0o600 });
+}
+
+/** Remove the paused flag file. Ignores ENOENT. */
+export function resume(): void {
+  try {
+    unlinkSync(pausedFlagPath());
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
 }
 
 // ── Model provider config ────────────────────────────────────────────────────
