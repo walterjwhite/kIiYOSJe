@@ -18,10 +18,14 @@
       <button class="nav-tab active" data-view="queue">Queue</button>
       <button class="nav-tab" data-view="today">Today</button>
       <button class="nav-tab" data-view="signals">Signals</button>
+      <button class="nav-tab" data-view="history">History</button>
     </nav>
     <div class="topbar-right">
       <button class="chip-btn" id="pause-chip">
         <span class="chip-dot running"></span> Running
+      </button>
+      <button class="chip-btn" id="directions-chip">
+        <span class="chip-icon">◈</span> Directions
       </button>
       <button class="chip-btn" id="ai-chip">
         <span class="chip-icon">◧</span> ollama
@@ -87,6 +91,40 @@
     <div class="log-list" id="log-list"></div>
   </main>
 
+  <!-- History view: durable, searchable audit trail -->
+  <main class="view-history hidden" id="view-history">
+    <div class="history-toolbar">
+      <input type="text" class="history-search" id="history-search" placeholder="Search history — contents, summary…">
+      <div class="log-filter-group">
+        <label>Channel</label>
+        <select id="history-channel-filter">
+          <option value="all">All channels</option>
+          <option value="email">Email</option>
+          <option value="chat">Chat</option>
+          <option value="jira">Jira</option>
+          <option value="calendar">Calendar</option>
+          <option value="sms">SMS</option>
+        </select>
+      </div>
+      <div class="log-filter-group">
+        <label>Person</label>
+        <input type="text" class="history-person-input" id="history-person-filter" placeholder="e.g. jordan@demo.corp">
+      </div>
+      <div class="log-filter-group">
+        <label>From</label>
+        <input type="date" class="history-date-input" id="history-date-from">
+      </div>
+      <div class="log-filter-group">
+        <label>To</label>
+        <input type="date" class="history-date-input" id="history-date-to">
+      </div>
+      <button class="link-btn" id="history-clear-filters-btn">Clear filters</button>
+      <div class="log-count" id="history-count"></div>
+      <button class="btn btn-secondary btn-small" id="history-retention-btn">Retention</button>
+    </div>
+    <div class="log-list" id="history-list"></div>
+  </main>
+
 </div>
 
 <!-- Command palette overlay (AI provider picker) -->
@@ -102,6 +140,75 @@
   <div class="quick-pick">
     <input type="text" class="quick-pick-input" id="thought-picker-search" placeholder="Link to a ticket, issue, task, or thought…">
     <div class="quick-pick-list" id="thought-picker-list"></div>
+  </div>
+</div>
+
+<!-- Directions overlay: view and edit posture/autonomy/confidence per direction -->
+<div class="overlay hidden" id="directions-overlay">
+  <div class="directions-modal">
+    <div class="sources-modal-header">
+      <div class="sources-modal-title">Directions</div>
+      <button class="link-btn" id="directions-close-btn">Close</button>
+    </div>
+    <p class="budget-modal-sub">
+      Each direction decides how a category of signal is handled: whether
+      it's absorbed or escalated, whether the AI only drafts or can send on
+      its own, and the confidence bar it has to clear to do either.
+    </p>
+    <div class="directions-list" id="directions-list"></div>
+    <button class="btn btn-secondary btn-small" id="directions-add-btn">+ New direction</button>
+
+    <div class="sources-add-form">
+      <div class="add-signal-title">Learnings</div>
+      <p class="setting-desc">
+        What the learning loop has proposed over time and what happened to
+        each proposal — accepted changes are already reflected in the
+        directions above.
+      </p>
+      <div class="learnings-list" id="learnings-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Retention settings overlay -->
+<div class="overlay hidden" id="retention-overlay">
+  <div class="budget-modal">
+    <div class="sources-modal-header">
+      <div class="sources-modal-title">History retention</div>
+      <button class="link-btn" id="retention-close-btn">Close</button>
+    </div>
+    <div class="setting-row">
+      <label class="setting-label" for="retention-days-input">mind.history.retentionDays</label>
+      <p class="setting-desc">How long signal bodies and history entries are kept before being redacted/pruned. Mirrors the real server's retention job.</p>
+      <input type="number" min="1" step="1" class="setting-input" id="retention-days-input">
+    </div>
+    <div class="add-signal-actions">
+      <button class="btn" id="retention-save-btn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Send-a-message composer: start a new outbound signal from any item,
+     to clarify a requirement or ask a question related to it. -->
+<div class="overlay hidden" id="compose-overlay">
+  <div class="sources-modal">
+    <div class="sources-modal-header">
+      <div class="sources-modal-title" id="compose-title">Send a message</div>
+      <button class="link-btn" id="compose-close-btn">Close</button>
+    </div>
+    <label class="add-signal-label">Channel</label>
+    <select id="compose-channel">
+      <option value="email">Email</option>
+      <option value="chat">Chat / Teams</option>
+    </select>
+    <label class="add-signal-label">To</label>
+    <input type="text" id="compose-to" placeholder="someone@demo.corp">
+    <label class="add-signal-label">Message</label>
+    <textarea id="compose-body" placeholder="What do you need to ask or clarify?"></textarea>
+    <div class="add-signal-actions">
+      <button class="btn" id="compose-send-btn">Send</button>
+      <button class="btn btn-secondary" id="compose-cancel-btn">Cancel</button>
+    </div>
   </div>
 </div>
 

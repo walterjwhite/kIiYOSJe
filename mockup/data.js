@@ -44,6 +44,21 @@
  * webhook, a phone number) — configuring one wires up a channel, it does
  * not create signals itself.
  *
+ * DIRECTIONS are the policies that decide posture/autonomy/confidence per
+ * area of work — editable here via a Directions panel, same shape as the
+ * real directions/*.yaml files.
+ *
+ * LEARNINGS are the durable history of every proposal the learning loop
+ * has made (accepted or rejected), independent of `proposals` which only
+ * holds the ones still pending a decision.
+ *
+ * EVENTS are an append-only audit trail — one entry per thing that
+ * actually happened (signal received, decision made, message sent,
+ * direction edited, learning applied) — independent of and longer-lived
+ * than the signals list, which only shows current signal state. This is
+ * what the History view reads, filtered/searched, with a configurable
+ * retention window.
+ *
  * Signals with no `request` already happened — no decision is pending.
  * They appear only in Signals, never in the Queue.
  */
@@ -69,15 +84,60 @@ window.MOCK_STATE = {
   paused: false,
   sortMode: "urgency", // "urgency" | "flow"
   selectedSignalId: null,
-  activeView: "queue", // "queue" | "today" | "signals"
+  activeView: "queue", // "queue" | "today" | "signals" | "history"
   logFilter: { channel: "all", direction: "all" },
+  historyFilter: { channel: "all", person: "", text: "", dateFrom: "", dateTo: "" },
 
   directions: [
-    { id: "demo/pm/status-requests", name: "status-requests", posture: "absorb", autonomy: "draft", enabled: true },
-    { id: "demo/eng/pr-pipeline", name: "pr-pipeline", posture: "absorb", autonomy: "draft", enabled: true },
-    { id: "demo/pm/vendor-noise", name: "vendor-noise", posture: "absorb", autonomy: "draft", enabled: false },
-    { id: "demo/devsecops/security-alerts", name: "security-alerts", posture: "escalate", autonomy: "observe", enabled: true },
-    { id: "demo/devsecops/dependabot", name: "dependabot", posture: "absorb", autonomy: "draft", enabled: true },
+    { id: "demo/pm/status-requests", name: "status-requests", posture: "absorb", autonomy: "draft", confidenceMin: 0.6, description: "Status/ETA questions from PM and leadership.", enabled: true },
+    { id: "demo/eng/pr-pipeline", name: "pr-pipeline", posture: "absorb", autonomy: "draft", confidenceMin: 0.7, description: "AI-implemented Jira tickets awaiting PR review.", enabled: true },
+    { id: "demo/pm/vendor-noise", name: "vendor-noise", posture: "absorb", autonomy: "draft", confidenceMin: 0.55, description: "Inbound vendor/sales outreach.", enabled: false },
+    { id: "demo/devsecops/security-alerts", name: "security-alerts", posture: "escalate", autonomy: "observe", confidenceMin: 0.9, description: "Security monitoring alerts — always escalate, never auto-act.", enabled: true },
+    { id: "demo/devsecops/dependabot", name: "dependabot", posture: "absorb", autonomy: "draft", confidenceMin: 0.5, description: "Dependency vulnerability advisories.", enabled: true },
+  ],
+
+  // ── Retention & history settings ────────────────────────────────────
+  // Mirrors a future mind.history.retentionDays VS Code setting — mockup
+  // only; the real retention job lives in packages/pipeline/src/retention.ts.
+  historySettings: {
+    retentionDays: 90,
+  },
+
+  // ── Learnings: durable record of every proposal the learning loop has
+  // ever made and what happened to it, plus a derived view of what's
+  // currently in effect on each direction as a result of past accepts. ──
+  learnings: [
+    {
+      id: "l-1",
+      appliedAt: "2026-10-02T14:00:00.000Z",
+      directionId: "demo/pm/vendor-noise",
+      field: "confidenceMin",
+      fromValue: 0.4,
+      toValue: 0.5,
+      rationale: "Override rate 35% over 12 actions exceeded the 20% threshold — narrowed to require higher confidence before drafting.",
+      status: "accepted",
+    },
+    {
+      id: "l-2",
+      appliedAt: "2026-10-18T09:30:00.000Z",
+      directionId: "demo/eng/pr-pipeline",
+      field: "autonomy",
+      fromValue: "observe",
+      toValue: "draft",
+      rationale: "5 of 5 ticket reviews approved without edits — widened from observe-only to drafting PRs automatically.",
+      status: "accepted",
+    },
+    {
+      id: "l-3",
+      appliedAt: "2026-11-05T11:15:00.000Z",
+      directionId: "demo/devsecops/dependabot",
+      field: "confidenceMin",
+      fromValue: 0.6,
+      toValue: 0.45,
+      rationale: "100% of moderate-severity drafts approved unedited over 3 weeks — proposed narrowing the gate further.",
+      status: "rejected",
+      rejectedReason: "Kept the higher bar deliberately — security advisories stay conservative even with a clean track record.",
+    },
   ],
 
   proposals: [
@@ -465,6 +525,24 @@ window.MOCK_STATE = {
         },
       },
     },
+  ],
+
+  // ── History: an append-only audit trail, independent of current signal
+  // state. One entry per thing that actually happened, searchable by date
+  // range, free text, source (channel), and person. Retention is governed
+  // by historySettings.retentionDays — entries older than that are pruned
+  // (modeled here by filtering at render time against a fake "now").
+  events: [
+    { id: "ev-1", timestamp: hoursAgo(28), kind: "sent", channel: "jira", person: "jira-automation", summary: "Approved TICKET-4777 — PR opened and merged.", signalId: "s-12" },
+    { id: "ev-2", timestamp: hoursAgo(20), kind: "sent", channel: "email", person: "lin@demo.corp", summary: "Confirmed: moving standup to 10am tomorrow.", signalId: "s-11" },
+    { id: "ev-3", timestamp: hoursAgo(9), kind: "received", channel: "sms", person: "+1 (555) 019-2231", summary: "Your package has been delivered.", signalId: "s-10" },
+    { id: "ev-4", timestamp: hoursAgo(4), kind: "received", channel: "calendar", person: "calendar", summary: "Accepted: Sprint planning, 2:00 PM", signalId: "s-9" },
+    { id: "ev-5", timestamp: hoursAgo(1.9), kind: "sent", channel: "chat", person: "jordan@demo.corp", summary: "Asked whether PR #204 lands before the Friday freeze.", signalId: "s-8" },
+    { id: "ev-6", timestamp: hoursAgo(1), kind: "received", channel: "chat", person: "priya@demo.corp", summary: "Answered: does the new auth middleware apply to service-to-service calls?", signalId: "s-7" },
+    { id: "ev-7", timestamp: "2026-10-02T14:00:00.000Z", kind: "learning-applied", channel: null, person: "learning loop", summary: "Narrowed vendor-noise confidenceMin from 0.40 to 0.50.", learningId: "l-1" },
+    { id: "ev-8", timestamp: "2026-10-18T09:30:00.000Z", kind: "learning-applied", channel: null, person: "learning loop", summary: "Widened pr-pipeline autonomy from observe to draft.", learningId: "l-2" },
+    { id: "ev-9", timestamp: "2026-11-05T11:20:00.000Z", kind: "learning-rejected", channel: null, person: "me", summary: "Rejected proposal to narrow dependabot confidenceMin to 0.45.", learningId: "l-3" },
+    { id: "ev-10", timestamp: "2026-11-10T08:00:00.000Z", kind: "direction-edited", channel: null, person: "me", summary: "Enabled security-alerts, set posture to escalate.", directionId: "demo/devsecops/security-alerts" },
   ],
 
   metrics: {
