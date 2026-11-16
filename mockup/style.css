@@ -1201,14 +1201,16 @@ body {
 
 .q-card.running {
   opacity: 0.68;
-  cursor: default;
-  pointer-events: none;
+}
+
+.q-card.running:hover {
+  opacity: 0.85;
 }
 
 .running-banner {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   background: var(--accent-bg);
   border: 1px solid var(--accent-dim);
   border-radius: var(--radius-md);
@@ -1216,6 +1218,15 @@ body {
   font-size: 12.5px;
   color: var(--fg-secondary);
   margin-bottom: 22px;
+}
+
+.running-banner-text {
+  flex: 1;
+}
+
+.running-banner .link-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .draft-box.readonly {
@@ -1415,6 +1426,26 @@ body {
   color: var(--accent);
   width: 14px;
   font-size: 12px;
+}
+
+.quick-pick-create-group {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+}
+
+.quick-pick-create-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--fg-tertiary);
+  padding: 6px 12px 4px;
+}
+
+.quick-pick-item.quick-pick-create .quick-pick-item-label {
+  color: var(--accent);
+  font-weight: 500;
 }
 
 /* ── Toasts ───────────────────────────────────────────────────────────── */

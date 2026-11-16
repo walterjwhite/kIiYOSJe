@@ -62,6 +62,10 @@
    * badge for a beat, then either closes (moves to Signals) or — if
    * reopen is given — comes back with a fresh request instead of closing,
    * modeling background work that needed the operator again.
+   *
+   * The timer handle is kept on the signal itself (`_runningTimer`) so an
+   * "unlock to edit" action can cancel it before it fires — changing your
+   * mind mid-flight stops the background work instead of racing it.
    */
   function runThenResolve(sig, runningLabel, { resolution, reopenWith, delayMs } = {}) {
     sig.runningState = { label: runningLabel, startedAt: new Date().toISOString() };
@@ -69,7 +73,8 @@
     renderDetail();
     refreshPlanIfVisible();
 
-    setTimeout(() => {
+    sig._runningTimer = setTimeout(() => {
+      sig._runningTimer = null;
       sig.runningState = null;
       if (reopenWith) {
         sig.request = reopenWith;
@@ -85,6 +90,27 @@
       refreshPlanIfVisible();
       renderLogView();
     }, delayMs ?? 1800);
+  }
+
+  /**
+   * Operator changed their mind about a decision that's mid-flight.
+   * Cancels the pending background-work timer, clears runningState, and
+   * reopens the item for editing — it reverts to "open" and the request
+   * that triggered the run is still intact, so the same action buttons
+   * (approve/discard/etc.) come back.
+   */
+  function unlockRunningSignal(sig) {
+    if (sig._runningTimer) {
+      clearTimeout(sig._runningTimer);
+      sig._runningTimer = null;
+    }
+    sig.runningState = null;
+    sig.status = "open";
+    toast(`Paused: ${sig.summary}. Back in the queue to edit.`);
+    renderQueueList();
+    renderDetail();
+    refreshPlanIfVisible();
+    renderLogView();
   }
 
   function isOverdue(sig) {
@@ -259,7 +285,11 @@
       : "";
 
     const runningBlock = sig.runningState
-      ? `<div class="running-banner"><span class="running-dot"></span> ${esc(sig.runningState.label)} — started ${esc(relativeTime(sig.runningState.startedAt))}. No action needed right now; this will update on its own when it finishes.</div>`
+      ? `<div class="running-banner">
+          <span class="running-dot"></span>
+          <span class="running-banner-text">${esc(sig.runningState.label)} — started ${esc(relativeTime(sig.runningState.startedAt))}. No action needed right now; this will update on its own when it finishes.</span>
+          <button class="link-btn" data-unlock-running="${esc(sig.id)}">Changed your mind? Pause this and edit</button>
+        </div>`
       : "";
 
     const thoughtBlock = sig.channel === "chat" || sig.thoughtId || sig.needsLinking ? thoughtLinkHtml(sig) : "";
@@ -617,7 +647,12 @@
   }
 
   function wireDetailEvents(pane, sig) {
-    if (sig.runningState) return; // read-only while follow-through is in progress
+    if (sig.runningState) {
+      // Read-only while follow-through is in progress, except for the
+      // "changed your mind" unlock control.
+      pane.querySelector("[data-unlock-running]")?.addEventListener("click", () => unlockRunningSignal(sig));
+      return;
+    }
 
     const kind = sig.request?.kind;
     if (kind === "needs-credential") wireNeedsCredentialEvents(pane, sig);
@@ -645,9 +680,23 @@
       const f = (filter || "").toLowerCase();
       const items = state.thoughts.filter((t) => t.title.toLowerCase().includes(f) || t.kind.includes(f));
       const createRow = f.trim()
-        ? `<div class="quick-pick-item" data-create-thought="1">
-             <div class="quick-pick-item-label">+ Create new thought: "${esc(filter)}"</div>
-           </div>`
+        ? `
+           <div class="quick-pick-create-group">
+             <div class="quick-pick-create-label">Create new, linked to this signal:</div>
+             <div class="quick-pick-item quick-pick-create" data-create-thought="ticket">
+               <div class="quick-pick-item-label">+ New ticket: "${esc(filter)}"</div>
+             </div>
+             <div class="quick-pick-item quick-pick-create" data-create-thought="issue">
+               <div class="quick-pick-item-label">+ New issue: "${esc(filter)}"</div>
+             </div>
+             <div class="quick-pick-item quick-pick-create" data-create-thought="task">
+               <div class="quick-pick-item-label">+ New task: "${esc(filter)}"</div>
+             </div>
+             <div class="quick-pick-item quick-pick-create" data-create-thought="thought">
+               <div class="quick-pick-item-label">+ New thought: "${esc(filter)}"</div>
+             </div>
+           </div>
+         `
         : "";
       list.innerHTML =
         createRow +
@@ -682,22 +731,25 @@
           renderLogView();
         });
       });
-      list.querySelector("[data-create-thought]")?.addEventListener("click", () => {
-        const newThought = { id: `th-${state.thoughts.length + 1}`, kind: "discussion", title: filter.trim() };
-        state.thoughts.push(newThought);
-        sig.thoughtId = newThought.id;
-        sig.needsLinking = false;
-        if (sig.request?.kind === "needs-link") {
-          sig.status = "closed";
-          sig.resolution = `linked to new thought: ${newThought.title}`;
-          if (state.selectedSignalId === sig.id) state.selectedSignalId = null;
-          renderQueueList();
-          refreshPlanIfVisible();
-        }
-        closePicker();
-        toast(`Created and linked: ${newThought.title}`);
-        renderDetail();
-        renderLogView();
+      list.querySelectorAll("[data-create-thought]").forEach((el) => {
+        el.addEventListener("click", () => {
+          const kind = el.dataset.createThought;
+          const newThought = { id: `th-${state.thoughts.length + 1}`, kind, title: filter.trim() };
+          state.thoughts.push(newThought);
+          sig.thoughtId = newThought.id;
+          sig.needsLinking = false;
+          if (sig.request?.kind === "needs-link") {
+            sig.status = "closed";
+            sig.resolution = `linked to new ${kind}: ${newThought.title}`;
+            if (state.selectedSignalId === sig.id) state.selectedSignalId = null;
+            renderQueueList();
+            refreshPlanIfVisible();
+          }
+          closePicker();
+          toast(`Created new ${kind} and linked: ${newThought.title}`);
+          renderDetail();
+          renderLogView();
+        });
       });
     }
 
@@ -1026,8 +1078,6 @@
       ? `<span class="chip-dot paused"></span> Paused`
       : `<span class="chip-dot running"></span> Running`;
     document.getElementById("pause-chip").innerHTML = html;
-    const signalsChip = document.getElementById("signals-pause-chip");
-    if (signalsChip) signalsChip.innerHTML = html;
   }
 
   function togglePause() {
@@ -1037,7 +1087,6 @@
   }
 
   document.getElementById("pause-chip").addEventListener("click", togglePause);
-  document.getElementById("signals-pause-chip").addEventListener("click", togglePause);
 
   // ── AI provider picker ───────────────────────────────────────────────
 
@@ -1052,8 +1101,6 @@
     const icon = state.aiProvider === "ollama" ? "◧" : "☁";
     const html = `<span class="chip-icon">${icon}</span> ${esc(state.aiProvider)}`;
     document.getElementById("ai-chip").innerHTML = html;
-    const signalsChip = document.getElementById("signals-ai-chip");
-    if (signalsChip) signalsChip.innerHTML = html;
   }
 
   // ── AI usage budgets (mockup of mind.ai.* VS Code settings) ──────────
@@ -1095,7 +1142,6 @@
   }
 
   document.getElementById("ai-chip").addEventListener("click", openAiProviderPicker);
-  document.getElementById("signals-ai-chip").addEventListener("click", openAiProviderPicker);
   document.getElementById("signals-sources-btn").addEventListener("click", openSourcesModal);
   document.getElementById("add-source-create").addEventListener("click", createSource);
   document.getElementById("sources-close-btn").addEventListener("click", closeSourcesModal);
@@ -1103,7 +1149,6 @@
     if (ev.target.id === "sources-overlay") closeSourcesModal();
   });
   document.getElementById("budget-chip").addEventListener("click", openBudgetModal);
-  document.getElementById("signals-budget-chip").addEventListener("click", openBudgetModal);
   document.getElementById("budget-save-btn").addEventListener("click", saveBudgetSettings);
   document.getElementById("budget-close-btn").addEventListener("click", closeBudgetModal);
   document.getElementById("budget-overlay").addEventListener("click", (ev) => {

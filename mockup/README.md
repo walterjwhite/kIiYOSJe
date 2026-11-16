@@ -78,6 +78,13 @@ The `s-1` OTP example and the `s-14` "already approved, sending with the
 next batch" example both demonstrate the running state — try either one
 and watch the card stay in place instead of vanishing.
 
+**Changed your mind mid-flight?** Every running item's detail view has a
+"Changed your mind? Pause this and edit" control. It cancels the pending
+background-work timer, clears `runningState`, and puts the item back in
+its normal open state with the same action buttons it had before — so
+approving a send and then catching a mistake doesn't mean waiting for it
+to go out and discarding the result; it means pausing it before it does.
+
 ### Thoughts — the larger item a signal attaches to
 
 A **Thought** is the ticket, issue, task, incident, or discussion a signal
@@ -85,8 +92,10 @@ is really about — `{ id, kind, title }`. For engineering work this is
 almost always a ticket/issue/task; informational signals (an incident
 writeup, a newsletter, an announcement) link to a plain thought instead. A
 signal carries `thoughtId` pointing at one, and the picker used everywhere
-("Link to a ticket or thought") lets you pick an existing one or type a new
-title to create and link it inline.
+("Link to a ticket or thought") lets you pick an existing one, or type a
+title and create a new ticket, issue, task, or thought on the spot — all
+four kinds are offered so a quick-captured title doesn't force a kind
+that doesn't fit, and the new one links to the signal immediately.
 
 A signal that references work not yet tracked anywhere is **dangling** —
 flagged `needsLinking: true` and, critically, given a synthetic
@@ -158,12 +167,12 @@ from" with "a signal that happened" — two different concerns.
   resolved or not. Filterable by channel and direction, tagged with its
   linked thought (or "unlinked" if dangling). This is the evidence layer:
   proof of what the system actually absorbed versus what reached you,
-  independent of the queue. Its toolbar carries the same pause/resume and
-  AI-provider controls as the top bar, plus **Sources** to manage the
-  connectors signals arrive through.
+  independent of the queue. Its toolbar carries **Sources**, to manage the
+  connectors signals arrive through; pause/resume, AI-provider, and budget
+  controls live once in the top bar and aren't duplicated here.
 
-The AI provider chip and the pause/resume chip (top right, and mirrored in
-the Signals toolbar) work as before.
+The pause/resume chip, AI provider chip, and Budgets chip live in the top
+bar only.
 
 ## AI usage budgets — mockup of the future `mind.ai.*` VS Code settings
 
