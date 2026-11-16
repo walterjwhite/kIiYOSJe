@@ -7,7 +7,7 @@
   "license": "BSD-3-Clause",
   "private": true,
   "engines": {
-    "vscode": "^1.146.0"
+    "vscode": "^1.144.0"
   },
   "categories": ["Other"],
   "activationEvents": ["onStartupFinished"],
@@ -102,7 +102,7 @@
   "dependencies": {},
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "@types/vscode": "1.146.0",
+    "@types/vscode": "1.144.0",
     "typescript": "7.0.2"
   }
 }
