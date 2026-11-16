@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.tsbuildinfo
+*.vsix
 
 # Runtime files — never under version control
 ~/.config/mind/

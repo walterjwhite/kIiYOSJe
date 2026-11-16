@@ -3,6 +3,8 @@
   "displayName": "mind",
   "description": "Local attention manager — Thoughts, Review, and Today brief",
   "version": "0.0.1",
+  "publisher": "mind-local",
+  "license": "BSD-3-Clause",
   "private": true,
   "engines": {
     "vscode": "^1.146.0"
