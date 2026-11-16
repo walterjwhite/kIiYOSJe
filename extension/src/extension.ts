@@ -6,6 +6,7 @@ import { ThoughtsProvider, Thought } from "./thoughts-provider.js";
 import { ReviewProvider } from "./review-provider.js";
 import { BriefPanel } from "./brief-panel.js";
 import { apiFetch } from "./api-client.js";
+import { configureAiProvider, refreshAiStatusBarItem, createAiStatusBarItem } from "./ai-config.js";
 
 export function activate(context: vscode.ExtensionContext): void {
   const thoughtsProvider = new ThoughtsProvider();
@@ -99,6 +100,18 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.brief", () => {
       BriefPanel.show(context);
+    }),
+  );
+
+  // Switch AI provider/model without restarting the server
+  const aiStatusBarItem = createAiStatusBarItem();
+  context.subscriptions.push(aiStatusBarItem);
+  refreshAiStatusBarItem(aiStatusBarItem);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.ai.configure", async () => {
+      await configureAiProvider();
+      await refreshAiStatusBarItem(aiStatusBarItem);
     }),
   );
 

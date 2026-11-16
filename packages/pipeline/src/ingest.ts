@@ -49,8 +49,8 @@ export async function ingest(
   const classifierOut = overrides?.classifierOutput ?? await classify({
     signalBody: normalizedBody,
     sender: signal.sender,
-    directionId: match?.direction.id ?? null,
     standard: match?.direction.standard ?? null,
+    receivedAt: signal.receivedAt,
   });
 
   // ── 4b. Compute escalation deadline ──────────────────────────────────────

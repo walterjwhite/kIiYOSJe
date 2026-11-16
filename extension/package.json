@@ -33,6 +33,10 @@
         "title": "mind: Edit Directions"
       },
       {
+        "command": "mind.ai.configure",
+        "title": "mind: Configure AI Provider"
+      },
+      {
         "command": "mind.thought.open",
         "title": "mind: Open Thought"
       },

@@ -3,10 +3,10 @@
 Last updated: 2026-11-16. Measured against [PLAN.md](PLAN.md).
 
 **Build:** all packages compile under TypeScript 7 strict. **Tests:** 63 passing across 15 files.
-**Nothing has been run against a real LLM, a real Teams or email source, or inside VS Code.**
-Every behaviour below marked "tested" was tested with in-memory SQLite, mocks, curl against a
-local server, or — for the three demo personas — real replay through the actual pipeline with a
-pre-authored classifier/draft output (never a live LLM call). See `packages/demo-data/README.md`.
+**The LLM paths have now been run for real**, against a local Ollama model (`qwen2.5:3b-instruct`,
+the default provider) — `classify()`, `draft()`, and a full `ingest()` call were verified end to
+end, and all three demo personas were seeded with real model calls (see `packages/demo-data/README.md`).
+Teams, email, and VS Code-interactive testing are still not done — see "Not verified" below.
 
 ## Phase status
 
@@ -14,10 +14,10 @@ pre-authored classifier/draft output (never a live LLM call). See `packages/demo
 | ----- | ------ | ------------------- | ---- |
 | P0 Skeleton | Complete | server serves `/health`, migration idempotent, tests pass | Yes. `/health` verified through `npm start` (same `dist/main.js` that `npm run dev` runs, minus `--watch`). The sandbox blocked running `npm run dev` itself. |
 | P1 Teams ingest | Blocked by decision | a day of traffic stored, no duplicates on restart, count matches client | No. Adapter is a stub by request. Dedupe, persistence and `/metrics` work via `POST /signals`. |
-| P2 Directions + draft absorb | Code complete, unvalidated | ≥60% match a Direction, drafts match what I'd write, discards recorded | Not measurable. Needs an API key and real traffic. Discards are recorded (tested). |
+| P2 Directions + draft absorb | Tested with a real model | ≥60% match a Direction, drafts match what I'd write, discards recorded | Partially measured. In one real seed run across 30 synthetic signals, several matched the catch-all instead of an intended Direction because `match()` uses literal substring matching and real phrasing doesn't always contain the exact scope string (known gap, #12 below). Drafts are real model output, not scripted, and are mediocre at 3B-model quality — acceptable for a free local default, worth comparing against a cloud model. Discards are recorded (tested). |
 | P3 Email | Not started | drafts in Drafts folder, Message-ID dedupe | No. Stub by request. |
 | P4 Autonomy | Code complete, no end-to-end path | send only for `autonomy: send`, `mind pause` stops all sends, sends reconstructible from `events` | Partly. Gates and pause are tested with a fake adapter. No real adapter can send. |
-| P5 Learning loop | Code complete | first proposal generated from real override data | No. Logic tested on synthetic data. No real override history exists. |
+| P5 Learning loop | Tested with real override data | first proposal generated from real override data | Yes, partially. In the same real seed run, two personas' deliberately loose directions accumulated real overrides (simulated operator reactions to real model drafts) and the learning loop generated real `narrow` proposals from that data — confirmed via `GET /proposals`. This is probabilistic: it is not guaranteed on every seed run, because the classification outcomes that drive it are real model output, not scripted. |
 | P6 Mobile, FTS5 | Deferred | n/a | n/a |
 
 ## Implemented and tested
@@ -32,14 +32,15 @@ pre-authored classifier/draft output (never a live LLM call). See `packages/demo
 - **Auto-disable:** a Direction is disabled when its override rate exceeds 20% with at least 5 decided actions.
 - **Retention:** signal bodies redacted after 30 days (configurable). **Backup:** startup and daily `.backup()`, 14 files kept.
 - **Learning loop:** proposes narrowing, widening, or a new Direction. Proposals are events. `GET /proposals`, `POST /proposals/run|:id/accept|:id/reject`. Accepting updates the DB row and returns the YAML edit you must make by hand, because YAML is the source of truth and a reload would revert a DB-only change.
-- **API:** all routes in PLAN §9, plus `/admin/*`, `/proposals/*`, `PATCH /actions/:id` (edit a draft before approving). `/metrics` returns all six planned metrics plus a per-Direction breakdown. `/directions` includes match stats.
-- **Demo data (`@mind/demo-data`):** three hand-authored personas (Software Engineer, Project Manager, DevSecOps Engineer) replayed through the real pipeline on a dedicated SQLite file, proving: autonomous send on high confidence, the confidence floor forcing escalation, an `escalateOn` guard blocking a specific autonomous send while leaving its draft intact, a direction auto-disabling itself after crossing 20% override rate, and the learning loop generating a real narrow proposal from that override data. `npm run demo:seed` / `demo:serve` / `demo:summary` / `demo:reset`. Confirmed end-to-end against the real HTTP server (`/health`, `/brief`, `/metrics`, `/directions`, `/proposals`).
+- **Model provider config:** four providers — `ollama` (local, free, default), `openai`, `anthropic`, `google`. The whole config (provider, classify/draft model names, base URL, API key) lives in `~/.config/mind/ai.json`, read fresh on every call — no server restart needed to switch. `GET`/`PUT /admin/ai-config` exposes this over HTTP; the VS Code extension's **mind: Configure AI Provider** command and a status-bar toggle drive it from the editor.
+- **API:** all routes in PLAN §9, plus `/admin/*` (including `/admin/ai-config`), `/proposals/*`, `PATCH /actions/:id` (edit a draft before approving). `/metrics` returns all six planned metrics plus a per-Direction breakdown. `/directions` includes match stats.
+- **Demo data (`@mind/demo-data`):** three personas (Software Engineer, Project Manager, DevSecOps Engineer) with synthetic signal bodies only — no pre-computed classification or draft. Every signal is replayed through the real `classify()`/`draft()`/`decide()` pipeline against the configured provider. A "historical" era gets a simulated operator reaction (approve/discard, by a general sensitive-topic + pseudo-random heuristic, never a per-signal script) to build believable override history; a "live" era is left exactly as the model decided, for the operator to act on through the extension. `npm run demo:seed` / `demo:serve` / `demo:summary` / `demo:reset`. One full real seed run (30 signals, ~3 minutes on a local 3B model) produced 6 live proposed actions, 2 real learning-loop proposals, and 1 real auto-disabled direction — all confirmed via the HTTP API.
 
 ## Not verified
 
-- **LLM paths** (`classify`, `draft`) have only run in their no-key fallback. Prompts, the `generateObject` call shape, and the default model names (`gpt-4o-mini`, `claude-haiku-4-5`, etc.) are unconfirmed. Check the model names against your provider before first use.
-- **VS Code extension** compiles but has never been loaded in VS Code. The thought-open, approve/discard menus, brief refresh button and pause/resume commands are untested.
-- **`/send` for human approval** is tested only up to the pause check. No adapter implements `send`, so a successful human send has never run.
+- **VS Code extension** compiles, including the new AI-provider status bar item and configure command, but has never been loaded in VS Code and clicked through interactively. The thought-open, approve/discard menus, brief refresh button, and pause/resume commands are untested in the actual editor.
+- **`/send` for human approval** is tested only up to the pause check. No real adapter implements `send`, so a successful human-approved send to a real destination has never run — only the demo's no-op adapter, which proves the gate logic but not real delivery.
+- **Cloud providers** (openai/anthropic/google) are untested this session — only ollama was exercised for real. The provider-switch code path itself is exercised by `admin.ts`'s PUT handler and the extension command, but no actual cloud call has been made.
 
 ## Gaps against PLAN.md
 
@@ -54,10 +55,12 @@ pre-authored classifier/draft output (never a live LLM call). See `packages/demo
 9. **Override tracking:** `sendsWithoutRevert` counts sent actions only. Reverts are not tracked.
 10. **Dependencies:** `npm audit` reports 4 moderate vulnerabilities, not reviewed. `skipLibCheck: true` is set because `drizzle-orm@0.45.4` declarations fail under TypeScript 7 (PLAN §11).
 11. **Git:** nothing is committed.
+12. **`match()` uses literal substring matching** on each Direction's `scope.value`. In a real seed run, two signals that should have matched a specific Direction (a PR review request, a migration-location question) instead fell through to the catch-all because the exact scope keyword wasn't present verbatim in the body. This is a real limitation for real traffic, not just the demo — consider classifier-assisted matching or fuzzy matching as a follow-up.
+13. **`escalateBy` grounding:** the classifier prompt now includes the signal's `receivedAt` so relative deadlines ("by Friday") resolve to the correct date — this was wrong (resolving to 2023) before the fix made this session. Not yet re-verified against a cloud provider, only ollama.
 
 ## Open decisions (PLAN §17)
 
-1. **Model provider:** the code defaults to OpenAI. Set `MIND_AI_PROVIDER` and put the key in `~/.config/mind/ai.json` (see `config.ts`). Not yet chosen.
+1. **Model provider:** defaults to `ollama` (local, free, `qwen2.5:3b-instruct`). Switch via the VS Code **mind: Configure AI Provider** command, the status-bar item, or `PUT /admin/ai-config`. Cloud providers remain available but unverified this session.
 2. **Teams transport:** stubbed.
 3. **Email write capability:** stubbed.
 4. **Remote authentication:** deferred to P6.

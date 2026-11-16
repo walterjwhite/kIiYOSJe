@@ -3,7 +3,6 @@ import { decide } from "./decide.js";
 import type { DecideInput } from "./decide.js";
 
 const baseClassifier = {
-  directionId: "d-1",
   confidence: 0.9,
   intent: "request for report",
   signalKind: "task" as const,

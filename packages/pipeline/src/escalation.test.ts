@@ -4,7 +4,6 @@ import type { ClassifierOutput } from "./classify.js";
 
 function makeOutput(overrides: Partial<ClassifierOutput> = {}): ClassifierOutput {
   return {
-    directionId: null,
     confidence: 0.8,
     intent: "test",
     signalKind: "question",

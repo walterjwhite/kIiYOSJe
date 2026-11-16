@@ -2,8 +2,10 @@
  * Step 4 — Classify.
  * Calls the LLM for structured classification output via the Vercel AI SDK.
  *
- * Uses the cheap/fast model (MIND_CLASSIFY_MODEL).
- * Falls back to a zero-confidence stub when no API key is configured.
+ * Uses the cheap/fast model (MIND_CLASSIFY_MODEL / ai.json classifyModel).
+ * Falls back to a zero-confidence stub only when no provider is configured
+ * at all (no key and not ollama). Ollama requires no key and is the default
+ * provider, so classify() calls a real model out of the box at zero cost.
  */
 
 import { generateObject } from "ai";
@@ -12,6 +14,8 @@ import {
   ClassifierOutputSchema,
   loadApiKey,
   aiProvider,
+  aiBaseUrl,
+  aiConfigured,
   classifyModel,
   logger,
 } from "@mind/core";
@@ -21,8 +25,9 @@ export type ClassifierOutput = z.infer<typeof ClassifierOutputSchema>;
 export interface ClassifyInput {
   signalBody: string;
   sender: string;
-  directionId: string | null;
   standard: string | null;
+  /** The signal's receivedAt — used to ground relative deadlines ("by Friday") to an absolute date. */
+  receivedAt: Date;
 }
 
 const SYSTEM = `You are a signal classifier for a local attention-management system.
@@ -42,7 +47,9 @@ function buildPrompt(input: ClassifyInput): string {
     ? `Matched direction standard:\n${input.standard}\n`
     : "No specific direction matched — apply the catch-all standard.\n";
 
-  return `${directionContext}
+  return `Current date/time (use this to resolve relative deadlines): ${input.receivedAt.toISOString()}
+
+${directionContext}
 From: ${input.sender}
 
 Message:
@@ -50,13 +57,23 @@ ${input.signalBody}
 
 Classify this message and return all required fields.
 For escalateBy: if the message contains an explicit deadline (e.g. "by Friday",
-"EOD", "within 24 hours"), compute the ISO-8601 datetime. Otherwise return null.
+"EOD", "within 24 hours"), compute the ISO-8601 datetime relative to the current
+date/time given above. Otherwise return null.
 For signalKind: question | task | acknowledgement | information | other.
 For answerBlocker: if answerable=false, name the single thing that blocks an answer.`;
 }
 
-async function buildModel(key: string) {
+async function buildModel() {
   const provider = aiProvider();
+
+  if (provider === "ollama") {
+    const { createOpenAI } = await import("@ai-sdk/openai");
+    // Ollama's OpenAI-compatible endpoint accepts any non-empty apiKey value.
+    return createOpenAI({ baseURL: aiBaseUrl(), apiKey: "ollama" })(classifyModel());
+  }
+
+  const key = loadApiKey();
+  if (!key) throw new Error(`No API key configured for provider '${provider}'`);
 
   if (provider === "anthropic") {
     const { createAnthropic } = await import("@ai-sdk/anthropic");
@@ -71,14 +88,13 @@ async function buildModel(key: string) {
 }
 
 export async function classify(input: ClassifyInput): Promise<ClassifierOutput> {
-  const key = loadApiKey();
-  if (!key) {
-    logger.debug({ sender: input.sender }, "classify: no API key configured, returning stub");
-    return stub(input);
+  if (!aiConfigured()) {
+    logger.debug({ sender: input.sender }, "classify: no provider configured, returning stub");
+    return stub();
   }
 
   try {
-    const model = await buildModel(key);
+    const model = await buildModel();
     const { object } = await generateObject({
       model,
       schema: ClassifierOutputSchema,
@@ -87,14 +103,16 @@ export async function classify(input: ClassifyInput): Promise<ClassifierOutput> 
     });
     return object;
   } catch (err) {
-    logger.warn({ err, sender: input.sender }, "classify: LLM call failed, falling back to stub");
-    return stub(input);
+    logger.warn(
+      { err, sender: input.sender, provider: aiProvider() },
+      "classify: LLM call failed, falling back to stub",
+    );
+    return stub();
   }
 }
 
-function stub(input: ClassifyInput): ClassifierOutput {
+function stub(): ClassifierOutput {
   return {
-    directionId: input.directionId,
     confidence: 0,
     intent: "unclassified — no API key or LLM error",
     signalKind: "other",

@@ -24,6 +24,25 @@ const [, , command, ...args] = process.argv;
 
 switch (command) {
   case "seed": {
+    const { aiConfigured, aiProvider } = await import("@mind/core");
+    if (!aiConfigured()) {
+      console.error(
+        [
+          "No AI provider is configured — classify()/draft() would run as stubs and",
+          "every signal would simply escalate. Configure one first:",
+          "",
+          "  Local (free, no key): start Ollama (`ollama serve`) and pull a model",
+          "  (`ollama pull qwen2.5:3b-instruct`). ollama is the default provider,",
+          "  so no further config is needed once it's running.",
+          "",
+          "  Cloud: use the 'mind: Configure AI Provider' command in VS Code, or",
+          "  write ~/.config/mind/ai.json directly.",
+        ].join("\n"),
+      );
+      process.exit(1);
+    }
+    console.log(`Using provider: ${aiProvider()}. This calls a real model for every signal — expect this to take a while.\n`);
+
     resetDemoDb();
     const requested = args.length > 0
       ? ALL_PERSONAS.filter((p) => args.includes(p.id))
@@ -42,9 +61,12 @@ switch (command) {
       console.log(`${persona.displayName} (${r.personaId})`);
       console.log(`  ${persona.pitch}\n`);
       console.log(
-        `  signals: ${r.signalsIngested}  sent: ${r.actionsSent}  discarded: ${r.actionsDiscarded}  learning proposals: ${r.learningProposals}\n`,
+        `  signals: ${r.signalsIngested}  historical sent: ${r.historicalResolved.sent}  historical discarded: ${r.historicalResolved.discarded}  live proposed: ${r.liveLeftProposed}  learning proposals: ${r.learningProposals}\n`,
       );
     }
+    console.log(
+      "Open the mind extension in VS Code and work the Review panel — the live-era\nsignals above are real proposed actions waiting for you, produced by the\nconfigured AI provider, not scripted.",
+    );
     break;
   }
 

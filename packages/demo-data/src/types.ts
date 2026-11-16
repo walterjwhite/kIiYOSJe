@@ -1,36 +1,52 @@
 /**
  * Demo scenario types.
  *
- * A persona is a 2-3 week slice of someone's real inbox pressure, authored by
- * hand so the pipeline exercises every decision path deliberately rather than
- * by chance. Each signal carries its own pre-computed ClassifierOutput so the
- * demo never calls a real LLM — it is deterministic, free, and fast, and it
- * proves the pipeline's match/decide/record/escalate machinery rather than
- * any particular model's judgement.
+ * A persona is a slice of someone's inbox pressure. Every signal here is
+ * fake data — a synthetic sender, body, and timestamp — but nothing about
+ * how the system responds to it is scripted. classify() and draft() always
+ * call the real, configured model (ollama by default, or whatever provider
+ * is set in ~/.config/mind/ai.json). The decision is probabilistic because
+ * the model is probabilistic; that is the entire point of using one instead
+ * of a lookup table.
+ *
+ * Signals are split into two eras:
+ *   - historical: replayed and then given a simulated operator reaction
+ *     (approve/discard), so the system looks lived-in — directions with
+ *     real override rates, maybe one already auto-disabled, a pending
+ *     learning-loop proposal — before you ever open the extension.
+ *   - live: replayed and left exactly as ingest() produced them. Nothing
+ *     resolves these. They sit in Review for you to act on yourself.
  */
 
 import type { NewSignal } from "@mind/core";
-import type { ClassifierOutput } from "@mind/pipeline";
 
 export interface ScenarioSignal {
-  /** Offset from the scenario's start, in simulated hours. Determines receivedAt. */
+  /**
+   * Offset from the scenario's start, in simulated hours. Determines
+   * receivedAt for historical-era signals. Ignored for live-era signals,
+   * which always land at real wall-clock "now" so their deadlines and
+   * "today" framing in the brief are actually current.
+   */
   atHour: number;
   signal: Omit<NewSignal, "receivedAt" | "urgencyHint"> & { urgencyHint?: number | null };
-  /** Pre-authored classification — skips the real classify() call. */
-  classification: ClassifierOutput;
-  /** Pre-authored draft body, or null to mean "no draft produced" (e.g. classifier not confident). */
-  draftBody?: string | null;
   /**
-   * Human narration for the demo script / brief walkthrough: what this
-   * signal demonstrates and why it was authored this way.
+   * historical: replayed, then auto-resolved by a general heuristic (not a
+   * per-signal script) so override/auto-disable/learning-loop data exists.
+   * live: replayed and left untouched for the operator to act on.
    */
-  narrative: string;
+  era: "historical" | "live";
+  /**
+   * What this signal is designed to exercise, for a human reading the
+   * scenario file. Not predictive of the actual outcome — the model decides
+   * that — and not shown anywhere in the product; documentation only.
+   */
+  intent: string;
 }
 
 export interface PersonaScenario {
   id: string;
   displayName: string;
-  /** One-paragraph pitch: what this persona proves about the product. */
+  /** One-paragraph pitch: what this persona is meant to exercise. */
   pitch: string;
   /**
    * Descriptive only — not read by the replay engine, which always loads
@@ -38,7 +54,7 @@ export interface PersonaScenario {
    * them without searching the directions tree.
    */
   directionFiles: string[];
-  /** Simulated start time. All atHour offsets are relative to this. */
+  /** Simulated start time for the historical era. Live signals land "now". */
   startAt: Date;
   signals: ScenarioSignal[];
 }

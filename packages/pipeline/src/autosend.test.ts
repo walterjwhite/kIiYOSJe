@@ -12,7 +12,7 @@ import type { Adapter, NewSignal } from "@mind/core";
 
 vi.mock("./classify.js", () => ({
   classify: async () => ({
-    directionId: "d1", confidence: 0.95, intent: "ask", signalKind: "question",
+    confidence: 0.95, intent: "ask", signalKind: "question",
     urgency: "low", commitment: null, escalateBy: null, sensitiveTopics: [],
     answerable: true, answerBlocker: null,
   }),

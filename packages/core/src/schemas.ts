@@ -47,7 +47,6 @@ export const SignalKindSchema = z.enum([
 ]);
 
 export const ClassifierOutputSchema = z.object({
-  directionId: z.string().nullable(),
   confidence: z.number().min(0).max(1),
   intent: z.string(),
   signalKind: SignalKindSchema,

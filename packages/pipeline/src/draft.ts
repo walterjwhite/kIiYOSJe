@@ -1,12 +1,12 @@
 /**
  * Draft generator.
  * Produces a reply body given a signal, its Direction standard, and classifier output.
- * Uses the larger model (MIND_DRAFT_MODEL).
- * Returns null if no key is configured; the action is still created with an empty body.
+ * Uses the larger model (MIND_DRAFT_MODEL / ai.json draftModel).
+ * Returns null only when no provider is configured at all.
  */
 
 import { generateText } from "ai";
-import { loadApiKey, aiProvider, draftModel, logger } from "@mind/core";
+import { loadApiKey, aiProvider, aiBaseUrl, aiConfigured, draftModel, logger } from "@mind/core";
 import type { ClassifierOutput } from "./classify.js";
 
 export interface DraftInput {
@@ -57,8 +57,16 @@ ${input.senderBody}
 Write a reply that satisfies the standard and the task guidance above.`;
 }
 
-async function buildModel(key: string) {
+async function buildModel() {
   const provider = aiProvider();
+
+  if (provider === "ollama") {
+    const { createOpenAI } = await import("@ai-sdk/openai");
+    return createOpenAI({ baseURL: aiBaseUrl(), apiKey: "ollama" })(draftModel());
+  }
+
+  const key = loadApiKey();
+  if (!key) throw new Error(`No API key configured for provider '${provider}'`);
 
   if (provider === "anthropic") {
     const { createAnthropic } = await import("@ai-sdk/anthropic");
@@ -73,14 +81,13 @@ async function buildModel(key: string) {
 }
 
 export async function draft(input: DraftInput): Promise<string | null> {
-  const key = loadApiKey();
-  if (!key) {
-    logger.debug("draft: no API key configured, skipping");
+  if (!aiConfigured()) {
+    logger.debug("draft: no provider configured, skipping");
     return null;
   }
 
   try {
-    const model = await buildModel(key);
+    const model = await buildModel();
     const { text } = await generateText({
       model,
       system: SYSTEM,
@@ -88,7 +95,7 @@ export async function draft(input: DraftInput): Promise<string | null> {
     });
     return text;
   } catch (err) {
-    logger.warn({ err }, "draft: LLM call failed");
+    logger.warn({ err, provider: aiProvider() }, "draft: LLM call failed");
     return null;
   }
 }

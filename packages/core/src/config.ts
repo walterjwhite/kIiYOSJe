@@ -5,7 +5,7 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { mkdirSync, readFileSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, unlinkSync, existsSync, renameSync } from "node:fs";
 
 export function dataDir(): string {
   return join(homedir(), ".local", "share", "mind");
@@ -86,43 +86,99 @@ export function resume(): void {
 /**
  * Which provider to use for classification and drafting.
  *
- * Set MIND_AI_PROVIDER to one of: openai | anthropic | google  (default: openai)
- * Set MIND_CLASSIFY_MODEL / MIND_DRAFT_MODEL to override the model names.
+ * Config lives at ~/.config/mind/ai.json (mode 600), read fresh on every
+ * call — no server restart needed to switch providers or models. This file
+ * is what the VS Code extension's "mind: Configure AI Provider" command
+ * writes to, so toggling providers from the editor takes effect immediately
+ * on the next signal.
  *
- * API key — two options, in priority order:
+ *   {
+ *     "provider": "ollama" | "openai" | "anthropic" | "google",
+ *     "classifyModel": "qwen2.5:3b-instruct",
+ *     "draftModel": "qwen2.5:3b-instruct",
+ *     "baseURL": "http://localhost:11434/v1",   // only meaningful for ollama
+ *     "apiKey": "sk-..."                         // only meaningful for cloud providers
+ *   }
  *
- *   1. File: ~/.config/mind/ai.json  (mode 600)
- *      { "apiKey": "sk-..." }
+ * Every field is optional and falls back, in order, to the matching
+ * MIND_AI_PROVIDER / MIND_CLASSIFY_MODEL / MIND_DRAFT_MODEL / MIND_AI_BASE_URL
+ * environment variable, then to a built-in default. ollama requires no API
+ * key — it runs entirely on your machine against a local Ollama server, so
+ * the default configuration costs nothing and sends nothing off the device.
  *
- *   2. Environment variable (provider-specific):
- *        openai     →  OPENAI_API_KEY
- *        anthropic  →  ANTHROPIC_API_KEY
- *        google     →  GOOGLE_GENERATIVE_AI_API_KEY
- *
- * The file wins over the env var so the key never has to live in a shell profile.
- * If neither is set the classifier stub runs: signals are still ingested and
- * escalated, but no drafts are generated until a key is provided.
+ * Cloud provider API keys resolve the same way they always have:
+ *   openai     →  OPENAI_API_KEY
+ *   anthropic  →  ANTHROPIC_API_KEY
+ *   google     →  GOOGLE_GENERATIVE_AI_API_KEY
  */
-export type AiProvider = "openai" | "anthropic" | "google";
+export type AiProvider = "ollama" | "openai" | "anthropic" | "google";
+
+export interface AiConfigFile {
+  provider?: AiProvider | undefined;
+  classifyModel?: string | undefined;
+  draftModel?: string | undefined;
+  baseURL?: string | undefined;
+  apiKey?: string | undefined;
+}
+
+function readAiConfigFile(): AiConfigFile {
+  try {
+    const raw = readFileSync(aiConfigPath(), "utf8");
+    return JSON.parse(raw) as AiConfigFile;
+  } catch {
+    return {};
+  }
+}
+
+/** Writes the AI config file atomically (temp file + rename), mode 600. */
+export function writeAiConfig(config: AiConfigFile): void {
+  ensureDirs();
+  const path = aiConfigPath();
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, JSON.stringify(config, null, 2), { mode: 0o600 });
+  renameSync(tmp, path);
+}
 
 export function aiProvider(): AiProvider {
-  const v = process.env["MIND_AI_PROVIDER"] ?? "openai";
-  if (v === "openai" || v === "anthropic" || v === "google") return v;
+  const fromFile = readAiConfigFile().provider;
+  const v = fromFile ?? process.env["MIND_AI_PROVIDER"] ?? "ollama";
+  if (v === "ollama" || v === "openai" || v === "anthropic" || v === "google") return v;
   throw new Error(
-    `MIND_AI_PROVIDER must be openai | anthropic | google, got: ${v}`,
+    `AI provider must be ollama | openai | anthropic | google, got: ${v}`,
   );
 }
 
 export function classifyModel(): string {
-  return process.env["MIND_CLASSIFY_MODEL"] ?? defaultClassifyModel(aiProvider());
+  const fromFile = readAiConfigFile().classifyModel;
+  return (
+    fromFile ??
+    process.env["MIND_CLASSIFY_MODEL"] ??
+    defaultClassifyModel(aiProvider())
+  );
 }
 
 export function draftModel(): string {
-  return process.env["MIND_DRAFT_MODEL"] ?? defaultDraftModel(aiProvider());
+  const fromFile = readAiConfigFile().draftModel;
+  return (
+    fromFile ??
+    process.env["MIND_DRAFT_MODEL"] ??
+    defaultDraftModel(aiProvider())
+  );
+}
+
+/** Base URL for the ollama provider. Ignored by cloud providers. */
+export function aiBaseUrl(): string {
+  const fromFile = readAiConfigFile().baseURL;
+  return (
+    fromFile ??
+    process.env["MIND_AI_BASE_URL"] ??
+    "http://localhost:11434/v1"
+  );
 }
 
 function defaultClassifyModel(p: AiProvider): string {
   switch (p) {
+    case "ollama":    return "qwen2.5:3b-instruct";
     case "openai":    return "gpt-4o-mini";
     case "anthropic": return "claude-haiku-4-5";
     case "google":    return "gemini-2.0-flash";
@@ -131,6 +187,7 @@ function defaultClassifyModel(p: AiProvider): string {
 
 function defaultDraftModel(p: AiProvider): string {
   switch (p) {
+    case "ollama":    return "qwen2.5:3b-instruct";
     case "openai":    return "gpt-4o";
     case "anthropic": return "claude-sonnet-4-5";
     case "google":    return "gemini-2.0-flash";
@@ -140,21 +197,27 @@ function defaultDraftModel(p: AiProvider): string {
 /**
  * Loads the API key for the configured provider.
  * Reads ~/.config/mind/ai.json first; falls back to the provider env var.
- * Returns undefined if neither is set.
+ * ollama needs no key and always returns undefined for it — callers must
+ * treat "no key" as valid for ollama, unlike the cloud providers.
  */
 export function loadApiKey(): string | undefined {
-  try {
-    const raw = readFileSync(aiConfigPath(), "utf8");
-    const parsed = JSON.parse(raw) as { apiKey?: string };
-    if (parsed.apiKey) return parsed.apiKey;
-  } catch {
-    // File absent or unreadable — fall through.
-  }
+  const fromFile = readAiConfigFile().apiKey;
+  if (fromFile) return fromFile;
+
   switch (aiProvider()) {
+    case "ollama":    return undefined;
     case "openai":    return process.env["OPENAI_API_KEY"];
     case "anthropic": return process.env["ANTHROPIC_API_KEY"];
     case "google":    return process.env["GOOGLE_GENERATIVE_AI_API_KEY"];
   }
+}
+
+/**
+ * Whether the pipeline should attempt a real model call at all. True for
+ * ollama (no key needed) and for any cloud provider with a key configured.
+ */
+export function aiConfigured(): boolean {
+  return aiProvider() === "ollama" || loadApiKey() !== undefined;
 }
 
 export const SERVER_PORT = 8787;

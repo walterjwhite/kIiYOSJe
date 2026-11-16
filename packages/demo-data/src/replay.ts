@@ -1,21 +1,19 @@
 /**
  * Replay engine.
  *
- * Loads a persona's Directions, then replays its signals through the real
- * ingest() pipeline — dedupe, match, decide, record all run for real. Only
- * classify() and draft() are skipped, via ingest()'s override parameter,
- * because this is demo data and must never call a real LLM.
+ * Every signal goes through the real ingest() pipeline with no overrides:
+ * dedupe, match, classify (a real model call), draft (a real model call),
+ * decide, and record all run exactly as they would for a real signal. The
+ * only thing simulated is the operator's reaction to historical-era actions,
+ * and that simulation is a general heuristic applied to whatever the model
+ * actually decided — never a lookup keyed by signal ID, because that would
+ * mean the "decision" was mine, not the model's.
  *
- * The "demo-email" adapter registered below declares canSend: true so the
- * send gates in decide()/ingest() are exercised for real — adapter capability,
- * autonomy, the kill switch, and escalateOn guards. Its send() method never
- * makes a network call; it just records that a send would have happened.
- *
- * After ingest, the engine simulates the operator's review decisions
- * (approve/discard) for any action the scenario marks as "overridden" in its
- * narrative, so /metrics, auto-disable, and the learning loop have real data
- * to react to — exactly as if a human had actually reviewed the Review panel
- * over those three weeks.
+ * Live-era signals are left completely alone after ingest(). Whatever
+ * ingest() produced — escalated, promoted, a proposed draft, or (if the
+ * configured direction allows it and the gates are open) an autonomous send
+ * — is exactly what appears in the extension. The operator reacts to those
+ * for real, through Review, same as production.
  */
 
 import { eq, sql } from "drizzle-orm";
@@ -23,13 +21,13 @@ import { join } from "node:path";
 import type { Db, NewSignal, Adapter, OutboundDraft, SendResult } from "@mind/core";
 import { actions, events, directions, signals, newId, logger } from "@mind/core";
 import { ingest, AdapterRegistry, loadDirections, runCheck, runLearningLoop } from "@mind/pipeline";
-import type { PersonaScenario } from "./types.js";
+import type { PersonaScenario, ScenarioSignal } from "./types.js";
 
 export interface ReplayResult {
   personaId: string;
   signalsIngested: number;
-  actionsDiscarded: number;
-  actionsSent: number;
+  historicalResolved: { sent: number; discarded: number };
+  liveLeftProposed: number;
   learningProposals: number;
 }
 
@@ -37,9 +35,7 @@ export interface ReplayResult {
  * A no-op adapter that declares full send capability so decide()'s gates
  * (adapter.capabilities.canSend, autonomy, kill switch, guards) are all
  * exercised for real. send() never performs a network call — it only
- * returns a synthetic externalId, exactly like a successful real send would,
- * so the recorded action.status transitions are indistinguishable from a
- * real run.
+ * returns a synthetic externalId, exactly like a successful real send would.
  */
 class DemoEmailAdapter implements Adapter {
   readonly id = "demo-email";
@@ -51,57 +47,45 @@ class DemoEmailAdapter implements Adapter {
   }
 }
 
-const DISCARD_ON_REPLAY = new Set<string>([
-  // pm scenario — vendor-noise direction, 4 misses
-  "pm-3", "pm-4", "pm-5", "pm-7",
-  // devsecops scenario — dependabot direction, overrides that trip auto-disable
-  "sec-3", "sec-4", "sec-7",
-]);
-
-/**
- * Actions the replay engine leaves untouched after ingest: these demonstrate
- * a guard blocking the autonomous send while the draft itself is correct and
- * genuinely awaiting human approval — ingest() itself decided not to send,
- * the replay engine just confirms that outcome rather than overriding it.
- */
-const EXPECT_PROPOSED_NOT_SENT = new Set<string>([
-  "eng-6b",  // escalateOn guard blocks send despite high confidence
-  "sec-5b",  // same mechanism on a different direction
-]);
-
 export async function replayPersona(
   db: Db,
   scenario: PersonaScenario,
   directionsRoot: string,
 ): Promise<ReplayResult> {
-  // Load only this persona's own directions — directionsRoot/demo/<persona id> —
-  // never the shared directions/ tree, so the demo stays self-contained and
-  // never depends on or interferes with any directions you've authored for
-  // real use.
+  // Load only this persona's own directions — never the shared directions/
+  // tree — so the demo stays self-contained and never depends on or
+  // interferes with anything you've authored for real use.
   loadDirections(db, join(directionsRoot, "demo", scenario.id));
 
   // MIND_SEND_ENABLED must be true during replay, or the global kill switch
-  // alone would block every autonomous send and the demo could never show
-  // the guard specifically doing the blocking.
+  // alone would block every autonomous send and no direction's autonomy:send
+  // setting could ever be exercised, historical or live.
   const previousSendEnabled = process.env["MIND_SEND_ENABLED"];
   process.env["MIND_SEND_ENABLED"] = "true";
 
   const adapters = new AdapterRegistry();
   adapters.register(new DemoEmailAdapter());
 
+  const historicalSignals: ScenarioSignal[] = [];
+  const liveSignals: ScenarioSignal[] = [];
+
   try {
     for (const s of scenario.signals) {
-      const receivedAt = new Date(scenario.startAt.getTime() + s.atHour * 60 * 60 * 1000);
+      const receivedAt =
+        s.era === "live"
+          ? new Date() // live signals land "now", regardless of the historical startAt
+          : new Date(scenario.startAt.getTime() + s.atHour * 60 * 60 * 1000);
       const signal: NewSignal = {
         ...s.signal,
         receivedAt,
         urgencyHint: s.signal.urgencyHint ?? null,
       };
 
-      await ingest(db, signal, adapters, {
-        classifierOutput: s.classification,
-        draftBody: s.draftBody ?? null,
-      });
+      // No overrides — classify() and draft() are called for real.
+      await ingest(db, signal, adapters);
+
+      if (s.era === "historical") historicalSignals.push(s);
+      else liveSignals.push(s);
     }
   } finally {
     if (previousSendEnabled === undefined) {
@@ -111,14 +95,54 @@ export async function replayPersona(
     }
   }
 
-  return resolveActionsAndLearn(db, scenario);
+  const resolved = resolveHistoricalActions(db, historicalSignals);
+  const liveLeftProposed = countProposed(db, liveSignals);
+
+  // Deadlines already in the past relative to real wall-clock "now" are
+  // promoted immediately rather than waiting for the next tick.
+  runCheck(db);
+
+  // Generate learning-loop proposals from whatever override history the
+  // historical era actually produced.
+  const proposals = runLearningLoop(db);
+
+  return {
+    personaId: scenario.id,
+    signalsIngested: scenario.signals.length,
+    historicalResolved: resolved,
+    liveLeftProposed,
+    learningProposals: proposals.length,
+  };
 }
 
-function resolveActionsAndLearn(db: Db, scenario: PersonaScenario): ReplayResult {
-  let discarded = 0;
+/**
+ * Simulates a plausible operator reaction to each historical-era action that
+ * ingest() left `proposed`. The heuristic looks only at information a real
+ * operator would have had — the draft's own confidence-adjacent signals
+ * aren't visible to this function; it uses the same signal data the system
+ * recorded, nothing authored in advance:
+ *
+ *   - discard if the signal carried any sensitive topic (budget, headcount,
+ *     legal, security, scope change, etc.) — a careful operator does not
+ *     wave these through regardless of how the draft reads
+ *   - discard roughly 1 in 4 of everything else, pseudo-randomly but
+ *     deterministically (seeded from the signal's id), standing in for the
+ *     ordinary rate at which a human improves on an early draft
+ *   - approve (simulate send) otherwise
+ *
+ * This is deliberately coarse. It is not meant to be a good reviewer — it
+ * is meant to produce a believable mix of approvals and overrides so the
+ * auto-disable rule and the learning loop have real data to react to,
+ * without encoding "what the model will say" anywhere.
+ */
+function resolveHistoricalActions(
+  db: Db,
+  historicalSignals: ScenarioSignal[],
+): { sent: number; discarded: number } {
   let sent = 0;
+  let discarded = 0;
 
-  for (const s of scenario.signals) {
+  for (const s of historicalSignals) {
     const sig = db
       .select()
       .from(signals)
@@ -131,23 +155,11 @@ function resolveActionsAndLearn(db: Db, scenario: PersonaScenario): ReplayResult
       .from(actions)
       .where(eq(actions.signalId, sig.id))
       .get();
-    if (!action) continue;
+    if (!action || action.status !== "proposed") continue; // nothing to resolve, or already sent autonomously
 
-    if (EXPECT_PROPOSED_NOT_SENT.has(s.signal.externalId)) {
-      if (action.status !== "proposed") {
-        logger.warn(
-          { externalId: s.signal.externalId, status: action.status },
-          "demo seed: expected action to remain proposed (guard should have blocked autonomous send) but it did not — scenario authoring and engine behaviour disagree",
-        );
-      }
-      continue;
-    }
+    const shouldDiscard = decideSimulatedReaction(sig.body, sig.id);
 
-    if (action.status !== "proposed") continue; // already resolved autonomously by ingest()
-
-    const now = new Date().toISOString();
-
-    if (DISCARD_ON_REPLAY.has(s.signal.externalId)) {
+    if (shouldDiscard) {
       db.update(actions).set({ status: "discarded" }).where(eq(actions.id, action.id)).run();
       db.insert(events)
         .values({
@@ -161,7 +173,7 @@ function resolveActionsAndLearn(db: Db, scenario: PersonaScenario): ReplayResult
       maybeAutoDisable(db, sig.directionId);
     } else {
       db.update(actions)
-        .set({ status: "sent", sentAt: now })
+        .set({ status: "sent", sentAt: new Date().toISOString() })
         .where(eq(actions.id, action.id))
         .run();
       db.insert(events)
@@ -176,20 +188,44 @@ function resolveActionsAndLearn(db: Db, scenario: PersonaScenario): ReplayResult
     }
   }
 
-  // Deadlines already in the past relative to real wall-clock "now" are
-  // promoted immediately rather than waiting for the next 60s tick.
-  runCheck(db);
+  return { sent, discarded };
+}
 
-  // Generate learning-loop proposals now, mirroring a week of real operation.
-  const proposals = runLearningLoop(db);
+const SENSITIVE_PATTERNS = [
+  "budget", "headcount", "legal", "scope change", "critical",
+  "cve score 9", "cve score 10", "breach", "exploit", "unauthorized access",
+];
 
-  return {
-    personaId: scenario.id,
-    signalsIngested: scenario.signals.length,
-    actionsDiscarded: discarded,
-    actionsSent: sent,
-    learningProposals: proposals.length,
-  };
+function decideSimulatedReaction(body: string, seedId: string): boolean {
+  const lower = body.toLowerCase();
+  if (SENSITIVE_PATTERNS.some((p) => lower.includes(p))) return true;
+
+  // Deterministic pseudo-random ~25% discard rate, seeded from the signal id
+  // so repeated seeding of the same data is reproducible.
+  let hash = 0;
+  for (let i = 0; i < seedId.length; i++) {
+    hash = (hash * 31 + seedId.charCodeAt(i)) >>> 0;
+  }
+  return hash % 4 === 0;
+}
+
+function countProposed(db: Db, liveSignals: ScenarioSignal[]): number {
+  let count = 0;
+  for (const s of liveSignals) {
+    const sig = db
+      .select()
+      .from(signals)
+      .where(eq(signals.externalId, s.signal.externalId))
+      .get();
+    if (!sig) continue;
+    const action = db
+      .select()
+      .from(actions)
+      .where(eq(actions.signalId, sig.id))
+      .get();
+    if (action?.status === "proposed") count++;
+  }
+  return count;
 }
 
 /** Mirrors the same >20%-override-rate rule as POST /actions/:id/discard. */
