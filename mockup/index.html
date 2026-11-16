@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>mind — VS Code extension mockup</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="vscode-shell">
+
+  <!-- Activity Bar -->
+  <div class="activity-bar">
+    <div class="activity-icon active" data-view="explorer" title="Explorer">
+      <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M14.5 3H9.5L8 4.5V8H4.5L3 9.5v11L4.5 22h11l1.5-1.5V17h3.5l1.5-1.5v-11L20 3h-5.5zM9 5h4v3H9V5zm10 11h-3v-3h3v3zm-5-8h4v9H9V8zm-5 3h3v9H4v-9z" opacity="0"/><path fill="currentColor" d="M13 2H3a1 1 0 0 0-1 1v18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V10l-9-8zm7 18H4V4h8v6h8v10z"/></svg>
+    </div>
+    <div class="activity-icon" data-view="search" title="Search">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+    </div>
+    <div class="activity-icon" data-view="extensions" title="Extensions">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M20.5 11H19V7.5A2.5 2.5 0 0 0 16.5 5H13V3.5a2.5 2.5 0 0 0-5 0V5H4.5A2.5 2.5 0 0 0 2 7.5v3.84h1.5a2.33 2.33 0 0 1 0 4.66H2v3.5A2.5 2.5 0 0 0 4.5 22H8v-1.5a2.33 2.33 0 0 1 4.66 0V22h3.84A2.5 2.5 0 0 0 19 19.5V16h1.5a2.5 2.5 0 0 0 0-5z"/></svg>
+    </div>
+    <div class="activity-spacer"></div>
+    <div class="activity-icon" data-view="accounts" title="Accounts">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2.5c-4.14 0-8 2.1-8 5v1.5h16V19.5c0-2.9-3.86-5-8-5z"/></svg>
+    </div>
+  </div>
+
+  <!-- Side Bar -->
+  <div class="side-bar">
+    <div class="side-bar-title">Explorer</div>
+
+    <div class="tree-panel">
+      <div class="tree-header" data-collapse-target="tree-thoughts">
+        <span class="chevron">▾</span>
+        <span>THOUGHTS</span>
+        <span class="tree-header-badge" id="thoughts-count"></span>
+      </div>
+      <div class="tree-body" id="tree-thoughts"></div>
+    </div>
+
+    <div class="tree-panel">
+      <div class="tree-header" data-collapse-target="tree-review">
+        <span class="chevron">▾</span>
+        <span>REVIEW</span>
+        <span class="tree-header-badge" id="review-count"></span>
+      </div>
+      <div class="tree-body" id="tree-review"></div>
+    </div>
+  </div>
+
+  <!-- Editor area -->
+  <div class="editor-area">
+    <div class="tab-bar" id="tab-bar">
+      <div class="tab active" data-tab="welcome">
+        <span class="tab-icon">ℹ</span> Welcome
+      </div>
+    </div>
+    <div class="editor-content" id="editor-content">
+      <div class="editor-pane" id="pane-welcome">
+        <div class="welcome-pane">
+          <h1>mind</h1>
+          <p>Local attention manager — Thoughts, Review, and Today brief.</p>
+          <p>This is an interactive mockup of the VS Code extension's UI, using fake
+             data. Nothing here calls a real server.</p>
+          <ul>
+            <li>Click a <strong>Thought</strong> in the side bar to open its body.</li>
+            <li>Click <strong>✓</strong> or <strong>✕</strong> on a <strong>Review</strong> item to approve or discard it.</li>
+            <li>Run the <strong>mind: Open Today Brief</strong> command via the button below.</li>
+            <li>Click the AI provider badge in the status bar to switch providers.</li>
+          </ul>
+          <button class="btn" id="open-brief-btn">Open Today Brief</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-bar-left">
+    <span class="status-item">mind: ready</span>
+  </div>
+  <div class="status-bar-right">
+    <span class="status-item status-item-clickable" id="pause-status-item">⏸ running</span>
+    <span class="status-item status-item-clickable" id="ai-status-item">🖥 ollama</span>
+  </div>
+</div>
+
+<!-- Command Palette overlay -->
+<div class="overlay hidden" id="command-palette-overlay">
+  <div class="quick-pick">
+    <input type="text" class="quick-pick-input" id="ai-provider-search" placeholder="Select AI provider / model">
+    <div class="quick-pick-list" id="ai-provider-list"></div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
