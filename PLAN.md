@@ -5,7 +5,9 @@ It ingests events from messaging and mail sources, applies standing
 **Directions** that I author, answers or files what it can, and surfaces only
 the **Thoughts** that genuinely need my judgement.
 
-Status: plan. No code yet. This document is self-contained and assumes nothing
+Status: P0 to P5 implemented in code; Teams and email adapters are stubs. See
+[STATUS.md](STATUS.md) for what is built, what is verified, and what remains.
+This document is self-contained and assumes nothing
 about where the project lives.
 
 ## 1. Thesis

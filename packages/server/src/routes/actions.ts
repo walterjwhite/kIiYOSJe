@@ -8,7 +8,7 @@ import {
   events,
   signals,
   newId,
-  globalSendEnabled,
+  isPaused,
   logger,
 } from "@mind/core";
 import type { Db } from "@mind/core";
@@ -50,6 +50,11 @@ export function actionsRouter(db: Db, adapters: AdapterRegistry) {
     if (!action) return c.json({ error: "Not found" }, 404);
     if (action.status !== "proposed")
       return c.json({ error: "Action is not in proposed state" }, 409);
+
+    // Kill switch blocks every send, including human-approved ones.
+    if (isPaused()) {
+      return c.json({ error: "Sends are paused. Run `mind resume` first." }, 423);
+    }
 
     const adapter = adapters.get(action.adapter);
     if (!adapter?.send) {

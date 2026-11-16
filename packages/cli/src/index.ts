@@ -49,14 +49,12 @@ switch (command) {
   }
 
   case "pause": {
-    // Sets MIND_SEND_ENABLED=false via the token — for now, remind the operator
-    // that the kill switch is an env var and advise restarting.
-    console.log(
-      "To pause all sends: restart with MIND_SEND_ENABLED unset (default) or MIND_SEND_ENABLED=false.",
-    );
-    console.log(
-      "In-flight sends already in progress cannot be stopped; proposed actions remain and require manual discard.",
-    );
+    console.log(JSON.stringify(await apiCall("/admin/pause", "POST"), null, 2));
+    break;
+  }
+
+  case "resume": {
+    console.log(JSON.stringify(await apiCall("/admin/resume", "POST"), null, 2));
     break;
   }
 
@@ -86,7 +84,8 @@ switch (command) {
         "",
         "Commands:",
         "  mind start           Start the server and all adapters",
-        "  mind pause           Print instructions to pause sends",
+        "  mind pause           Block all sends immediately (kill switch)",
+        "  mind resume          Clear the kill switch",
         "  mind observe         Show current metrics",
         "  mind metrics [7d]    Show metrics for a window (e.g. 7d, 2w)",
         "  mind health          Show server and adapter status",

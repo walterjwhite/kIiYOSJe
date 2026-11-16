@@ -5,8 +5,8 @@
  */
 
 import { eq, and, gte, or, sql } from "drizzle-orm";
-import type { Db, NewSignal, SignalDisposition } from "@mind/core";
-import { events, signals, thoughts, actions, logger, newId } from "@mind/core";
+import type { Db, NewSignal, OutboundDraft, SignalDisposition } from "@mind/core";
+import { events, signals, thoughts, actions, logger, newId, globalSendEnabled } from "@mind/core";
 import { dedupeKey, isDuplicate } from "./dedupe.js";
 import { normalize } from "./normalize.js";
 import { matchSignal } from "./match.js";
@@ -130,22 +130,64 @@ export async function ingest(
       classifierOutput: classifierOut,
     });
 
+    const actionId = newId();
+    const outbound: OutboundDraft = {
+      to: [signal.sender],
+      body: draftBody ?? "",
+      threadId: signal.threadId,
+      replyToExternalId: signal.externalId,
+    };
+
     db.insert(actions)
       .values({
-        id: newId(),
+        id: actionId,
         thoughtId: thoughtId ?? null,
         signalId,
         kind: "reply",
-        payload: JSON.stringify({
-          to: [signal.sender],
-          body: draftBody ?? "",
-          threadId: signal.threadId,
-          replyToExternalId: signal.externalId,
-        }),
+        payload: JSON.stringify(outbound),
         status: "proposed",
         adapter: signal.adapter,
       })
       .run();
+
+    // Autonomous send (PLAN §7). The gates were evaluated in decide(); the
+    // kill switch is re-checked here so `mind pause` takes effect even if it
+    // was engaged while the draft was being generated. An empty draft is never
+    // sent: it stays proposed for the operator.
+    const sender = adapters.get(signal.adapter);
+    if (shouldSend && sender?.send && outbound.body.trim() !== "" && globalSendEnabled()) {
+      try {
+        const result = await sender.send(outbound);
+        db.update(actions)
+          .set({ status: "sent", sentAt: new Date().toISOString() })
+          .where(eq(actions.id, actionId))
+          .run();
+        db.insert(events)
+          .values({
+            id: newId(),
+            actor: "system",
+            kind: "action.sent",
+            payload: JSON.stringify({
+              actionId,
+              externalId: result.externalId,
+              autonomous: true,
+              directionId: dir.id,
+            }),
+          })
+          .run();
+      } catch (err) {
+        db.update(actions).set({ status: "failed" }).where(eq(actions.id, actionId)).run();
+        db.insert(events)
+          .values({
+            id: newId(),
+            actor: "system",
+            kind: "action.failed",
+            payload: JSON.stringify({ actionId, autonomous: true, error: String(err) }),
+          })
+          .run();
+        log.error({ err, actionId }, "autonomous send failed");
+      }
+    }
   }
 
   // Audit event

@@ -56,9 +56,14 @@ export function retentionDays(): number {
   return v ? parseInt(v, 10) : 30;
 }
 
+/** True when the operator has engaged the kill switch (`mind pause`). */
+export function isPaused(): boolean {
+  return existsSync(pausedFlagPath());
+}
+
 /** Global send kill switch. Default false — must be explicitly enabled. */
 export function globalSendEnabled(): boolean {
-  return process.env["MIND_SEND_ENABLED"] === "true" && !existsSync(pausedFlagPath());
+  return process.env["MIND_SEND_ENABLED"] === "true" && !isPaused();
 }
 
 /** Create the paused flag file. Sends are blocked while this file exists. */

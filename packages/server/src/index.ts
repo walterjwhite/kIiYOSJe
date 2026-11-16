@@ -12,6 +12,7 @@ import {
   startRetentionJob,
   startBackupJob,
   startStatusWriter,
+  startLearningLoop,
   updateStatus,
   ingest,
 } from "@mind/pipeline";
@@ -58,6 +59,7 @@ export async function startServer(): Promise<void> {
   startRetentionJob(db);
   startBackupJob();
   startStatusWriter(db, adapters);
+  startLearningLoop(db);
 
   const app = buildApp(db, adapters);
 
