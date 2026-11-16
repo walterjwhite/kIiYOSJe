@@ -11,15 +11,24 @@ import { dedupeKey, isDuplicate } from "./dedupe.js";
 import { normalize } from "./normalize.js";
 import { matchSignal } from "./match.js";
 import { classify } from "./classify.js";
+import type { ClassifierOutput } from "./classify.js";
 import { draft } from "./draft.js";
 import { decide } from "./decide.js";
 import { computeEscalateBy } from "./escalation.js";
 import type { AdapterRegistry } from "./adapter-registry.js";
 
+export interface IngestOverrides {
+  /** Skip the real classifier call and use this result instead. For tests and demo data. */
+  classifierOutput?: ClassifierOutput;
+  /** Skip the real drafter call and use this body instead (still subject to the same send gates). */
+  draftBody?: string | null;
+}
+
 export async function ingest(
   db: Db,
   signal: NewSignal,
   adapters: AdapterRegistry,
+  overrides?: IngestOverrides,
 ): Promise<SignalDisposition | "duplicate"> {
   const key = dedupeKey(signal);
   const log = logger.child({ component: "pipeline", dedupeKey: key });
@@ -37,7 +46,7 @@ export async function ingest(
   const match = matchSignal(db, signal);
 
   // ── 4. Classify ──────────────────────────────────────────────────────────
-  const classifierOut = await classify({
+  const classifierOut = overrides?.classifierOutput ?? await classify({
     signalBody: normalizedBody,
     sender: signal.sender,
     directionId: match?.direction.id ?? null,
@@ -123,12 +132,14 @@ export async function ingest(
 
   if (match && disposition === "absorbed") {
     const dir = match.direction;
-    const draftBody = await draft({
-      senderBody: normalizedBody,
-      sender: signal.sender,
-      standard: dir.standard,
-      classifierOutput: classifierOut,
-    });
+    const draftBody = overrides?.draftBody !== undefined
+      ? overrides.draftBody
+      : await draft({
+          senderBody: normalizedBody,
+          sender: signal.sender,
+          standard: dir.standard,
+          classifierOutput: classifierOut,
+        });
 
     const actionId = newId();
     const outbound: OutboundDraft = {
@@ -221,10 +232,7 @@ export async function ingest(
   return disposition;
 }
 
-function buildThoughtTitle(
-  classifierOut: ReturnType<typeof classify> extends Promise<infer T> ? T : never,
-  sender: string,
-): string {
+function buildThoughtTitle(classifierOut: ClassifierOutput, sender: string): string {
   if (classifierOut.intent && classifierOut.intent !== "unclassified — no API key or LLM error") {
     return `${classifierOut.intent} — ${sender}`;
   }

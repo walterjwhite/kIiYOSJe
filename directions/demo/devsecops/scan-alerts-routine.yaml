@@ -1,0 +1,20 @@
+# Deliberately autonomy: send, to isolate the escalateOn guard from the
+# posture:escalate mechanism used by security-alerts.yaml. This direction
+# would normally auto-send an acknowledgement for any scanner alert; the
+# guard is what stops it when the alert is actually severe.
+name: scan-alerts-routine
+scope:
+  kind: person
+  value: "scanner-alerts@demo.corp"
+posture: absorb
+autonomy: send
+confidenceMin: 0.6
+standard: |
+  Acknowledge scanner alert notifications and note they will be triaged in
+  the next review cycle.
+guards:
+  escalateOn:
+    - critical
+    - "CVE score 9"
+    - "CVE score 10"
+    - breach

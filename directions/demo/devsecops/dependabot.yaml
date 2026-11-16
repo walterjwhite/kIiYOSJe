@@ -1,0 +1,17 @@
+name: dependabot
+scope:
+  kind: person
+  value: "dependabot@demo.corp"
+posture: absorb
+autonomy: draft
+confidenceMin: 0.65
+standard: |
+  Low-severity dependency update notices: acknowledge receipt and note the
+  package will be reviewed in the next maintenance window. Never auto-approve
+  the actual dependency change — this direction only covers the notification
+  email, not the PR itself.
+guards:
+  escalateOn:
+    - critical
+    - "CVE score 9"
+    - "CVE score 10"

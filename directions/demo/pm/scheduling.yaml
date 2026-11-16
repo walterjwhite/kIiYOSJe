@@ -1,0 +1,10 @@
+name: scheduling
+scope:
+  kind: topic
+  value: "standup"
+posture: absorb
+autonomy: send
+confidenceMin: 0.7
+standard: |
+  Confirm or propose meeting times from stated availability only. Never
+  invent availability. If no time is given, ask for 2-3 windows.

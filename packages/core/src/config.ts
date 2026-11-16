@@ -16,7 +16,7 @@ export function configDir(): string {
 }
 
 export function dbPath(): string {
-  return join(dataDir(), "mind.db");
+  return process.env["MIND_DB_PATH"] ?? join(dataDir(), "mind.db");
 }
 
 export function tokenPath(): string {

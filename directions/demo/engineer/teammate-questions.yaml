@@ -1,0 +1,17 @@
+name: teammate-questions
+scope:
+  kind: topic
+  value: "build"
+posture: absorb
+autonomy: send
+confidenceMin: 0.7
+standard: |
+  Answer direct technical questions about the build, test failures, and code
+  location from what is in the codebase or CI logs. If the answer is a known
+  fact (file location, flag name, command), answer immediately. If the
+  question requires a judgement call about design, defer to the sender's
+  own judgement rather than deciding for them.
+guards:
+  escalateOn:
+    - "production outage"
+    - "security"

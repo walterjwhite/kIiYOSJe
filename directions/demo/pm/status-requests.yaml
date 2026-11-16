@@ -1,0 +1,19 @@
+name: status-requests
+scope:
+  kind: topic
+  value: "status"
+posture: absorb
+autonomy: draft
+confidenceMin: 0.6
+standard: |
+  Acknowledge same day. Restate the ask in one line. State when a status
+  update will arrive. Never commit to a delivery date that was not given to
+  you. If the sender needs a number (a %, a date, headcount) that is not
+  on record, draft a request for that number rather than inventing one —
+  this always goes to draft for human approval, never auto-send.
+guards:
+  maxPerThreadPerHour: 2
+  escalateOn:
+    - headcount
+    - budget
+    - "scope change"

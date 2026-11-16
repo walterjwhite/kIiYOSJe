@@ -1,0 +1,11 @@
+name: pr-pings
+scope:
+  kind: topic
+  value: "pull request"
+posture: absorb
+autonomy: send
+confidenceMin: 0.65
+standard: |
+  Acknowledge PR review requests same day. State when the review will happen
+  if not immediately. Never approve or merge on the sender's behalf — only
+  acknowledge the request.

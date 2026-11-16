@@ -1,0 +1,21 @@
+# Anything matching this topic must never be auto-sent, regardless of autonomy
+# settings elsewhere. The guard list below is intentionally broad: this is the
+# direction that proves the escalateOn gate is never bypassed by confidence.
+name: security-alerts
+scope:
+  kind: topic
+  value: "unauthorized access"
+posture: escalate
+autonomy: observe
+confidenceMin: 0.5
+standard: |
+  Any message about a vulnerability, breach, exploit, or incident is pinned
+  to today's brief immediately. No draft, no autonomous action. A human
+  decides how to respond.
+guards:
+  escalateOn:
+    - vulnerability
+    - breach
+    - exploit
+    - incident
+    - "unauthorized access"

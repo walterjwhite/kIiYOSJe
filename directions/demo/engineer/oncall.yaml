@@ -1,0 +1,18 @@
+# Deliberately broad scope: this direction would otherwise try to absorb
+# an outage page (posture: absorb). Its own escalateOn guard is what pulls
+# it back — this is the direction that proves the guard overrides autonomy
+# even on a direction that is NOT posture: escalate.
+name: oncall-pages
+scope:
+  kind: topic
+  value: "production outage"
+posture: absorb
+autonomy: send
+confidenceMin: 0.65
+standard: |
+  Acknowledge paging alerts and confirm they have been seen. Never diagnose
+  or resolve the incident by email — that happens in the incident channel.
+guards:
+  escalateOn:
+    - "production outage"
+    - "customer impact"

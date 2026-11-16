@@ -1,0 +1,13 @@
+# Deliberately narrow/wrong direction, authored to demonstrate the learning
+# loop's "narrow" proposal: it will be overridden >20% of the time because the
+# confidenceMin is set too low for how varied "vendor" emails actually are.
+name: vendor-noise
+scope:
+  kind: project
+  value: "vendor-rep"
+posture: absorb
+autonomy: draft
+confidenceMin: 0.5
+standard: |
+  Acknowledge vendor emails briefly and say the request has been forwarded
+  for review.

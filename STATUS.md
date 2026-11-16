@@ -4,7 +4,9 @@ Last updated: 2026-11-16. Measured against [PLAN.md](PLAN.md).
 
 **Build:** all packages compile under TypeScript 7 strict. **Tests:** 63 passing across 15 files.
 **Nothing has been run against a real LLM, a real Teams or email source, or inside VS Code.**
-Every behaviour below marked "tested" was tested with in-memory SQLite, mocks, or curl against a local server.
+Every behaviour below marked "tested" was tested with in-memory SQLite, mocks, curl against a
+local server, or — for the three demo personas — real replay through the actual pipeline with a
+pre-authored classifier/draft output (never a live LLM call). See `packages/demo-data/README.md`.
 
 ## Phase status
 
@@ -31,6 +33,7 @@ Every behaviour below marked "tested" was tested with in-memory SQLite, mocks, o
 - **Retention:** signal bodies redacted after 30 days (configurable). **Backup:** startup and daily `.backup()`, 14 files kept.
 - **Learning loop:** proposes narrowing, widening, or a new Direction. Proposals are events. `GET /proposals`, `POST /proposals/run|:id/accept|:id/reject`. Accepting updates the DB row and returns the YAML edit you must make by hand, because YAML is the source of truth and a reload would revert a DB-only change.
 - **API:** all routes in PLAN §9, plus `/admin/*`, `/proposals/*`, `PATCH /actions/:id` (edit a draft before approving). `/metrics` returns all six planned metrics plus a per-Direction breakdown. `/directions` includes match stats.
+- **Demo data (`@mind/demo-data`):** three hand-authored personas (Software Engineer, Project Manager, DevSecOps Engineer) replayed through the real pipeline on a dedicated SQLite file, proving: autonomous send on high confidence, the confidence floor forcing escalation, an `escalateOn` guard blocking a specific autonomous send while leaving its draft intact, a direction auto-disabling itself after crossing 20% override rate, and the learning loop generating a real narrow proposal from that override data. `npm run demo:seed` / `demo:serve` / `demo:summary` / `demo:reset`. Confirmed end-to-end against the real HTTP server (`/health`, `/brief`, `/metrics`, `/directions`, `/proposals`).
 
 ## Not verified
 

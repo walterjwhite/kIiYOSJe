@@ -1,0 +1,10 @@
+name: scan-reports
+scope:
+  kind: person
+  value: "scanner@demo.corp"
+posture: surface
+autonomy: observe
+confidenceMin: 0.6
+standard: |
+  Routine scan completion reports are evidence to review on a cadence, not
+  something requiring same-day action. Surface as a Thought; do not reply.
