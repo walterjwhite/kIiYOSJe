@@ -15,9 +15,9 @@
       <span class="brand-mark">◆</span> mind
     </div>
     <nav class="topbar-nav">
-      <button class="nav-tab active" data-view="queue">Work Queue</button>
-      <button class="nav-tab" data-view="plan">Today's Plan</button>
-      <button class="nav-tab" data-view="log">Signals Log</button>
+      <button class="nav-tab active" data-view="queue">Queue</button>
+      <button class="nav-tab" data-view="today">Today</button>
+      <button class="nav-tab" data-view="signals">Signals</button>
     </nav>
     <div class="topbar-right">
       <button class="chip-btn" id="pause-chip">
@@ -26,6 +26,9 @@
       <button class="chip-btn" id="ai-chip">
         <span class="chip-icon">◧</span> ollama
       </button>
+      <button class="chip-btn" id="budget-chip">
+        <span class="chip-icon">◔</span> Budgets
+      </button>
     </div>
   </header>
 
@@ -33,7 +36,7 @@
   <main class="view-queue" id="view-queue">
     <div class="queue-pane">
       <div class="queue-pane-header">
-        <div class="queue-pane-title">Work Queue</div>
+        <div class="queue-pane-title">Queue</div>
         <div class="segmented">
           <button class="segmented-btn active" data-sort="urgency">Urgency</button>
           <button class="segmented-btn" data-sort="flow">Flow</button>
@@ -49,13 +52,13 @@
     </div>
   </main>
 
-  <!-- Today's Plan view -->
-  <main class="view-plan hidden" id="view-plan">
+  <!-- Today view -->
+  <main class="view-today hidden" id="view-today">
     <div class="plan-scroll" id="plan-scroll"></div>
   </main>
 
-  <!-- Signals Log view -->
-  <main class="view-log hidden" id="view-log">
+  <!-- Signals view -->
+  <main class="view-signals hidden" id="view-signals">
     <div class="log-toolbar">
       <div class="log-filter-group">
         <label>Channel</label>
@@ -77,6 +80,18 @@
         </select>
       </div>
       <div class="log-count" id="log-count"></div>
+      <div class="signals-toolbar-actions">
+        <button class="chip-btn" id="signals-pause-chip">
+          <span class="chip-dot running"></span> Running
+        </button>
+        <button class="chip-btn" id="signals-ai-chip">
+          <span class="chip-icon">◧</span> ollama
+        </button>
+        <button class="chip-btn" id="signals-budget-chip">
+          <span class="chip-icon">◔</span> Budgets
+        </button>
+        <button class="btn btn-secondary btn-small" id="signals-sources-btn">Sources</button>
+      </div>
     </div>
     <div class="log-list" id="log-list"></div>
   </main>
@@ -88,6 +103,97 @@
   <div class="quick-pick">
     <input type="text" class="quick-pick-input" id="ai-provider-search" placeholder="Select AI provider / model">
     <div class="quick-pick-list" id="ai-provider-list"></div>
+  </div>
+</div>
+
+<!-- Thought picker overlay -->
+<div class="overlay hidden" id="thought-picker-overlay">
+  <div class="quick-pick">
+    <input type="text" class="quick-pick-input" id="thought-picker-search" placeholder="Link to a ticket, issue, task, or thought…">
+    <div class="quick-pick-list" id="thought-picker-list"></div>
+  </div>
+</div>
+
+<!-- Sources overlay: manage signal sources (connectors), and add a new one -->
+<div class="overlay hidden" id="sources-overlay">
+  <div class="sources-modal">
+    <div class="sources-modal-header">
+      <div class="sources-modal-title">Signal sources</div>
+      <button class="link-btn" id="sources-close-btn">Close</button>
+    </div>
+    <div class="sources-list" id="sources-list"></div>
+
+    <div class="sources-add-form">
+      <div class="add-signal-title">Add a source</div>
+      <label class="add-signal-label">Channel</label>
+      <select id="add-source-channel">
+        <option value="email">Email</option>
+        <option value="chat">Chat</option>
+        <option value="jira">Jira</option>
+        <option value="calendar">Calendar</option>
+        <option value="sms">SMS</option>
+      </select>
+      <label class="add-signal-label">Label</label>
+      <input type="text" id="add-source-label" placeholder="e.g. support@demo.corp, or Slack — #billing">
+      <div class="add-signal-actions">
+        <button class="btn" id="add-source-create">Add source</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI usage budgets overlay — mockup of the mind.ai.* VS Code settings.
+     Nothing here is wired to a real server; it only demonstrates the
+     controls and their effect in this mockup's own state. -->
+<div class="overlay hidden" id="budget-overlay">
+  <div class="budget-modal">
+    <div class="sources-modal-header">
+      <div class="sources-modal-title">AI usage budgets</div>
+      <button class="link-btn" id="budget-close-btn">Close</button>
+    </div>
+    <p class="budget-modal-sub">
+      Same settings as <code>mind.ai.*</code> in VS Code's Settings UI —
+      shown here as they'd read there. Prevents a runaway AI loop from
+      burning time or spend unbounded.
+    </p>
+
+    <div class="setting-row">
+      <label class="setting-label" for="budget-time-per-task">mind.ai.timeBudgetMsPerTask</label>
+      <p class="setting-desc">Maximum wall-clock time (ms) a single AI call may run before it's aborted. 0 disables the limit.</p>
+      <input type="number" min="0" step="1000" class="setting-input" id="budget-time-per-task">
+    </div>
+
+    <div class="setting-row">
+      <label class="setting-label" for="budget-tokens-per-task">mind.ai.tokenBudgetPerTask</label>
+      <p class="setting-desc">Maximum tokens (prompt + completion) a single AI call may use before it's aborted. 0 disables the limit.</p>
+      <input type="number" min="0" step="500" class="setting-input" id="budget-tokens-per-task">
+    </div>
+
+    <div class="setting-row">
+      <label class="setting-label" for="budget-tokens-per-day">mind.ai.tokenBudgetPerDay</label>
+      <p class="setting-desc">Maximum total tokens across all AI calls per rolling 24h day before AI-driven work pauses and you're alerted. 0 disables the limit.</p>
+      <input type="number" min="0" step="10000" class="setting-input" id="budget-tokens-per-day">
+    </div>
+
+    <div class="setting-row">
+      <label class="setting-label" for="budget-on-exceeded">mind.ai.onBudgetExceeded</label>
+      <p class="setting-desc">What happens when a budget above is exceeded.</p>
+      <select class="setting-input" id="budget-on-exceeded">
+        <option value="pause">pause — stop all AI-driven work until resumed manually</option>
+        <option value="escalate">escalate — surface the in-progress task to you as a signal</option>
+        <option value="notify-only">notify-only — keep running, just warn</option>
+      </select>
+    </div>
+
+    <div class="budget-usage-today">
+      <span class="budget-usage-label">Used today</span>
+      <div class="budget-usage-bar-track"><div class="budget-usage-bar-fill" id="budget-usage-fill"></div></div>
+      <span class="budget-usage-text" id="budget-usage-text"></span>
+    </div>
+
+    <div class="add-signal-actions">
+      <button class="btn" id="budget-save-btn">Save</button>
+    </div>
   </div>
 </div>
 

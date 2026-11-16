@@ -1,15 +1,13 @@
 /**
- * Interactive mockup of the mind VS Code extension — work-queue redesign.
- * All state lives in window.MOCK_STATE (see data.js) and is mutated directly —
- * this is a UI mockup, not a client for the real server.
+ * Interactive mockup of the mind extension — signal-centric redesign.
+ * All state lives in window.MOCK_STATE (see data.js) and is mutated directly.
+ * This is a UI mockup, not a client for the real server.
  */
 
 (function () {
   "use strict";
 
   const state = window.MOCK_STATE;
-  const openTabs = new Map();
-  let activeTabId = "welcome";
 
   // ── Utilities ──────────────────────────────────────────────────────────
 
@@ -34,13 +32,17 @@
     return diffMs < 0 ? `${label} ago` : `in ${label}`;
   }
 
+  function clockTime(iso) {
+    return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
   function toast(message, isError) {
     const container = document.getElementById("toast-container");
     const el = document.createElement("div");
     el.className = "toast" + (isError ? " error" : "");
     el.textContent = message;
     container.appendChild(el);
-    setTimeout(() => el.remove(), 4000);
+    setTimeout(() => el.remove(), 4200);
   }
 
   function directionName(id) {
@@ -49,563 +51,745 @@
     return d ? d.name : id;
   }
 
-  function isOverdue(item) {
-    return !!item.escalateBy && new Date(item.escalateBy) <= new Date();
+  function thoughtById(id) {
+    if (!id) return null;
+    return state.thoughts.find((t) => t.id === id) || null;
+  }
+
+  /**
+   * Shared "decision made, follow-through pending" transition. The item
+   * stays in the Queue, in place, shown disabled with a pulsing running
+   * badge for a beat, then either closes (moves to Signals) or — if
+   * reopen is given — comes back with a fresh request instead of closing,
+   * modeling background work that needed the operator again.
+   */
+  function runThenResolve(sig, runningLabel, { resolution, reopenWith, delayMs } = {}) {
+    sig.runningState = { label: runningLabel, startedAt: new Date().toISOString() };
+    renderQueueList();
+    renderDetail();
+    refreshPlanIfVisible();
+
+    setTimeout(() => {
+      sig.runningState = null;
+      if (reopenWith) {
+        sig.request = reopenWith;
+        toast(`${sig.summary} — needs you again: ${reopenWith.reason || "see detail"}`);
+      } else {
+        sig.status = "closed";
+        sig.resolution = resolution || "done";
+        if (state.selectedSignalId === sig.id) state.selectedSignalId = null;
+        toast(`Done: ${sig.summary}`);
+      }
+      renderQueueList();
+      renderDetail();
+      refreshPlanIfVisible();
+      renderLogView();
+    }, delayMs ?? 1800);
+  }
+
+  function isOverdue(sig) {
+    const by = sig.request?.escalateBy;
+    return !!by && new Date(by) <= new Date();
   }
 
   function confidenceClass(c) {
     if (c == null) return "";
-    if (c < 0.5) return "low";
-    if (c < 0.75) return "mid";
-    return "high";
+    if (c < 0.5) return "conf-low";
+    if (c < 0.75) return "conf-mid";
+    return "conf-high";
   }
 
-  const KIND_ICON = {
-    escalation: "🔥",
-    review: "🔍",
-    "reply-draft": "✉",
-  };
+  const CHANNEL_ICON = { email: "✉", jira: "◧", chat: "💬", calendar: "📅", sms: "📱" };
+  const REQUEST_ICON = { "approve-send": "✉", "external-review": "◧", "needs-credential": "⚠", "needs-link": "🔗" };
 
   // ── Work queue ───────────────────────────────────────────────────────
 
-  function openQueueItems() {
-    return state.queue.filter((q) => q.status === "open");
+  function openSignals() {
+    return state.signals.filter((s) => s.request && (s.status === "open" || s.runningState));
   }
 
   function sortedQueue() {
-    const items = openQueueItems();
-    const escalations = items.filter((i) => i.kind === "escalation");
-    const rest = items.filter((i) => i.kind !== "escalation");
+    const items = openSignals();
+    const escalations = items.filter((i) => i.request.kind === "needs-credential");
+    const rest = items.filter((i) => i.request.kind !== "needs-credential");
 
     if (state.sortMode === "urgency") {
-      rest.sort((a, b) => b.urgencyScore - a.urgencyScore);
-      return { groups: [{ label: null, items: [...escalations, ...rest] }] };
+      rest.sort((a, b) => b.request.urgencyScore - a.request.urgencyScore);
+      return [{ label: null, items: [...escalations, ...rest] }];
     }
 
-    // "flow" mode: escalations still pinned first, then grouped by threadKey,
-    // groups ordered by their most urgent member, preserving natural
-    // conversation/ticket continuity within a group.
     const byThread = new Map();
     for (const item of rest) {
-      if (!byThread.has(item.threadKey)) byThread.set(item.threadKey, []);
-      byThread.get(item.threadKey).push(item);
+      const key = item.threadKey || item.id;
+      if (!byThread.has(key)) byThread.set(key, []);
+      byThread.get(key).push(item);
     }
     const groups = [...byThread.entries()]
-      .map(([threadKey, groupItems]) => ({
-        label: threadKey,
+      .map(([key, groupItems]) => ({
+        label: key,
         items: groupItems,
-        maxUrgency: Math.max(...groupItems.map((i) => i.urgencyScore)),
+        maxUrgency: Math.max(...groupItems.map((i) => i.request.urgencyScore)),
       }))
       .sort((a, b) => b.maxUrgency - a.maxUrgency);
 
     const result = [];
     if (escalations.length) result.push({ label: null, items: escalations });
     result.push(...groups);
-    return { groups: result };
+    return result;
   }
 
-  function renderQueue() {
-    const container = document.getElementById("tree-queue");
-    const { groups } = sortedQueue();
-    const totalOpen = openQueueItems().length;
+  function renderQueueList() {
+    const container = document.getElementById("queue-list");
+    const groups = sortedQueue();
+    const total = openSignals().length;
 
-    if (totalOpen === 0) {
-      container.innerHTML = `<div class="tree-empty-state">Queue is empty. Nothing needs you right now.</div>`;
+    if (total === 0) {
+      container.innerHTML = `<div class="queue-empty">Queue is empty.<br>Nothing needs you right now.</div>`;
       return;
     }
 
     container.innerHTML = groups
       .map((group) => {
-        const groupHeader =
+        const header =
           state.sortMode === "flow" && group.label
-            ? `<div class="queue-group-header">${esc(group.label)}</div>`
+            ? `<div class="queue-group-label">${esc(group.label)}</div>`
             : "";
-        return groupHeader + group.items.map(renderQueueItem).join("");
+        return header + group.items.map(renderQueueCard).join("");
       })
       .join("");
 
-    wireQueueItemEvents(container);
+    container.querySelectorAll("[data-sig-id]").forEach((el) => {
+      el.addEventListener("click", () => selectSignal(el.dataset.sigId));
+    });
   }
 
-  function renderQueueItem(item) {
-    const icon = KIND_ICON[item.kind] || "•";
-    const overdue = isOverdue(item);
-    const metaBits = [];
+  function renderQueueCard(sig) {
+    const req = sig.request;
+    const overdue = isOverdue(sig);
+    const icon = REQUEST_ICON[req.kind] || "•";
+    const channelClass = `channel-${sig.channel}`;
+    const running = !!sig.runningState;
 
-    if (item.kind === "review" && item.confidence != null) {
-      metaBits.push(
-        `<span class="confidence-badge ${confidenceClass(item.confidence)}">conf ${item.confidence.toFixed(2)}</span>`,
-      );
+    const badges = [];
+    if (running) {
+      badges.push(`<span class="badge running-badge"><span class="running-dot"></span> ${esc(sig.runningState.label)}</span>`);
     }
-    if (item.escalateBy) {
-      metaBits.push(
-        `<span class="queue-item-meta${overdue ? " state-active" : ""}">${overdue ? "overdue " : "due "}${esc(relativeTime(item.escalateBy))}</span>`,
-      );
-    } else {
-      metaBits.push(`<span class="queue-item-meta">no deadline</span>`);
+    if (req.kind === "external-review" && req.context.confidence != null) {
+      badges.push(`<span class="badge ${confidenceClass(req.context.confidence)}">conf ${req.context.confidence.toFixed(2)}</span>`);
+    }
+    if (req.kind === "needs-credential") {
+      badges.push(`<span class="badge overdue">needs OTP</span>`);
+    }
+    if (req.kind === "needs-link") {
+      badges.push(`<span class="badge due">unlinked</span>`);
+    }
+    if (req.escalateBy && !running) {
+      badges.push(`<span class="badge ${overdue ? "overdue" : "due"}">${overdue ? "overdue" : "due"} ${esc(relativeTime(req.escalateBy))}</span>`);
     }
 
-    let actions = "";
-    if (item.kind === "reply-draft") {
-      actions = `
-        <div class="queue-item-actions">
-          <button class="tree-item-action-btn approve" data-approve="${esc(item.id)}" title="Approve & Send">✓</button>
-          <button class="tree-item-action-btn discard" data-discard="${esc(item.id)}" title="Discard">✕</button>
-        </div>`;
-    } else if (item.kind === "escalation") {
-      actions = `
-        <div class="queue-item-actions">
-          <button class="tree-item-action-btn" data-acknowledge="${esc(item.id)}" title="Acknowledge">✓</button>
-        </div>`;
-    }
-    // review items have no inline action — they require opening to see stages
+    const selected = state.selectedSignalId === sig.id ? " selected" : "";
+    const runningClass = running ? " running" : "";
 
     return `
-      <div class="queue-item kind-${esc(item.kind)}" data-queue-id="${esc(item.id)}">
-        <span class="queue-item-icon">${icon}</span>
-        <div class="queue-item-main">
-          <div class="queue-item-title">${esc(item.title)}</div>
-          <div class="queue-item-sub">${metaBits.join("")}</div>
-        </div>
-        ${actions}
-      </div>
-    `;
-  }
-
-  function wireQueueItemEvents(container) {
-    container.querySelectorAll("[data-queue-id]").forEach((el) => {
-      el.addEventListener("click", (ev) => {
-        if (ev.target.closest("[data-approve],[data-discard],[data-acknowledge]")) return;
-        const item = state.queue.find((q) => q.id === el.dataset.queueId);
-        if (item) openQueueItemTab(item);
-      });
-    });
-    container.querySelectorAll("[data-approve]").forEach((btn) => {
-      btn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        approveReply(btn.dataset.approve);
-      });
-    });
-    container.querySelectorAll("[data-discard]").forEach((btn) => {
-      btn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        discardReply(btn.dataset.discard);
-      });
-    });
-    container.querySelectorAll("[data-acknowledge]").forEach((btn) => {
-      btn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        acknowledgeEscalation(btn.dataset.acknowledge);
-      });
-    });
-  }
-
-  function openQueueItemTab(item) {
-    const tabId = `queue-${item.id}`;
-    if (item.kind === "review") {
-      openTab(tabId, item.title, () => renderReviewPane(item), (pane) => wireReviewPaneEvents(pane, item));
-    } else if (item.kind === "reply-draft") {
-      openTab(tabId, item.title, () => renderReplyPane(item), (pane) => wireReplyPaneEvents(pane, item));
-    } else {
-      openTab(tabId, item.title, () => renderEscalationPane(item), (pane) => wireEscalationPaneEvents(pane, item));
-    }
-  }
-
-  // ── Escalation detail ────────────────────────────────────────────────
-
-  function renderEscalationPane(item) {
-    return `
-      <div class="markdown-pane">
-        <h1>🔥 ${esc(item.title)}</h1>
-        <p>${esc(item.summary)}</p>
-        <div class="meta-block">
-          <div><strong>Source:</strong> ${esc(item.source)}</div>
-          <div><strong>Direction:</strong> ${esc(directionName(item.directionId) || "—")}</div>
-          <div><strong>Status:</strong> this bypassed autonomy entirely — nothing was drafted or sent automatically.</div>
-        </div>
-        <div style="margin-top: 20px;">
-          <button class="btn" data-ack="${esc(item.id)}">✓ Acknowledge — I'm on it</button>
+      <div class="q-card kind-${esc(req.kind)}${selected}${runningClass}" data-sig-id="${esc(sig.id)}">
+        <div class="q-icon ${channelClass}">${CHANNEL_ICON[sig.channel] || icon}</div>
+        <div class="q-main">
+          <div class="q-title">${esc(sig.summary)}</div>
+          <div class="q-meta-row">
+            <span class="q-source">${esc(sig.from === "me" ? sig.to : sig.from)}</span>
+            ${badges.join("")}
+          </div>
         </div>
       </div>
     `;
   }
 
-  function wireEscalationPaneEvents(pane, item) {
-    pane.querySelector("[data-ack]")?.addEventListener("click", () => {
-      acknowledgeEscalation(item.id);
-      closeTab(`queue-${item.id}`);
+  function selectSignal(id) {
+    state.selectedSignalId = id;
+    renderQueueList();
+    renderDetail();
+  }
+
+  function renderDetail() {
+    const pane = document.getElementById("detail-pane");
+    const sig = state.signals.find((s) => s.id === state.selectedSignalId);
+
+    if (!sig) {
+      pane.innerHTML = `
+        <div class="detail-empty">
+          <div class="detail-empty-mark">◆</div>
+          <p>Select an item from the queue.</p>
+        </div>`;
+      return;
+    }
+
+    pane.innerHTML = `<div class="detail-content">${renderDetailBody(sig)}</div>`;
+    wireDetailEvents(pane, sig);
+  }
+
+  function thoughtLinkHtml(sig) {
+    const thought = thoughtById(sig.thoughtId);
+    if (thought) {
+      return `
+        <div class="thought-link-row">
+          <span class="thought-link-kind">${esc(thought.kind)}</span>
+          <span class="thought-link-title">${esc(thought.title)}</span>
+          <button class="link-btn" data-relink-thought="${esc(sig.id)}">Change</button>
+        </div>`;
+    }
+    const urgent = sig.needsLinking ? " needs-linking" : "";
+    return `
+      <div class="thought-link-row${urgent}">
+        <span class="thought-link-empty">${sig.needsLinking ? "Not linked to a ticket, issue, or thought yet" : "Not linked to anything"}</span>
+        <button class="link-btn" data-link-thought="${esc(sig.id)}">Link to a ticket or thought</button>
+      </div>`;
+  }
+
+  function renderDetailBody(sig) {
+    const req = sig.request;
+    const kicker = `
+      <div class="detail-kicker">
+        <span>${esc(sig.channel)}</span><span class="dot">·</span>
+        <span>${esc(sig.from === "me" ? `to ${sig.to}` : `from ${sig.from}`)}</span><span class="dot">·</span>
+        <span>${esc(relativeTime(sig.timestamp))}</span>
+      </div>`;
+
+    const reasonBlock = req?.reason
+      ? `<div class="reason-row"><span class="reason-label">Why this needs you</span><p class="reason-text">${esc(req.reason)}</p></div>`
+      : "";
+
+    const runningBlock = sig.runningState
+      ? `<div class="running-banner"><span class="running-dot"></span> ${esc(sig.runningState.label)} — started ${esc(relativeTime(sig.runningState.startedAt))}. No action needed right now; this will update on its own when it finishes.</div>`
+      : "";
+
+    const thoughtBlock = sig.channel === "chat" || sig.thoughtId || sig.needsLinking ? thoughtLinkHtml(sig) : "";
+
+    if (sig.runningState) {
+      // Decision already made; follow-through is in progress. Show context
+      // read-only instead of live action buttons.
+      return kicker + reasonBlock + runningBlock + renderDetailReadOnly(sig) + thoughtBlock;
+    }
+
+    if (!req) {
+      // Already-resolved / informational signal (closed, sent, or dangling chat).
+      if (sig.channel === "chat" && sig.exchange) {
+        return kicker + renderChatExchangeDetail(sig) + thoughtBlock;
+      }
+      return kicker + renderInertDetail(sig) + thoughtBlock;
+    }
+
+    if (req.kind === "needs-credential") return kicker + reasonBlock + renderNeedsCredentialDetail(sig) + thoughtBlock;
+    if (req.kind === "needs-link") return kicker + reasonBlock + renderNeedsLinkDetail(sig) + thoughtBlock;
+    if (req.kind === "external-review") return kicker + reasonBlock + renderExternalReviewDetail(sig) + thoughtBlock;
+    return kicker + reasonBlock + renderApproveSendDetail(sig) + thoughtBlock;
+  }
+
+  function renderDetailReadOnly(sig) {
+    const req = sig.request;
+    if (!req) return `<h1 class="detail-title">${esc(sig.summary)}</h1><div class="detail-body-text">${esc(sig.body)}</div>`;
+    if (req.kind === "needs-credential") {
+      const ctx = req.context;
+      const stepsHtml = (ctx.triagePriorSteps || [])
+        .map((s) => `
+        <div class="stage-chip ${esc(s.status)}">
+          <div class="stage-dot">${s.status === "done" ? "✓" : s.status === "blocked" ? "⏸" : "·"}</div>
+          <div class="stage-text"><div class="stage-name">${esc(s.name)}</div>${s.detail ? `<div class="stage-detail">${esc(s.detail)}</div>` : ""}</div>
+        </div>`)
+        .join("");
+      return `<h1 class="detail-title">${esc(sig.summary)}</h1><div class="section-label">Triage</div><div class="stage-row">${stepsHtml}</div>`;
+    }
+    return `
+      <h1 class="detail-title">${esc(sig.summary)}</h1>
+      <div class="detail-sub">${esc(sig.body)}</div>
+      <div class="section-label">Approved content</div>
+      <div class="draft-box readonly">${esc(req.context?.draft || sig.body)}</div>
+    `;
+  }
+
+  function renderInertDetail(sig) {
+    return `
+      <h1 class="detail-title">${esc(sig.summary)}</h1>
+      <div class="detail-body-text">${esc(sig.body)}</div>
+      ${sig.resolution ? `<div class="notes-box">${esc(sig.resolution)}</div>` : ""}
+      ${sig.sendSchedule ? `<div class="schedule-row"><span class="schedule-icon">✓</span><span class="schedule-text">Sent ${sig.sendSchedule.mode === "immediate" ? "immediately" : `with the ${esc(sig.sendSchedule.batchLabel)}`}.</span></div>` : ""}
+    `;
+  }
+
+  // ── Needs-link (dangling, actionable) detail ─────────────────────────
+
+  function renderNeedsLinkDetail(sig) {
+    const bubbles = (sig.exchange || [])
+      .map((m) => {
+        const mine = m.from === "me";
+        return `
+        <div class="exchange-bubble-row ${mine ? "mine" : "theirs"}">
+          <div class="exchange-bubble">
+            <div class="exchange-bubble-from">${mine ? "You" : esc(m.from)}</div>
+            <div class="exchange-bubble-body">${esc(m.body)}</div>
+            <div class="exchange-bubble-time">${esc(clockTime(m.timestamp))}</div>
+          </div>
+        </div>`;
+      })
+      .join("");
+
+    return `
+      <h1 class="detail-title">${esc(sig.summary)}</h1>
+      ${bubbles ? `<div class="exchange-thread">${bubbles}</div>` : `<div class="detail-body-text">${esc(sig.body)}</div>`}
+      <div class="action-bar">
+        <button class="btn" data-link-thought="${esc(sig.id)}">Link to a ticket or thought</button>
+        <button class="btn btn-secondary" data-dismiss-link="${esc(sig.id)}">Dismiss — not actionable</button>
+      </div>
+    `;
+  }
+
+  function wireNeedsLinkEvents(pane, sig) {
+    pane.querySelector("[data-dismiss-link]")?.addEventListener("click", () => {
+      sig.status = "closed";
+      sig.needsLinking = false;
+      sig.resolution = "dismissed — not actionable";
+      toast(`Dismissed: ${sig.summary}`);
+      if (state.selectedSignalId === sig.id) state.selectedSignalId = null;
+      renderQueueList();
+      renderDetail();
+      refreshPlanIfVisible();
+      renderLogView();
     });
   }
 
-  function acknowledgeEscalation(id) {
-    const item = state.queue.find((q) => q.id === id);
-    if (!item) return;
-    item.status = "acknowledged";
-    renderQueue();
-    refreshPlanTabIfOpen();
-    toast(`Acknowledged: ${item.title}`);
+  // ── Chat exchange (both sides of the conversation) ───────────────────
+
+  function renderChatExchangeDetail(sig) {
+    const bubbles = (sig.exchange || [])
+      .map((m) => {
+        const mine = m.from === "me";
+        return `
+        <div class="exchange-bubble-row ${mine ? "mine" : "theirs"}">
+          <div class="exchange-bubble">
+            <div class="exchange-bubble-from">${mine ? "You" : esc(m.from)}</div>
+            <div class="exchange-bubble-body">${esc(m.body)}</div>
+            <div class="exchange-bubble-time">${esc(clockTime(m.timestamp))}</div>
+          </div>
+        </div>`;
+      })
+      .join("");
+
+    const danglingNote = sig.needsLinking
+      ? `<div class="notes-box">This chat references work that isn't tracked anywhere yet. Link it to a ticket or thought (existing or new) so it doesn't stay dangling.</div>`
+      : "";
+
+    const actionBar = sig.needsLinking
+      ? `<div class="action-bar">
+          <button class="btn" data-link-thought="${esc(sig.id)}">Link to a ticket or thought</button>
+          <button class="btn btn-secondary" data-dismiss-chat="${esc(sig.id)}">Dismiss — no action needed</button>
+        </div>`
+      : "";
+
+    return `
+      <h1 class="detail-title">${esc(sig.summary)}</h1>
+      <div class="exchange-thread">${bubbles}</div>
+      ${danglingNote}
+      ${actionBar}
+    `;
   }
 
-  // ── Review detail (Jira ticket -> PR pipeline) ──────────────────────
+  function wireChatExchangeEvents(pane, sig) {
+    pane.querySelector("[data-dismiss-chat]")?.addEventListener("click", () => {
+      sig.status = "closed";
+      sig.needsLinking = false;
+      sig.resolution = "dismissed — no action needed";
+      toast(`Dismissed: ${sig.summary}`);
+      renderQueueList();
+      renderLogView();
+      renderDetail();
+    });
+  }
 
-  const STAGE_ICON = {
-    done: "✓",
-    clean: "✓",
-    flagged: "⚠",
-    pending: "○",
-    blocked: "◌",
-  };
+  // ── Needs-credential (OTP-gated triage) detail ───────────────────────
 
-  function renderReviewPane(item) {
-    const stagesHtml = item.stages
+  function renderNeedsCredentialDetail(sig) {
+    const ctx = sig.request.context;
+    const stepsHtml = (ctx.triagePriorSteps || [])
       .map(
-        (s, i) => `
-      ${i > 0 ? '<span class="stage-arrow">→</span>' : ""}
-      <div class="stage-chip ${esc(s.status)}" title="${esc(s.detail || "")}">
-        <span class="stage-icon">${STAGE_ICON[s.status] || "○"}</span>
-        ${esc(s.name)}
+        (s) => `
+      <div class="stage-chip ${esc(s.status)}">
+        <div class="stage-dot">${s.status === "done" ? "✓" : s.status === "blocked" ? "⏸" : "·"}</div>
+        <div class="stage-text">
+          <div class="stage-name">${esc(s.name)}</div>
+          ${s.detail ? `<div class="stage-detail">${esc(s.detail)}</div>` : ""}
+        </div>
       </div>
     `,
       )
       .join("");
 
-    const confClass = confidenceClass(item.confidence);
-    const confLabel = item.confidence < 0.5 ? "low" : item.confidence < 0.75 ? "medium" : "high";
-
     return `
-      <div class="markdown-pane">
-        <h1>🔍 ${esc(item.title)}</h1>
-        <p>${esc(item.summary)}</p>
+      <h1 class="detail-title">${esc(sig.summary)}</h1>
+      <div class="detail-body-text">${esc(sig.body)}</div>
 
-        <div style="margin: 8px 0;">
-          <span class="confidence-badge ${confClass}">confidence ${item.confidence.toFixed(2)} (${confLabel})</span>
-        </div>
+      <div class="section-label">Triage so far — driven automatically</div>
+      <div class="stage-row">${stepsHtml}</div>
 
-        <div class="stage-pipeline">${stagesHtml}</div>
-
-        ${item.notes ? `<div class="review-notes"><strong>Adversarial review notes:</strong><br>${esc(item.notes)}</div>` : ""}
-
-        ${item.diffSummary ? `<div class="diff-summary">Changed: ${esc(item.diffSummary)}</div>` : ""}
-
-        <div class="meta-block">
-          <div><strong>Direction:</strong> ${esc(directionName(item.directionId) || "—")}</div>
-          <div><strong>Review requested:</strong> ${esc(relativeTime(item.createdAt))}</div>
-        </div>
-
-        <div style="margin-top: 20px; display: flex; gap: 8px;">
-          <button class="btn" data-review-approve="${esc(item.id)}">✓ Approve — open the PR</button>
-          <button class="btn btn-secondary" data-review-more-testing="${esc(item.id)}">🧪 Needs more testing</button>
-          <button class="btn btn-secondary" data-review-reject="${esc(item.id)}">✕ Send back to AI</button>
+      <div class="credential-gate" id="credential-gate-${esc(sig.id)}">
+        <div class="credential-gate-icon">🔒</div>
+        <div class="credential-gate-body">
+          <div class="credential-gate-prompt">${esc(ctx.credentialPrompt)}</div>
+          <div class="credential-gate-row">
+            <input type="text" inputmode="numeric" maxlength="8" class="otp-input" id="otp-input-${esc(sig.id)}" placeholder="123456" autocomplete="one-time-code">
+            <button class="btn" data-resume-triage="${esc(sig.id)}">Provide &amp; resume triage</button>
+          </div>
+          <div class="credential-gate-note">${esc(ctx.afterReceived)}</div>
         </div>
       </div>
     `;
   }
 
-  function wireReviewPaneEvents(pane, item) {
-    pane.querySelector("[data-review-approve]")?.addEventListener("click", () => {
-      resolveReview(item.id, "approved");
-    });
-    pane.querySelector("[data-review-more-testing]")?.addEventListener("click", () => {
-      resolveReview(item.id, "more-testing");
-    });
-    pane.querySelector("[data-review-reject]")?.addEventListener("click", () => {
-      resolveReview(item.id, "sent-back");
+  function wireNeedsCredentialEvents(pane, sig) {
+    pane.querySelector("[data-resume-triage]")?.addEventListener("click", () => {
+      const input = document.getElementById(`otp-input-${sig.id}`);
+      const otp = (input?.value || "").trim();
+      if (!otp) {
+        toast("Enter your OTP to resume the triage.", true);
+        input?.focus();
+        return;
+      }
+
+      const stage = sig.request.context.triagePriorSteps.find((s) => s.status === "blocked");
+      if (stage) stage.status = "done";
+
+      toast(`OTP accepted. Triage resuming in the background — ${sig.summary}`);
+      runThenResolve(sig, "Resuming triage — checking prod audit trail", {
+        resolution: "triage resumed with OTP — no match found in prod, closed automatically",
+        delayMs: 2200,
+      });
     });
   }
 
-  function resolveReview(id, outcome) {
-    const item = state.queue.find((q) => q.id === id);
-    if (!item) return;
-    const tabId = `queue-${id}`;
+  // ── External review detail — renders context.* generically ─────────
 
-    if (outcome === "approved") {
-      item.status = "done";
-      toast(`PR opened for ${item.title}. AI will take it from here through deploy.`);
-      closeTab(tabId);
-    } else if (outcome === "more-testing") {
-      const stage = item.stages.find((s) => s.name === "Human review");
-      if (stage) stage.status = "pending";
-      toast(`Requested more testing on ${item.title} — it stays in the queue.`);
-    } else {
-      item.status = "sent-back";
-      toast(`Sent ${item.title} back to AI for another pass.`);
-      closeTab(tabId);
-    }
-    renderQueue();
-    refreshPlanTabIfOpen();
-  }
+  function renderExternalReviewDetail(sig) {
+    const ctx = sig.request.context;
+    const confClass = confidenceClass(ctx.confidence);
+    const confPct = Math.round((ctx.confidence ?? 0) * 100);
 
-  // ── Reply draft detail ───────────────────────────────────────────────
-
-  function renderReplyPane(item) {
-    return `
-      <div class="markdown-pane">
-        <h1>✉ ${esc(item.title)}</h1>
-        <p><strong>From:</strong> ${esc(item.source)}</p>
-        <p>${esc(item.summary)}</p>
-        <div class="diff-summary" style="white-space: pre-wrap;">${esc(item.draft)}</div>
-        <div class="meta-block">
-          <div><strong>Direction:</strong> ${esc(directionName(item.directionId) || "—")}</div>
-          <div><strong>Drafted:</strong> ${esc(relativeTime(item.createdAt))}</div>
+    const stagesHtml = (ctx.stages || [])
+      .map(
+        (s) => `
+      <div class="stage-chip ${esc(s.status)}">
+        <div class="stage-dot">${s.status === "done" || s.status === "clean" ? "✓" : s.status === "flagged" ? "!" : "·"}</div>
+        <div class="stage-text">
+          <div class="stage-name">${esc(s.name)}</div>
+          ${s.detail ? `<div class="stage-detail">${esc(s.detail)}</div>` : ""}
         </div>
-        <div style="margin-top: 20px; display: flex; gap: 8px;">
-          <button class="btn" data-reply-approve="${esc(item.id)}">✓ Approve &amp; Send</button>
-          <button class="btn btn-secondary" data-reply-discard="${esc(item.id)}">✕ Discard</button>
-        </div>
-      </div>
-    `;
-  }
-
-  function wireReplyPaneEvents(pane, item) {
-    pane.querySelector("[data-reply-approve]")?.addEventListener("click", () => {
-      approveReply(item.id);
-      closeTab(`queue-${item.id}`);
-    });
-    pane.querySelector("[data-reply-discard]")?.addEventListener("click", () => {
-      discardReply(item.id);
-      closeTab(`queue-${item.id}`);
-    });
-  }
-
-  function approveReply(id) {
-    const item = state.queue.find((q) => q.id === id);
-    if (!item) return;
-    item.status = "sent";
-    renderQueue();
-    refreshPlanTabIfOpen();
-    toast(`Sent reply: ${item.title}`);
-  }
-
-  function discardReply(id) {
-    const item = state.queue.find((q) => q.id === id);
-    if (!item) return;
-    item.status = "discarded";
-    renderQueue();
-    refreshPlanTabIfOpen();
-    toast(`Discarded: ${item.title}`);
-  }
-
-  // ── Outbox (your outgoing questions) ────────────────────────────────
-
-  function renderOutboxTree() {
-    const container = document.getElementById("tree-outbox");
-    const open = state.outbox.filter((o) => o.status !== "sent");
-    document.getElementById("outbox-count").textContent = open.length || "";
-
-    if (open.length === 0) {
-      container.innerHTML = `<div class="tree-empty-state">No pending questions.</div>`;
-      return;
-    }
-
-    const readyCount = open.filter((o) => o.status === "ready").length;
-
-    container.innerHTML =
-      open
-        .map(
-          (o) => `
-      <div class="outbox-item" data-outbox-id="${esc(o.id)}">
-        <div class="outbox-item-to">to ${esc(o.to)}</div>
-        <div class="outbox-item-question">${esc(o.question)}</div>
-        <span class="outbox-verdict ${esc(o.aiCheck.verdict)}">${o.aiCheck.verdict === "likely-answerable-locally" ? "⚠ you may already know this" : "✓ worth asking"}</span>
       </div>
     `,
-        )
-        .join("") +
-      (readyCount > 0
-        ? `<div class="outbox-toolbar"><button class="btn btn-small" id="send-batch-btn">Send ${readyCount} ready question${readyCount === 1 ? "" : "s"} now</button></div>`
-        : "");
+      )
+      .join("");
 
-    container.querySelectorAll("[data-outbox-id]").forEach((el) => {
-      el.addEventListener("click", () => {
-        const o = state.outbox.find((x) => x.id === el.dataset.outboxId);
-        if (o) openOutboxTab(o);
-      });
-    });
+    return `
+      <h1 class="detail-title">${esc(sig.summary)}</h1>
+      <div class="detail-sub">${esc(sig.body)}</div>
 
-    container.querySelector("#send-batch-btn")?.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      sendReadyBatch();
-    });
-  }
+      ${ctx.externalUrl ? `<a class="external-link" href="${esc(ctx.externalUrl)}" target="_blank" rel="noopener">Open in source system ↗</a>` : ""}
 
-  function openOutboxTab(o) {
-    const tabId = `outbox-${o.id}`;
-    openTab(tabId, `Q: ${o.to}`, () => `
-      <div class="markdown-pane">
-        <h1>Question for ${esc(o.to)}</h1>
-        <p>${esc(o.question)}</p>
-        <div class="review-notes">
-          <strong>AI pre-check:</strong><br>${esc(o.aiCheck.note)}
-        </div>
-        <div class="meta-block">
-          <div><strong>Status:</strong> ${esc(o.status)}</div>
-          <div><strong>Raised:</strong> ${esc(relativeTime(o.createdAt))}</div>
-        </div>
-        <div style="margin-top: 20px; display: flex; gap: 8px;">
-          <button class="btn" data-outbox-mark-ready="${esc(o.id)}" ${o.status === "ready" ? "disabled" : ""}>
-            ${o.status === "ready" ? "✓ Ready to send" : "I still want to ask this"}
-          </button>
-          <button class="btn btn-secondary" data-outbox-drop="${esc(o.id)}">Drop this question</button>
-        </div>
+      ${ctx.confidence != null ? `
+      <div class="section-label">Confidence</div>
+      <div class="confidence-row">
+        <div class="confidence-bar-track"><div class="confidence-bar-fill ${confClass}" style="width:${confPct}%"></div></div>
+        <span class="badge ${confClass}">${ctx.confidence.toFixed(2)}</span>
+      </div>` : ""}
+
+      ${stagesHtml ? `
+      <div class="section-label">What happened</div>
+      <div class="stage-row">${stagesHtml}</div>` : ""}
+
+      ${ctx.notes ? `
+      <div class="section-label">Notes from the review</div>
+      <div class="notes-box">${esc(ctx.notes)}</div>` : ""}
+
+      ${ctx.changedFiles?.length ? `
+      <div class="section-label">Files touched</div>
+      <div class="file-list">${ctx.changedFiles.map((f) => `<span class="file-chip">${esc(f)}</span>`).join("")}</div>` : ""}
+
+      <div class="action-bar">
+        <button class="btn" data-approve-review="${esc(sig.id)}">Approve — hand back to the pipeline</button>
+        <button class="btn btn-secondary" data-more-testing="${esc(sig.id)}">Needs more testing</button>
+        <button class="btn btn-danger-outline" data-reject-review="${esc(sig.id)}">Send back for another pass</button>
       </div>
-    `, (pane) => {
-      pane.querySelector("[data-outbox-mark-ready]")?.addEventListener("click", () => {
-        o.status = "ready";
-        renderOutboxTree();
-        toast(`Marked ready: question for ${o.to}`);
-        closeTab(tabId);
+    `;
+  }
+
+  function wireExternalReviewEvents(pane, sig) {
+    pane.querySelector("[data-approve-review]")?.addEventListener("click", () => {
+      runThenResolve(sig, "Approved — deploying", {
+        resolution: "approved — handed back to source pipeline, deployed",
       });
-      pane.querySelector("[data-outbox-drop]")?.addEventListener("click", () => {
-        state.outbox = state.outbox.filter((x) => x.id !== o.id);
-        renderOutboxTree();
-        toast(`Dropped question for ${o.to} — AI pre-check saved you an interruption.`);
-        closeTab(tabId);
+      toast(`Approved. The source system will continue through deploy on its own.`);
+    });
+    pane.querySelector("[data-more-testing]")?.addEventListener("click", () => {
+      const stage = sig.request.context.stages?.find((s) => s.name === "Human review");
+      if (stage) stage.status = "pending";
+      toast(`Requested more testing — it stays in the queue.`);
+      renderQueueList();
+      renderDetail();
+    });
+    pane.querySelector("[data-reject-review]")?.addEventListener("click", () => {
+      runThenResolve(sig, "Sending back for another pass", {
+        resolution: "sent back to source pipeline for another pass",
       });
+      toast(`Sent back for another pass.`);
     });
   }
 
-  function sendReadyBatch() {
-    const ready = state.outbox.filter((o) => o.status === "ready");
-    ready.forEach((o) => (o.status = "sent"));
-    renderOutboxTree();
-    toast(`Sent ${ready.length} question${ready.length === 1 ? "" : "s"} as a single batch.`);
+  // ── Approve-send (reply draft) detail ────────────────────────────────
+
+  function renderApproveSendDetail(sig) {
+    const scheduleHtml = renderScheduleRow(sig);
+    return `
+      <h1 class="detail-title">${esc(sig.summary)}</h1>
+      <div class="detail-sub">${esc(sig.body)}</div>
+
+      <div class="section-label">Drafted reply</div>
+      <div class="draft-box" contenteditable="true" id="draft-editor-${esc(sig.id)}">${esc(sig.request.context.draft)}</div>
+
+      ${scheduleHtml}
+
+      <div class="action-bar">
+        <button class="btn" data-approve-send="${esc(sig.id)}">Approve &amp; schedule send</button>
+        <button class="btn btn-danger-outline" data-discard-send="${esc(sig.id)}">Discard</button>
+      </div>
+    `;
   }
 
-  // ── Tab management ───────────────────────────────────────────────────
+  function renderScheduleRow(sig) {
+    return `
+      <div class="schedule-row" id="schedule-row-${esc(sig.id)}">
+        <span class="schedule-icon">◷</span>
+        <span class="schedule-text">Will send with the <strong>next scheduled batch</strong> once approved.</span>
+        <button class="link-btn" data-override-schedule="${esc(sig.id)}">Send immediately instead</button>
+      </div>
+    `;
+  }
 
-  function openTab(tabId, title, renderHtml, afterRender) {
-    if (!openTabs.has(tabId)) {
-      openTabs.set(tabId, { title, renderHtml, afterRender });
-      const tabBar = document.getElementById("tab-bar");
-      const tabEl = document.createElement("div");
-      tabEl.className = "tab";
-      tabEl.dataset.tab = tabId;
-      tabEl.innerHTML = `<span class="tab-icon">📄</span> ${esc(title)} <span class="tab-close" data-close="${esc(tabId)}">✕</span>`;
-      tabBar.appendChild(tabEl);
-      tabEl.addEventListener("click", (ev) => {
-        if (ev.target.closest("[data-close]")) return;
-        activateTab(tabId);
-      });
-      tabEl.querySelector("[data-close]").addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        closeTab(tabId);
-      });
+  function wireApproveSendEvents(pane, sig) {
+    let scheduleOverride = false;
 
-      const editorContent = document.getElementById("editor-content");
-      const pane = document.createElement("div");
-      pane.className = "editor-pane";
-      pane.id = `pane-${tabId}`;
-      pane.innerHTML = renderHtml();
-      editorContent.appendChild(pane);
-      if (afterRender) afterRender(pane);
-    } else {
-      // refresh content in case underlying item changed
-      const entry = openTabs.get(tabId);
-      const pane = document.getElementById(`pane-${tabId}`);
-      if (pane) {
-        pane.innerHTML = renderHtml();
-        if (afterRender) afterRender(pane);
-      }
+    pane.querySelector(`[data-override-schedule]`)?.addEventListener("click", (ev) => {
+      scheduleOverride = true;
+      const row = document.getElementById(`schedule-row-${sig.id}`);
+      row.innerHTML = `
+        <span class="schedule-icon">⚡</span>
+        <span class="schedule-text">Will send <strong>immediately</strong> once approved.</span>
+        <button class="link-btn" data-revert-schedule="${esc(sig.id)}">Use default batch instead</button>
+      `;
+      row.querySelector("[data-revert-schedule]").addEventListener("click", () => {
+        scheduleOverride = false;
+        row.outerHTML = renderScheduleRow(sig);
+        wireApproveSendEvents(pane, sig);
+      });
+    });
+
+    pane.querySelector("[data-approve-send]")?.addEventListener("click", () => {
+      const editor = document.getElementById(`draft-editor-${sig.id}`);
+      const finalBody = editor ? editor.textContent : sig.request.context.draft;
+      sig.body = finalBody;
+      sig.status = "sent";
+      sig.sendSchedule = scheduleOverride
+        ? { mode: "immediate", sentAt: new Date().toISOString() }
+        : { mode: "batched", batchLabel: "next scheduled batch", sentAt: new Date().toISOString() };
+
+      const runningLabel = scheduleOverride ? "Sending — immediate" : "Sending — next scheduled batch";
+      toast(scheduleOverride ? `Sending immediately: ${sig.summary}` : `Approved — will go out with the next batch.`);
+      runThenResolve(sig, runningLabel, {
+        resolution: `sent ${scheduleOverride ? "immediately" : "with the next scheduled batch"}`,
+        delayMs: scheduleOverride ? 1200 : 2000,
+      });
+    });
+
+    pane.querySelector("[data-discard-send]")?.addEventListener("click", () => {
+      sig.status = "closed";
+      sig.resolution = "discarded by operator";
+      toast(`Discarded: ${sig.summary}`);
+      if (state.selectedSignalId === sig.id) state.selectedSignalId = null;
+      renderQueueList();
+      renderDetail();
+      refreshPlanIfVisible();
+    });
+  }
+
+  function wireDetailEvents(pane, sig) {
+    if (sig.runningState) return; // read-only while follow-through is in progress
+
+    const kind = sig.request?.kind;
+    if (kind === "needs-credential") wireNeedsCredentialEvents(pane, sig);
+    else if (kind === "needs-link") wireNeedsLinkEvents(pane, sig);
+    else if (kind === "external-review") wireExternalReviewEvents(pane, sig);
+    else if (kind === "approve-send") wireApproveSendEvents(pane, sig);
+    else if (sig.channel === "chat" && sig.exchange) wireChatExchangeEvents(pane, sig);
+
+    wireThoughtLinkEvents(pane, sig);
+  }
+
+  // ── Thought linking ──────────────────────────────────────────────────
+
+  function wireThoughtLinkEvents(pane, sig) {
+    const openBtn = pane.querySelector("[data-link-thought]") || pane.querySelector("[data-relink-thought]");
+    openBtn?.addEventListener("click", () => openThoughtPicker(sig));
+  }
+
+  function openThoughtPicker(sig) {
+    const overlay = document.getElementById("thought-picker-overlay");
+    const list = document.getElementById("thought-picker-list");
+    const input = document.getElementById("thought-picker-search");
+
+    function renderList(filter) {
+      const f = (filter || "").toLowerCase();
+      const items = state.thoughts.filter((t) => t.title.toLowerCase().includes(f) || t.kind.includes(f));
+      const createRow = f.trim()
+        ? `<div class="quick-pick-item" data-create-thought="1">
+             <div class="quick-pick-item-label">+ Create new thought: "${esc(filter)}"</div>
+           </div>`
+        : "";
+      list.innerHTML =
+        createRow +
+        items
+          .map(
+            (t) => `
+        <div class="quick-pick-item" data-thought-id="${esc(t.id)}">
+          <div class="quick-pick-item-label">
+            <span class="quick-pick-item-check">${sig.thoughtId === t.id ? "✓" : ""}</span>
+            ${esc(t.title)}
+          </div>
+          <div class="quick-pick-item-desc">${esc(t.kind)}</div>
+        </div>
+      `,
+          )
+          .join("");
+
+      list.querySelectorAll("[data-thought-id]").forEach((el) => {
+        el.addEventListener("click", () => {
+          sig.thoughtId = el.dataset.thoughtId;
+          sig.needsLinking = false;
+          if (sig.request?.kind === "needs-link") {
+            sig.status = "closed";
+            sig.resolution = `linked to: ${thoughtById(sig.thoughtId).title}`;
+            if (state.selectedSignalId === sig.id) state.selectedSignalId = null;
+            renderQueueList();
+            refreshPlanIfVisible();
+          }
+          closePicker();
+          toast(`Linked to: ${thoughtById(sig.thoughtId).title}`);
+          renderDetail();
+          renderLogView();
+        });
+      });
+      list.querySelector("[data-create-thought]")?.addEventListener("click", () => {
+        const newThought = { id: `th-${state.thoughts.length + 1}`, kind: "discussion", title: filter.trim() };
+        state.thoughts.push(newThought);
+        sig.thoughtId = newThought.id;
+        sig.needsLinking = false;
+        if (sig.request?.kind === "needs-link") {
+          sig.status = "closed";
+          sig.resolution = `linked to new thought: ${newThought.title}`;
+          if (state.selectedSignalId === sig.id) state.selectedSignalId = null;
+          renderQueueList();
+          refreshPlanIfVisible();
+        }
+        closePicker();
+        toast(`Created and linked: ${newThought.title}`);
+        renderDetail();
+        renderLogView();
+      });
     }
-    activateTab(tabId);
-  }
 
-  function activateTab(tabId) {
-    activeTabId = tabId;
-    document.querySelectorAll(".tab").forEach((el) => {
-      el.classList.toggle("active", el.dataset.tab === tabId);
-    });
-    document.querySelectorAll(".editor-pane").forEach((el) => {
-      el.classList.toggle("active", el.id === `pane-${tabId}`);
-    });
-  }
-
-  function closeTab(tabId) {
-    openTabs.delete(tabId);
-    document.querySelector(`.tab[data-tab="${tabId}"]`)?.remove();
-    document.getElementById(`pane-${tabId}`)?.remove();
-    if (activeTabId === tabId) {
-      const remaining = [...document.querySelectorAll(".tab")];
-      activateTab(remaining.length ? remaining[remaining.length - 1].dataset.tab : "welcome");
+    function closePicker() {
+      overlay.classList.add("hidden");
+      input.removeEventListener("input", onInput);
+      document.removeEventListener("keydown", onKeydown);
     }
+    function onInput() { renderList(input.value); }
+    function onKeydown(ev) { if (ev.key === "Escape") closePicker(); }
+
+    input.value = "";
+    renderList("");
+    overlay.classList.remove("hidden");
+    input.focus();
+    input.addEventListener("input", onInput);
+    document.addEventListener("keydown", onKeydown);
+    overlay.addEventListener("click", (ev) => { if (ev.target === overlay) closePicker(); }, { once: true });
   }
 
-  // ── Today's Plan (merged brief + queue snapshot) ────────────────────
+  // ── Today ────────────────────────────────────────────────────────────
 
   function renderPlan() {
-    const open = openQueueItems();
-    const escalations = open.filter((i) => i.kind === "escalation");
-    const reviews = open.filter((i) => i.kind === "review").sort((a, b) => a.confidence - b.confidence);
-    const replies = open.filter((i) => i.kind === "reply-draft");
+    const open = openSignals();
+    const escalations = open.filter((s) => s.request.kind === "needs-credential");
+    const reviews = open.filter((s) => s.request.kind === "external-review").sort((a, b) => (a.request.context.confidence ?? 1) - (b.request.context.confidence ?? 1));
+    const replies = open.filter((s) => s.request.kind === "approve-send");
+    const linking = open.filter((s) => s.request.kind === "needs-link");
+    const running = state.signals.filter((s) => s.runningState && s.status === "open");
     const activeDirections = state.directions.filter((d) => d.enabled);
     const pendingProposals = state.proposals.filter((p) => p.status === "pending");
-    const readyQuestions = state.outbox.filter((o) => o.status === "ready");
 
-    const itemRow = (item, extra) => `
-      <div class="plan-item kind-${esc(item.kind)}">
-        <span class="plan-item-icon">${KIND_ICON[item.kind] || "•"}</span>
-        <div class="plan-item-body">
-          <span class="plan-item-title" data-open-item="${esc(item.id)}">${esc(item.title)}</span>
-          ${extra || ""}
-        </div>
+    const row = (sig, extra) => `
+      <div class="plan-row">
+        <span class="plan-row-title" data-open-sig="${esc(sig.id)}">${esc(sig.summary)}</span>
+        ${extra || ""}
       </div>
     `;
 
     return `
-      <div class="brief-pane">
-        <h1>Today's Plan — ${esc(new Date().toISOString().slice(0, 10))}</h1>
-        <p style="color: var(--fg-muted); margin-top: -8px;">
-          This is your plan for the day and, as you work through it, the record of what happened.
-          Escalations always come first. Everything else is ${esc(state.sortMode)}-ordered, same as the Work Queue.
-        </p>
+      <h1 class="plan-heading">Today</h1>
+      <p class="plan-subheading">
+        This is the plan for today, and — as you work through it — the record of what happened.
+        Items that need you right now always come first. Everything else follows the queue's ${esc(state.sortMode)} order.
+      </p>
 
-        ${escalations.length ? `
-        <div class="brief-section">
-          <h2 class="overdue">🔥 Needs you right now (${escalations.length})</h2>
-          ${escalations.map((i) => itemRow(i, `<span class="brief-meta">${esc(i.source)}</span>`)).join("")}
-        </div>` : ""}
+      ${escalations.length ? `
+      <div class="plan-block">
+        <div class="plan-block-header urgent">Needs you right now <span class="plan-block-count">${escalations.length}</span></div>
+        ${escalations.map((s) => row(s, `<span class="badge overdue">now</span>`)).join("")}
+      </div>` : ""}
 
-        <div class="brief-section">
-          <h2>🔍 AI work awaiting your review (${reviews.length})</h2>
-          ${reviews.length
-            ? reviews
-                .map((i) =>
-                  itemRow(
-                    i,
-                    `<span class="confidence-badge ${confidenceClass(i.confidence)}">conf ${i.confidence.toFixed(2)}</span>
-                     <span class="brief-meta">${esc(relativeTime(i.escalateBy))}</span>`,
-                  ),
-                )
-                .join("")
-            : `<div class="brief-empty">Nothing to review — everything is proceeding on its own.</div>`}
-        </div>
+      <div class="plan-block">
+        <div class="plan-block-header">AI work awaiting your review <span class="plan-block-count">${reviews.length}</span></div>
+        ${reviews.length
+          ? reviews.map((s) => row(s, `<span class="badge ${confidenceClass(s.request.context.confidence)}">conf ${s.request.context.confidence.toFixed(2)}</span>`)).join("")
+          : `<div class="plan-empty">Nothing to review — everything else is proceeding on its own.</div>`}
+      </div>
 
-        <div class="brief-section">
-          <h2>✉ Drafted replies awaiting approval (${replies.length})</h2>
-          ${replies.length
-            ? replies.map((i) => itemRow(i, `<span class="brief-meta">${esc(i.source)}</span>`)).join("")
-            : `<div class="brief-empty">Nothing pending.</div>`}
-        </div>
+      <div class="plan-block">
+        <div class="plan-block-header">Drafted replies awaiting approval <span class="plan-block-count">${replies.length}</span></div>
+        ${replies.length
+          ? replies.map((s) => row(s, `<span class="q-source">${esc(s.from)}</span>`)).join("")
+          : `<div class="plan-empty">Nothing pending.</div>`}
+      </div>
 
-        <div class="brief-section">
-          <h2>Your questions ready to send (${readyQuestions.length})</h2>
-          ${readyQuestions.length
-            ? `<ul class="brief-list">${readyQuestions.map((o) => `<li>to ${esc(o.to)}: ${esc(o.question)}</li>`).join("")}</ul>
-               <button class="btn btn-small" id="plan-send-batch-btn" style="margin-top: 8px;">Send as a batch</button>`
-            : `<div class="brief-empty">None held for batching.</div>`}
-        </div>
+      ${linking.length ? `
+      <div class="plan-block">
+        <div class="plan-block-header">Not linked to anything yet <span class="plan-block-count">${linking.length}</span></div>
+        ${linking.map((s) => row(s, `<span class="badge due">unlinked</span>`)).join("")}
+      </div>` : ""}
 
-        <div class="brief-section">
-          <h2>Directions in effect (${activeDirections.length})</h2>
-          <ul class="brief-list">${activeDirections.map((d) => `<li>${esc(d.name)} <span class="posture-tag">${esc(d.posture)}</span></li>`).join("")}</ul>
-        </div>
+      ${running.length ? `
+      <div class="plan-block">
+        <div class="plan-block-header">Running in the background <span class="plan-block-count">${running.length}</span></div>
+        ${running.map((s) => row(s, `<span class="badge running-badge"><span class="running-dot"></span> ${esc(s.runningState.label)}</span>`)).join("")}
+      </div>` : ""}
 
-        <div class="brief-section">
-          <h2>Learning-loop proposals (${pendingProposals.length})</h2>
-          ${pendingProposals.length
-            ? pendingProposals
-                .map(
-                  (p) => `
+      <div class="plan-block">
+        <div class="plan-block-header">Directions in effect <span class="plan-block-count">${activeDirections.length}</span></div>
+        ${activeDirections.map((d) => `
+          <div class="direction-chip-row">
+            <span>${esc(d.name)}</span>
+            <span class="posture-tag">${esc(d.posture)}</span>
+          </div>
+        `).join("")}
+      </div>
+
+      <div class="plan-block">
+        <div class="plan-block-header">Learning-loop proposals <span class="plan-block-count">${pendingProposals.length}</span></div>
+        ${pendingProposals.length
+          ? pendingProposals.map((p) => `
             <div class="proposal-card">
               <div class="proposal-title">${esc(p.proposal.kind)}: ${esc(directionName(p.proposal.directionId))} → ${esc(p.proposal.field)} = ${esc(p.proposal.proposedValue)}</div>
               <div class="proposal-rationale">${esc(p.proposal.rationale)}</div>
@@ -614,41 +798,33 @@
                 <button class="btn btn-small btn-secondary" data-reject-proposal="${esc(p.eventId)}">Reject</button>
               </div>
             </div>
-          `,
-                )
-                .join("")
-            : `<div class="brief-empty">No pending proposals.</div>`}
-        </div>
+          `).join("")
+          : `<div class="plan-empty">No pending proposals.</div>`}
       </div>
     `;
   }
 
-  function openPlanTab() {
-    openTab("plan", "Today's Plan", renderPlan, (pane) => wirePlanEvents(pane));
+  function renderPlanView() {
+    document.getElementById("plan-scroll").innerHTML = renderPlan();
+    wirePlanEvents();
   }
 
-  function refreshPlanTabIfOpen() {
-    const pane = document.getElementById("pane-plan");
-    if (!pane) return;
-    pane.innerHTML = renderPlan();
-    wirePlanEvents(pane);
+  function refreshPlanIfVisible() {
+    if (state.activeView === "today") renderPlanView();
   }
 
-  function wirePlanEvents(pane) {
-    pane.querySelectorAll("[data-open-item]").forEach((el) => {
+  function wirePlanEvents() {
+    const scroll = document.getElementById("plan-scroll");
+    scroll.querySelectorAll("[data-open-sig]").forEach((el) => {
       el.addEventListener("click", () => {
-        const item = state.queue.find((q) => q.id === el.dataset.openItem);
-        if (item) openQueueItemTab(item);
+        setView("queue");
+        selectSignal(el.dataset.openSig);
       });
     });
-    pane.querySelector("#plan-send-batch-btn")?.addEventListener("click", () => {
-      sendReadyBatch();
-      refreshPlanTabIfOpen();
-    });
-    pane.querySelectorAll("[data-accept-proposal]").forEach((btn) => {
+    scroll.querySelectorAll("[data-accept-proposal]").forEach((btn) => {
       btn.addEventListener("click", () => resolveProposal(btn.dataset.acceptProposal, "accepted"));
     });
-    pane.querySelectorAll("[data-reject-proposal]").forEach((btn) => {
+    scroll.querySelectorAll("[data-reject-proposal]").forEach((btn) => {
       btn.addEventListener("click", () => resolveProposal(btn.dataset.rejectProposal, "rejected"));
     });
   }
@@ -657,28 +833,213 @@
     const p = state.proposals.find((x) => x.eventId === eventId);
     if (!p) return;
     p.status = resolution;
-    if (resolution === "accepted") {
-      toast(`Accepted. In directions/${p.proposal.directionId}.yaml set ${p.proposal.field}: ${p.proposal.proposedValue}`);
-    } else {
-      toast("Proposal rejected.");
-    }
-    refreshPlanTabIfOpen();
+    toast(
+      resolution === "accepted"
+        ? `Accepted. In directions/${p.proposal.directionId}.yaml set ${p.proposal.field}: ${p.proposal.proposedValue}`
+        : "Proposal rejected.",
+    );
+    renderPlanView();
   }
 
-  // ── Status bar: pause/resume ─────────────────────────────────────────
+  // ── Signals ──────────────────────────────────────────────────────────
 
-  function renderPauseStatus() {
-    const el = document.getElementById("pause-status-item");
-    el.textContent = state.paused ? "▶ paused — click to resume" : "⏸ running — click to pause";
+  function filteredLog() {
+    return state.signals
+      .filter((s) => state.logFilter.channel === "all" || s.channel === state.logFilter.channel)
+      .filter((s) => state.logFilter.direction === "all" || s.direction === state.logFilter.direction)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  }
+
+  function statusTagClass(sig) {
+    if (sig.status === "open") return "open";
+    if (sig.status === "sent") return "sent";
+    return "closed";
+  }
+
+  function renderLogView() {
+    const list = filteredLog();
+    document.getElementById("log-count").textContent = `${list.length} signal${list.length === 1 ? "" : "s"}`;
+
+    const container = document.getElementById("log-list");
+    if (list.length === 0) {
+      container.innerHTML = `<div class="log-empty">No signals match these filters.</div>`;
+      return;
+    }
+
+    container.innerHTML = list
+      .map((sig) => {
+        const parties = sig.direction === "in" ? sig.from : `to ${sig.to}`;
+        const thought = thoughtById(sig.thoughtId);
+        const linkTag = sig.needsLinking
+          ? `<span class="log-link-tag unlinked">unlinked</span>`
+          : thought
+            ? `<span class="log-link-tag linked" title="${esc(thought.title)}">${esc(thought.kind)}</span>`
+            : "";
+        return `
+        <div class="log-row" data-log-sig="${esc(sig.id)}">
+          <div class="log-direction-icon ${sig.direction}">${sig.direction === "in" ? "↓" : "↑"}</div>
+          <div class="log-channel-tag">${esc(sig.channel)}</div>
+          <div class="log-parties">${esc(parties)}</div>
+          <div class="log-summary">${esc(sig.summary)}</div>
+          ${linkTag}
+          <div class="log-status-tag ${statusTagClass(sig)}">${esc(sig.status)}</div>
+          <div class="log-time">${esc(clockTime(sig.timestamp))}</div>
+        </div>
+      `;
+      })
+      .join("");
+
+    container.querySelectorAll("[data-log-sig]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const sig = state.signals.find((s) => s.id === el.dataset.logSig);
+        if (sig?.request && sig.status === "open") {
+          setView("queue");
+          selectSignal(sig.id);
+        } else if (sig?.channel === "chat") {
+          openChatInDetailOverlay(sig);
+        } else {
+          toast(`${esc(sig.summary)} — ${sig.resolution || sig.status}`);
+        }
+      });
+    });
+  }
+
+  function openChatInDetailOverlay(sig) {
+    setView("queue");
+    selectSignal(sig.id);
+  }
+
+  // ── Signal sources (connectors, not signals themselves) ─────────────
+
+  function channelLabel(ch) {
+    return { email: "Email", chat: "Chat", jira: "Jira", calendar: "Calendar", sms: "SMS" }[ch] || ch;
+  }
+
+  function renderSourcesList() {
+    const container = document.getElementById("sources-list");
+    if (!state.sources.length) {
+      container.innerHTML = `<div class="log-empty">No sources configured.</div>`;
+      return;
+    }
+    container.innerHTML = state.sources
+      .map(
+        (src) => `
+      <div class="source-row" data-source-id="${esc(src.id)}">
+        <div class="source-channel-tag">${CHANNEL_ICON[src.channel] || "•"} ${esc(channelLabel(src.channel))}</div>
+        <div class="source-label">${esc(src.label)}</div>
+        <button class="chip-btn source-toggle ${src.enabled ? "" : "disabled"}" data-toggle-source="${esc(src.id)}">
+          <span class="chip-dot ${src.enabled ? "running" : "paused"}"></span> ${src.enabled ? "Enabled" : "Disabled"}
+        </button>
+        <button class="link-btn danger" data-remove-source="${esc(src.id)}">Remove</button>
+      </div>
+    `,
+      )
+      .join("");
+
+    container.querySelectorAll("[data-toggle-source]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const src = state.sources.find((s) => s.id === btn.dataset.toggleSource);
+        if (!src) return;
+        src.enabled = !src.enabled;
+        toast(`${src.label}: ${src.enabled ? "enabled" : "disabled"}.`);
+        renderSourcesList();
+      });
+    });
+    container.querySelectorAll("[data-remove-source]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = state.sources.findIndex((s) => s.id === btn.dataset.removeSource);
+        if (idx === -1) return;
+        const [removed] = state.sources.splice(idx, 1);
+        toast(`Removed source: ${removed.label}`);
+        renderSourcesList();
+      });
+    });
+  }
+
+  function openSourcesModal() {
+    document.getElementById("sources-overlay").classList.remove("hidden");
+    document.getElementById("add-source-label").value = "";
+    document.getElementById("add-source-channel").value = "email";
+    renderSourcesList();
+  }
+
+  function closeSourcesModal() {
+    document.getElementById("sources-overlay").classList.add("hidden");
+  }
+
+  function createSource() {
+    const channel = document.getElementById("add-source-channel").value;
+    const label = document.getElementById("add-source-label").value.trim();
+    if (!label) {
+      toast("Give the source a label — an address, number, or project name.", true);
+      return;
+    }
+    const id = `src-${state.sources.length + 1}`;
+    state.sources.push({ id, channel, label, enabled: true });
+    document.getElementById("add-source-label").value = "";
+    toast(`Added source: ${label}. It will start feeding signals in once connected for real.`);
+    renderSourcesList();
+  }
+
+  // ── View switching ───────────────────────────────────────────────────
+
+  function setView(view) {
+    state.activeView = view;
+    document.querySelectorAll(".nav-tab").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+    document.getElementById("view-queue").classList.toggle("hidden", view !== "queue");
+    document.getElementById("view-today").classList.toggle("hidden", view !== "today");
+    document.getElementById("view-signals").classList.toggle("hidden", view !== "signals");
+    if (view === "today") renderPlanView();
+    if (view === "signals") renderLogView();
+  }
+
+  document.querySelectorAll(".nav-tab").forEach((btn) => {
+    btn.addEventListener("click", () => setView(btn.dataset.view));
+  });
+
+  // ── Sort toggle ──────────────────────────────────────────────────────
+
+  document.querySelectorAll(".segmented-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.sortMode = btn.dataset.sort;
+      document.querySelectorAll(".segmented-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      renderQueueList();
+      refreshPlanIfVisible();
+    });
+  });
+
+  // ── Log filters ──────────────────────────────────────────────────────
+
+  document.getElementById("log-channel-filter").addEventListener("change", (ev) => {
+    state.logFilter.channel = ev.target.value;
+    renderLogView();
+  });
+  document.getElementById("log-direction-filter").addEventListener("change", (ev) => {
+    state.logFilter.direction = ev.target.value;
+    renderLogView();
+  });
+
+  // ── Status chips: pause/resume (topbar + Signals toolbar) ───────────
+
+  function renderPauseChip() {
+    const html = state.paused
+      ? `<span class="chip-dot paused"></span> Paused`
+      : `<span class="chip-dot running"></span> Running`;
+    document.getElementById("pause-chip").innerHTML = html;
+    const signalsChip = document.getElementById("signals-pause-chip");
+    if (signalsChip) signalsChip.innerHTML = html;
   }
 
   function togglePause() {
     state.paused = !state.paused;
-    renderPauseStatus();
-    toast(state.paused ? "mind: sends paused." : "mind: sends resumed.");
+    renderPauseChip();
+    toast(state.paused ? "Sends paused." : "Sends resumed.");
   }
 
-  // ── Status bar: AI provider QuickPick ────────────────────────────────
+  document.getElementById("pause-chip").addEventListener("click", togglePause);
+  document.getElementById("signals-pause-chip").addEventListener("click", togglePause);
+
+  // ── AI provider picker ───────────────────────────────────────────────
 
   const PROVIDER_CHOICES = [
     { provider: "ollama", label: "Ollama (local)", description: "Free, runs on this machine, no data leaves the device", defaultModel: "qwen2.5:3b-instruct" },
@@ -687,11 +1048,67 @@
     { provider: "google", label: "Google", description: "Cloud — requires an API key", defaultModel: "gemini-2.0-flash" },
   ];
 
-  function renderAiStatus() {
-    const el = document.getElementById("ai-status-item");
-    const icon = state.aiProvider === "ollama" ? "🖥" : "☁";
-    el.textContent = `${icon} ${state.aiProvider}`;
+  function renderAiChip() {
+    const icon = state.aiProvider === "ollama" ? "◧" : "☁";
+    const html = `<span class="chip-icon">${icon}</span> ${esc(state.aiProvider)}`;
+    document.getElementById("ai-chip").innerHTML = html;
+    const signalsChip = document.getElementById("signals-ai-chip");
+    if (signalsChip) signalsChip.innerHTML = html;
   }
+
+  // ── AI usage budgets (mockup of mind.ai.* VS Code settings) ──────────
+
+  function openBudgetModal() {
+    const b = state.aiBudgets;
+    document.getElementById("budget-time-per-task").value = b.timeBudgetMsPerTask;
+    document.getElementById("budget-tokens-per-task").value = b.tokenBudgetPerTask;
+    document.getElementById("budget-tokens-per-day").value = b.tokenBudgetPerDay;
+    document.getElementById("budget-on-exceeded").value = b.onBudgetExceeded;
+    renderBudgetUsage();
+    document.getElementById("budget-overlay").classList.remove("hidden");
+  }
+
+  function closeBudgetModal() {
+    document.getElementById("budget-overlay").classList.add("hidden");
+  }
+
+  function renderBudgetUsage() {
+    const b = state.aiBudgets;
+    const pct = b.tokenBudgetPerDay > 0 ? Math.min(100, Math.round((b.tokensUsedToday / b.tokenBudgetPerDay) * 100)) : 0;
+    const fill = document.getElementById("budget-usage-fill");
+    fill.style.width = `${pct}%`;
+    fill.className = `budget-usage-bar-fill ${pct >= 90 ? "over" : pct >= 60 ? "mid" : ""}`;
+    document.getElementById("budget-usage-text").textContent =
+      b.tokenBudgetPerDay > 0
+        ? `${b.tokensUsedToday.toLocaleString()} / ${b.tokenBudgetPerDay.toLocaleString()} tokens (${pct}%)`
+        : `${b.tokensUsedToday.toLocaleString()} tokens (no daily limit set)`;
+  }
+
+  function saveBudgetSettings() {
+    const b = state.aiBudgets;
+    b.timeBudgetMsPerTask = Number(document.getElementById("budget-time-per-task").value) || 0;
+    b.tokenBudgetPerTask = Number(document.getElementById("budget-tokens-per-task").value) || 0;
+    b.tokenBudgetPerDay = Number(document.getElementById("budget-tokens-per-day").value) || 0;
+    b.onBudgetExceeded = document.getElementById("budget-on-exceeded").value;
+    toast("AI usage budgets saved. Takes effect on the next AI call — no restart needed.");
+    closeBudgetModal();
+  }
+
+  document.getElementById("ai-chip").addEventListener("click", openAiProviderPicker);
+  document.getElementById("signals-ai-chip").addEventListener("click", openAiProviderPicker);
+  document.getElementById("signals-sources-btn").addEventListener("click", openSourcesModal);
+  document.getElementById("add-source-create").addEventListener("click", createSource);
+  document.getElementById("sources-close-btn").addEventListener("click", closeSourcesModal);
+  document.getElementById("sources-overlay").addEventListener("click", (ev) => {
+    if (ev.target.id === "sources-overlay") closeSourcesModal();
+  });
+  document.getElementById("budget-chip").addEventListener("click", openBudgetModal);
+  document.getElementById("signals-budget-chip").addEventListener("click", openBudgetModal);
+  document.getElementById("budget-save-btn").addEventListener("click", saveBudgetSettings);
+  document.getElementById("budget-close-btn").addEventListener("click", closeBudgetModal);
+  document.getElementById("budget-overlay").addEventListener("click", (ev) => {
+    if (ev.target.id === "budget-overlay") closeBudgetModal();
+  });
 
   function openAiProviderPicker() {
     const overlay = document.getElementById("command-palette-overlay");
@@ -700,9 +1117,7 @@
 
     function renderList(filter) {
       const f = (filter || "").toLowerCase();
-      const items = PROVIDER_CHOICES.filter(
-        (c) => c.label.toLowerCase().includes(f) || c.provider.includes(f),
-      );
+      const items = PROVIDER_CHOICES.filter((c) => c.label.toLowerCase().includes(f) || c.provider.includes(f));
       list.innerHTML = items
         .map(
           (c) => `
@@ -716,16 +1131,13 @@
       `,
         )
         .join("");
-
       list.querySelectorAll("[data-provider]").forEach((el) => {
         el.addEventListener("click", () => {
           state.aiProvider = el.dataset.provider;
           state.aiModel = el.dataset.model;
-          renderAiStatus();
+          renderAiChip();
           closePicker();
-          toast(
-            `mind: AI provider set to ${el.dataset.provider} (${el.dataset.model}). Takes effect on the next signal — no restart needed.`,
-          );
+          toast(`AI provider set to ${el.dataset.provider} (${el.dataset.model}). Takes effect on the next signal.`);
         });
       });
     }
@@ -735,14 +1147,8 @@
       input.removeEventListener("input", onInput);
       document.removeEventListener("keydown", onKeydown);
     }
-
-    function onInput() {
-      renderList(input.value);
-    }
-
-    function onKeydown(ev) {
-      if (ev.key === "Escape") closePicker();
-    }
+    function onInput() { renderList(input.value); }
+    function onKeydown(ev) { if (ev.key === "Escape") closePicker(); }
 
     input.value = "";
     renderList("");
@@ -750,58 +1156,17 @@
     input.focus();
     input.addEventListener("input", onInput);
     document.addEventListener("keydown", onKeydown);
-
-    overlay.addEventListener(
-      "click",
-      (ev) => {
-        if (ev.target === overlay) closePicker();
-      },
-      { once: true },
-    );
+    overlay.addEventListener("click", (ev) => { if (ev.target === overlay) closePicker(); }, { once: true });
   }
-
-  // ── Sort toggle ──────────────────────────────────────────────────────
-
-  document.querySelectorAll(".sort-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.sortMode = btn.dataset.sort;
-      document.querySelectorAll(".sort-btn").forEach((b) => b.classList.toggle("active", b === btn));
-      renderQueue();
-      refreshPlanTabIfOpen();
-    });
-  });
-
-  // ── Tree collapse (outbox only now) ──────────────────────────────────
-
-  document.querySelectorAll("[data-collapse-target]").forEach((header) => {
-    header.addEventListener("click", () => {
-      const body = document.getElementById(header.dataset.collapseTarget);
-      header.classList.toggle("collapsed");
-      body.classList.toggle("collapsed");
-    });
-  });
-
-  // ── Wire top-level controls ──────────────────────────────────────────
-
-  document.getElementById("open-brief-btn").addEventListener("click", openPlanTab);
-  document.getElementById("pause-status-item").addEventListener("click", togglePause);
-  document.getElementById("ai-status-item").addEventListener("click", openAiProviderPicker);
-
-  document.querySelectorAll(".activity-icon").forEach((icon) => {
-    icon.addEventListener("click", () => {
-      if (icon.dataset.view !== "explorer") {
-        toast(`"${icon.dataset.view}" is not part of this mockup.`);
-        return;
-      }
-      document.querySelectorAll(".activity-icon").forEach((i) => i.classList.remove("active"));
-      icon.classList.add("active");
-    });
-  });
 
   // ── Initial render ───────────────────────────────────────────────────
 
-  renderQueue();
-  renderOutboxTree();
-  renderPauseStatus();
-  renderAiStatus();
+  renderQueueList();
+  renderDetail();
+  renderPauseChip();
+  renderAiChip();
+
+  // Auto-select the top item so the detail pane isn't empty on first load.
+  const first = sortedQueue()[0]?.items?.[0];
+  if (first) selectSignal(first.id);
 })();
