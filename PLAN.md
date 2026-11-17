@@ -235,13 +235,15 @@ correction: it means the match was wrong, not that the draft was wrong.
 
 ## 10. VS Code extension
 
-The only UI for now. Native views where possible; webviews for the brief,
-Analytics, and the Devices placeholder.
+The only UI for now. Its own Activity Bar icon opens a dedicated sidebar
+container (not nested in Explorer) — native tree views where possible;
+webviews for the brief, Analytics, and the Devices placeholder.
 
+- **Queue** tree view (view id `mind.review`) — `proposed` actions, one line
+  each, with inline approve/discard commands. This is the only place I
+  authorize a send.
 - **Thoughts** tree view — `active` first, then `seedling`; grouped by Direction.
   Item click opens the thought body as a markdown editor.
-- **Review** tree view — `proposed` actions, one line each, with inline
-  approve/discard commands. This is the only place I authorize a send.
 - **Signals** tree view — every signal, defaulting to today, widened with
   `mind.signals.setRange`. Inline **Reclassify** command moves a signal to
   a different Direction when the match itself was wrong.

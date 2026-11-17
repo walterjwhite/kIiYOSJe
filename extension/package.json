@@ -115,16 +115,25 @@
         }
       ]
     },
-    "views": {
-      "explorer": [
+    "viewsContainers": {
+      "activitybar": [
         {
-          "id": "mind.thoughts",
-          "name": "Thoughts",
+          "id": "mind",
+          "title": "mind",
+          "icon": "media/mind-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "mind": [
+        {
+          "id": "mind.review",
+          "name": "Queue",
           "type": "tree"
         },
         {
-          "id": "mind.review",
-          "name": "Review",
+          "id": "mind.thoughts",
+          "name": "Thoughts",
           "type": "tree"
         },
         {

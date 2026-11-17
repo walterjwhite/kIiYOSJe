@@ -1,6 +1,10 @@
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
 
+// Displayed in the sidebar as "Queue" (package.json views) — this is the
+// review queue PLAN.md §10 describes: proposed actions awaiting approval.
+// The view id (mind.review) is unchanged from before the rename; only the
+// label shown to the user changed.
 interface Action {
   id: string;
   kind: string;

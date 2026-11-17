@@ -18,8 +18,7 @@ the VS Code extension is the only client right now.
 ## 1. Install and build
 
 ```bash
-npm install
-npx tsc --build packages/core packages/pipeline packages/server packages/cli
+sh build-server.sh
 ```
 
 ## 2. Start the server
@@ -43,20 +42,23 @@ you approve them. Autonomous sending is off until you explicitly opt in
 ## 3. Install the VS Code extension
 
 ```bash
-./build.sh
+bash build-extension.sh
 code --install-extension extension/mind-vscode-0.0.1.vsix
 ```
 
-Reload VS Code. The extension talks to the server at
-`http://127.0.0.1:8787` using the token from `~/.config/mind/token` — no
-extra setup needed as long as the server from step 2 is running.
+Reload VS Code. A **mind** icon appears in the Activity Bar (the far-left
+icon rail) — click it to open the sidebar with Queue, Thoughts, Signals,
+and Journal. The extension talks to the server at `http://127.0.0.1:8787`
+using the token from `~/.config/mind/token` — no extra setup needed as
+long as the server from step 2 is running.
 
 ## 4. Use it
 
-From the Explorer sidebar:
+Click the **mind** icon in the Activity Bar to open its sidebar:
 
+- **Queue** — drafted replies awaiting approval; approve or discard each
+  one inline. This is the only place a send is authorized.
 - **Thoughts** — things that need a decision.
-- **Review** — drafted replies; approve or discard each one inline.
 - **Signals** — every signal, inbound and outbound; defaults to today
   (**mind: Set Signals Range** to widen it). Right-click a signal to
   **Reclassify** it if it matched the wrong Direction.
