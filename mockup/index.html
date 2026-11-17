@@ -18,20 +18,24 @@
       <button class="nav-tab active" data-view="queue">Queue</button>
       <button class="nav-tab" data-view="today">Today</button>
       <button class="nav-tab" data-view="signals">Signals</button>
-      <button class="nav-tab" data-view="history">History</button>
+      <button class="nav-tab" data-view="directions">Directions</button>
+      <button class="nav-tab" data-view="learnings">Learnings</button>
+      <button class="nav-tab" data-view="analytics">Analytics</button>
+      <button class="nav-tab" data-view="journal">Journal</button>
+      <button class="nav-tab" data-view="devices">Devices</button>
     </nav>
     <div class="topbar-right">
       <button class="chip-btn" id="pause-chip">
         <span class="chip-dot running"></span> Running
       </button>
-      <button class="chip-btn" id="directions-chip">
-        <span class="chip-icon">◈</span> Directions
+      <button class="chip-btn" id="demo-mode-chip">
+        <span class="chip-dot paused"></span> Demo data off
       </button>
       <button class="chip-btn" id="ai-chip">
         <span class="chip-icon">◧</span> ollama
       </button>
-      <button class="chip-btn" id="budget-chip">
-        <span class="chip-icon">◔</span> Budgets
+      <button class="chip-btn" id="settings-chip">
+        <span class="chip-icon">⚙</span> Settings
       </button>
     </div>
   </header>
@@ -61,9 +65,27 @@
     <div class="plan-scroll" id="plan-scroll"></div>
   </main>
 
-  <!-- Signals view -->
+  <!-- Signals view: current state of individual signals (open/sent/closed),
+       and the durable record of what happened — History was folded in
+       here since the split wasn't adding clarity. Defaults to "today";
+       a range selector widens it. Search/filter hidden by default,
+       shown via the search icon or Ctrl+F. -->
   <main class="view-signals hidden" id="view-signals">
     <div class="log-toolbar">
+      <div class="log-toolbar-title">Signals <span class="log-toolbar-sub">— every signal, in and out</span></div>
+      <div class="segmented" id="signals-range-segmented">
+        <button class="segmented-btn active" data-range="today">Today</button>
+        <button class="segmented-btn" data-range="7d">7 days</button>
+        <button class="segmented-btn" data-range="30d">30 days</button>
+        <button class="segmented-btn" data-range="all">All</button>
+      </div>
+      <button class="icon-btn" id="signals-search-toggle" title="Search (Ctrl+F)">🔍</button>
+      <div class="log-count" id="log-count"></div>
+      <div class="signals-toolbar-actions">
+        <button class="btn btn-secondary btn-small" id="signals-sources-btn">Sources</button>
+      </div>
+    </div>
+    <div class="log-filters-row hidden" id="signals-filters-row">
       <div class="log-filter-group">
         <label>Channel</label>
         <select id="log-channel-filter">
@@ -73,6 +95,9 @@
           <option value="jira">Jira</option>
           <option value="calendar">Calendar</option>
           <option value="sms">SMS</option>
+          <option value="confluence">Confluence</option>
+          <option value="github">GitHub</option>
+          <option value="ci">CI</option>
         </select>
       </div>
       <div class="log-filter-group">
@@ -83,46 +108,135 @@
           <option value="out">Outbound</option>
         </select>
       </div>
-      <div class="log-count" id="log-count"></div>
-      <div class="signals-toolbar-actions">
-        <button class="btn btn-secondary btn-small" id="signals-sources-btn">Sources</button>
+      <div class="log-filter-group">
+        <label>Search</label>
+        <input type="text" class="history-search" id="signals-search" placeholder="Summary, contents, person…">
       </div>
+      <button class="link-btn" id="signals-clear-filters-btn">Clear</button>
     </div>
     <div class="log-list" id="log-list"></div>
   </main>
 
-  <!-- History view: durable, searchable audit trail -->
-  <main class="view-history hidden" id="view-history">
-    <div class="history-toolbar">
-      <input type="text" class="history-search" id="history-search" placeholder="Search history — contents, summary…">
-      <div class="log-filter-group">
-        <label>Channel</label>
-        <select id="history-channel-filter">
-          <option value="all">All channels</option>
-          <option value="email">Email</option>
-          <option value="chat">Chat</option>
-          <option value="jira">Jira</option>
-          <option value="calendar">Calendar</option>
-          <option value="sms">SMS</option>
-        </select>
-      </div>
-      <div class="log-filter-group">
-        <label>Person</label>
-        <input type="text" class="history-person-input" id="history-person-filter" placeholder="e.g. jordan@demo.corp">
-      </div>
-      <div class="log-filter-group">
-        <label>From</label>
-        <input type="date" class="history-date-input" id="history-date-from">
-      </div>
-      <div class="log-filter-group">
-        <label>To</label>
-        <input type="date" class="history-date-input" id="history-date-to">
-      </div>
-      <button class="link-btn" id="history-clear-filters-btn">Clear filters</button>
-      <div class="log-count" id="history-count"></div>
-      <button class="btn btn-secondary btn-small" id="history-retention-btn">Retention</button>
+  <!-- Directions view: a compact table, same pattern as Signals/History.
+       Clicking a row opens the direction's own detail screen to edit
+       name, description, prompts, and policy fields. -->
+  <main class="view-directions hidden" id="view-directions">
+    <div class="directions-scroll">
+      <p class="budget-modal-sub">
+        Each direction decides how a category of signal is handled. Click
+        a row to edit its name, description, match/response prompts,
+        posture, autonomy, confidence, and send policy.
+      </p>
+      <table class="data-table" id="directions-table">
+        <thead>
+          <tr>
+            <th>Enabled</th><th>Name</th><th>Posture</th><th>Autonomy</th><th>Confidence</th><th>Signals handled</th>
+          </tr>
+        </thead>
+        <tbody id="directions-table-body"></tbody>
+      </table>
+      <button class="btn btn-secondary btn-small" id="directions-add-btn">+ New direction</button>
     </div>
-    <div class="log-list" id="history-list"></div>
+  </main>
+
+  <!-- Direction detail view: opened by clicking a row in Directions. -->
+  <main class="view-direction-detail hidden" id="view-direction-detail">
+    <div class="directions-scroll">
+      <button class="link-btn" id="direction-detail-back-btn">← Back to Directions</button>
+      <div id="direction-detail-body"></div>
+    </div>
+  </main>
+
+  <!-- Learnings view: own tab, not nested in Directions -->
+  <main class="view-learnings hidden" id="view-learnings">
+    <div class="directions-scroll">
+      <p class="budget-modal-sub">
+        Not a vector database, and nothing here is summarized by a model.
+        A periodic rule-based pass (<code>learningRuns</code> below) scans
+        the event log — every decision made on every direction, inbound
+        and outbound signals alike — counts how often a draft was
+        overridden vs. approved unedited per direction over a rolling
+        window, and proposes a narrow/widen only when that rate crosses a
+        threshold. Accepted proposals are already reflected in Directions;
+        this is the record of why they got there.
+      </p>
+      <div class="section-label">Recent learning runs</div>
+      <table class="data-table" id="learning-runs-table">
+        <thead><tr><th>Ran</th><th>Window</th><th>Directions scanned</th><th>Events scanned</th><th>Proposals</th></tr></thead>
+        <tbody id="learning-runs-table-body"></tbody>
+      </table>
+      <div class="section-label">Proposal history</div>
+      <div class="learnings-list" id="learnings-list"></div>
+      <div class="section-label">Reclassifications</div>
+      <p class="setting-desc">Signals that were moved to a different direction after the initial match turned out to be wrong.</p>
+      <div class="learnings-list" id="reclassifications-list"></div>
+    </div>
+  </main>
+
+  <!-- Analytics view: volume, override rate, and time saved — separate
+       from Learnings, which is about policy evolution, not throughput.
+       Every row/bar is clickable and opens a filtered Signals table below. -->
+  <main class="view-analytics hidden" id="view-analytics">
+    <div class="directions-scroll">
+      <p class="budget-modal-sub">
+        How much is actually being absorbed, where the overrides are
+        concentrated, and a rough estimate of time saved — over the
+        <span id="analytics-window-label"></span> window. Click a
+        direction, a channel, or a day to see the matching signals.
+      </p>
+      <div class="analytics-summary-row" id="analytics-summary-row"></div>
+      <div class="section-label">By direction</div>
+      <table class="data-table" id="analytics-direction-table">
+        <thead><tr><th>Direction</th><th>Handled</th><th>Overridden</th><th>Override rate</th><th>Est. minutes saved</th></tr></thead>
+        <tbody id="analytics-direction-table-body"></tbody>
+      </table>
+      <div class="section-label">By channel</div>
+      <div class="analytics-bar-list" id="analytics-channel-bars"></div>
+      <div class="section-label">Daily volume</div>
+      <div class="analytics-bar-list" id="analytics-daily-bars"></div>
+
+      <div id="analytics-drilldown" class="hidden">
+        <div class="section-label" id="analytics-drilldown-label">Matching signals</div>
+        <div class="log-list" id="analytics-drilldown-list"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Journal view: append-only, operator-written notes -->
+  <main class="view-journal hidden" id="view-journal">
+    <div class="directions-scroll">
+      <p class="budget-modal-sub">
+        A running, append-only log you write yourself — context and
+        decisions worth remembering later. Entries can't be edited or
+        removed once added, only appended to; each is stamped with the
+        date and time it was written.
+      </p>
+      <div class="journal-add-row">
+        <textarea id="journal-input" placeholder="Add a journal entry…"></textarea>
+        <button class="btn" id="journal-add-btn">Add entry</button>
+      </div>
+      <div class="journal-list" id="journal-list"></div>
+    </div>
+  </main>
+
+  <!-- Devices view: paired clients, one person's shared state. Pairing a
+       new device (e.g. the future Android app) generates a short-lived
+       code to scan/enter on that device. -->
+  <main class="view-devices hidden" id="view-devices">
+    <div class="directions-scroll">
+      <p class="budget-modal-sub">
+        Settings, queue, journal, and knowledge belong to you, not the
+        device — pairing a new device gives it its own credential and a
+        scoped set of permissions; revoking one is immediate and doesn't
+        affect the others.
+      </p>
+      <table class="data-table" id="devices-table">
+        <thead><tr><th>Name</th><th>Kind</th><th>Paired</th><th>Last seen</th><th>Scopes</th><th></th></tr></thead>
+        <tbody id="devices-table-body"></tbody>
+      </table>
+      <button class="btn btn-secondary btn-small" id="devices-pair-btn">+ Pair a new device</button>
+      <div id="devices-pairing-panel"></div>
+    </div>
   </main>
 
 </div>
@@ -143,70 +257,46 @@
   </div>
 </div>
 
-<!-- Directions overlay: view and edit posture/autonomy/confidence per direction -->
-<div class="overlay hidden" id="directions-overlay">
-  <div class="directions-modal">
-    <div class="sources-modal-header">
-      <div class="sources-modal-title">Directions</div>
-      <button class="link-btn" id="directions-close-btn">Close</button>
-    </div>
-    <p class="budget-modal-sub">
-      Each direction decides how a category of signal is handled: whether
-      it's absorbed or escalated, whether the AI only drafts or can send on
-      its own, and the confidence bar it has to clear to do either.
-    </p>
-    <div class="directions-list" id="directions-list"></div>
-    <button class="btn btn-secondary btn-small" id="directions-add-btn">+ New direction</button>
-
-    <div class="sources-add-form">
-      <div class="add-signal-title">Learnings</div>
-      <p class="setting-desc">
-        What the learning loop has proposed over time and what happened to
-        each proposal — accepted changes are already reflected in the
-        directions above.
-      </p>
-      <div class="learnings-list" id="learnings-list"></div>
-    </div>
+<!-- Reclassify picker: move a signal that was matched to the wrong direction -->
+<div class="overlay hidden" id="reclassify-picker-overlay">
+  <div class="quick-pick">
+    <input type="text" class="quick-pick-input" id="reclassify-picker-search" placeholder="Move to a different direction…">
+    <div class="quick-pick-list" id="reclassify-picker-list"></div>
   </div>
 </div>
 
-<!-- Retention settings overlay -->
-<div class="overlay hidden" id="retention-overlay">
-  <div class="budget-modal">
-    <div class="sources-modal-header">
-      <div class="sources-modal-title">History retention</div>
-      <button class="link-btn" id="retention-close-btn">Close</button>
-    </div>
-    <div class="setting-row">
-      <label class="setting-label" for="retention-days-input">mind.history.retentionDays</label>
-      <p class="setting-desc">How long signal bodies and history entries are kept before being redacted/pruned. Mirrors the real server's retention job.</p>
-      <input type="number" min="1" step="1" class="setting-input" id="retention-days-input">
-    </div>
-    <div class="add-signal-actions">
-      <button class="btn" id="retention-save-btn">Save</button>
-    </div>
-  </div>
-</div>
-
-<!-- Send-a-message composer: start a new outbound signal from any item,
-     to clarify a requirement or ask a question related to it. -->
+<!-- Write-and-schedule composer: state a goal, AI drafts the outbound
+     signal, you choose when it sends, then approve. Generic across
+     channels, not an MCP/tool-call integration — it produces the same
+     signal envelope as any other reply. -->
 <div class="overlay hidden" id="compose-overlay">
   <div class="sources-modal">
     <div class="sources-modal-header">
-      <div class="sources-modal-title" id="compose-title">Send a message</div>
+      <div class="sources-modal-title" id="compose-title">Write an outbound signal</div>
       <button class="link-btn" id="compose-close-btn">Close</button>
     </div>
+    <p class="budget-modal-sub">
+      Describe what you need clarified, not the exact wording — the AI
+      drafts the actual message and you approve it like any other reply.
+    </p>
     <label class="add-signal-label">Channel</label>
     <select id="compose-channel">
-      <option value="email">Email</option>
       <option value="chat">Chat / Teams</option>
+      <option value="email">Email</option>
     </select>
     <label class="add-signal-label">To</label>
     <input type="text" id="compose-to" placeholder="someone@demo.corp">
-    <label class="add-signal-label">Message</label>
-    <textarea id="compose-body" placeholder="What do you need to ask or clarify?"></textarea>
+    <label class="add-signal-label">What do you need to know or ask?</label>
+    <textarea id="compose-body" placeholder="e.g. Ask whether the rate-limit bypass needs a feature flag before merge."></textarea>
+    <label class="add-signal-label">Anything else the AI should keep in mind? (optional)</label>
+    <textarea id="compose-instructions" placeholder="e.g. Keep it short, mention the specific concern."></textarea>
+    <label class="add-signal-label">When should this send, once approved?</label>
+    <select id="compose-timing">
+      <option value="default">Default for this direction (fixed batch time)</option>
+      <option value="now">Now</option>
+    </select>
     <div class="add-signal-actions">
-      <button class="btn" id="compose-send-btn">Send</button>
+      <button class="btn" id="compose-send-btn">Write</button>
       <button class="btn btn-secondary" id="compose-cancel-btn">Cancel</button>
     </div>
   </div>
@@ -219,6 +309,15 @@
       <div class="sources-modal-title">Signal sources</div>
       <button class="link-btn" id="sources-close-btn">Close</button>
     </div>
+    <p class="budget-modal-sub" id="demo-mode-desc">
+      Demo data is off — enable it below to have connected sources fire
+      believable signals on a timer, standing in for real traffic until
+      the real connectors (Teams, Outlook, Gmail, SMS, Confluence, GitHub,
+      CI — see TODO.md) exist.
+    </p>
+    <button class="chip-btn" id="sources-demo-mode-btn">
+      <span class="chip-dot paused"></span> Demo data off
+    </button>
     <div class="sources-list" id="sources-list"></div>
 
     <div class="sources-add-form">
@@ -230,6 +329,9 @@
         <option value="jira">Jira</option>
         <option value="calendar">Calendar</option>
         <option value="sms">SMS</option>
+        <option value="confluence">Confluence</option>
+        <option value="github">GitHub</option>
+        <option value="ci">CI</option>
       </select>
       <label class="add-signal-label">Label</label>
       <input type="text" id="add-source-label" placeholder="e.g. support@demo.corp, or Slack — #billing">
@@ -240,15 +342,17 @@
   </div>
 </div>
 
-<!-- AI usage budgets overlay — mockup of the mind.ai.* VS Code settings.
+<!-- Settings overlay — AI budgets + history retention, consolidated.
      Nothing here is wired to a real server; it only demonstrates the
      controls and their effect in this mockup's own state. -->
 <div class="overlay hidden" id="budget-overlay">
   <div class="budget-modal">
     <div class="sources-modal-header">
-      <div class="sources-modal-title">AI usage budgets</div>
+      <div class="sources-modal-title">Settings</div>
       <button class="link-btn" id="budget-close-btn">Close</button>
     </div>
+
+    <div class="settings-section-label">AI usage budgets</div>
     <p class="budget-modal-sub">
       Same settings as <code>mind.ai.*</code> in VS Code's Settings UI —
       shown here as they'd read there. Prevents a runaway AI loop from
@@ -287,6 +391,13 @@
       <span class="budget-usage-label">Used today</span>
       <div class="budget-usage-bar-track"><div class="budget-usage-bar-fill" id="budget-usage-fill"></div></div>
       <span class="budget-usage-text" id="budget-usage-text"></span>
+    </div>
+
+    <div class="settings-section-label">History &amp; retention</div>
+    <div class="setting-row">
+      <label class="setting-label" for="retention-days-input">mind.history.retentionDays</label>
+      <p class="setting-desc">How long signal bodies and history entries are kept before being redacted/pruned. Mirrors the real server's retention job.</p>
+      <input type="number" min="1" step="1" class="setting-input" id="retention-days-input">
     </div>
 
     <div class="add-signal-actions">

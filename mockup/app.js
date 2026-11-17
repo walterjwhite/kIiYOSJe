@@ -125,8 +125,9 @@
     return "conf-high";
   }
 
-  const CHANNEL_ICON = { email: "✉", jira: "◧", chat: "💬", calendar: "📅", sms: "📱" };
+  const CHANNEL_ICON = { email: "✉", jira: "◧", chat: "💬", calendar: "📅", sms: "📱", confluence: "📘", github: "🐙", ci: "⚙" };
   const REQUEST_ICON = { "approve-send": "✉", "external-review": "◧", "needs-credential": "⚠", "needs-link": "🔗" };
+  const REALTIME_CHANNELS = new Set(["chat"]);
 
   // ── Work queue ───────────────────────────────────────────────────────
 
@@ -232,6 +233,7 @@
 
   function selectSignal(id) {
     state.selectedSignalId = id;
+    state.detailTab = "action";
     renderQueueList();
     renderDetail();
   }
@@ -249,8 +251,63 @@
       return;
     }
 
-    pane.innerHTML = `<div class="detail-content">${renderDetailBody(sig)}</div>`;
-    wireDetailEvents(pane, sig);
+    const tab = state.detailTab || "action";
+    pane.innerHTML = `
+      <div class="detail-tabs">
+        <button class="detail-tab ${tab === "action" ? "active" : ""}" data-detail-tab="action">Action</button>
+        <button class="detail-tab ${tab === "history" ? "active" : ""}" data-detail-tab="history">Work history</button>
+      </div>
+      <div class="detail-content">${tab === "history" ? renderDetailHistoryTab(sig) : renderDetailBody(sig)}</div>
+    `;
+
+    pane.querySelectorAll("[data-detail-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.detailTab = btn.dataset.detailTab;
+        renderDetail();
+      });
+    });
+
+    if (tab === "action") wireDetailEvents(pane, sig);
+  }
+
+  /**
+   * Work history tab — everything that's happened to this one item: the
+   * direction it matched (and why), every schedule/running-state
+   * transition, and every event the global History log recorded against
+   * it. Separate from the Action tab's "what do I do about this right
+   * now" so a cluttered timeline never competes with the controls.
+   */
+  function renderDetailHistoryTab(sig) {
+    const dir = state.directions.find((d) => d.id === sig.directionId);
+    const relatedEvents = state.events.filter((e) => e.signalId === sig.id && withinRetention(e)).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    const thought = thoughtById(sig.thoughtId);
+
+    const infoRows = [
+      ["Channel", sig.channel],
+      ["Thread key", sig.threadKey || "—"],
+      ["Matched direction", dir ? `${dir.name} — ${dir.description}` : "none matched"],
+      ["Linked to", thought ? `${thought.kind}: ${thought.title}` : "nothing"],
+      ["First seen", new Date(sig.timestamp).toLocaleString()],
+    ];
+
+    const timelineRows = relatedEvents.length
+      ? relatedEvents.map((e) => `
+        <div class="journal-entry">
+          <div class="journal-entry-time">${esc(new Date(e.timestamp).toLocaleString())} — ${esc(HISTORY_KIND_LABEL[e.kind] || e.kind)}</div>
+          <p class="journal-entry-text">${esc(e.summary)}</p>
+        </div>
+      `).join("")
+      : `<div class="log-empty">No history events recorded against this item yet — events are logged once something actually happens (sent, received, reclassified).</div>`;
+
+    return `
+      <h1 class="detail-title">${esc(sig.summary)}</h1>
+      <div class="section-label">What this item is</div>
+      <table class="info-table">
+        ${infoRows.map(([k, v]) => `<tr><td class="info-table-key">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}
+      </table>
+      <div class="section-label">Timeline</div>
+      <div class="journal-list">${timelineRows}</div>
+    `;
   }
 
   function thoughtLinkHtml(sig) {
@@ -276,7 +333,7 @@
     const kicker = `
       <div class="detail-kicker">
         <span>${esc(sig.channel)}</span><span class="dot">·</span>
-        <span>${esc(sig.from === "me" ? `to ${sig.to}` : `from ${sig.from}`)}</span><span class="dot">·</span>
+        <span>${sig.room ? `${esc(sig.room)} (group)` : esc(sig.from === "me" ? `to ${sig.to}` : `from ${sig.from}`)}</span><span class="dot">·</span>
         <span>${esc(relativeTime(sig.timestamp))}</span>
       </div>`;
 
@@ -293,25 +350,26 @@
       : "";
 
     const thoughtBlock = sig.channel === "chat" || sig.thoughtId || sig.needsLinking ? thoughtLinkHtml(sig) : "";
+    const composeBlock = renderComposeTrigger(sig);
 
     if (sig.runningState) {
       // Decision already made; follow-through is in progress. Show context
       // read-only instead of live action buttons.
-      return kicker + reasonBlock + runningBlock + renderDetailReadOnly(sig) + thoughtBlock;
+      return kicker + reasonBlock + runningBlock + renderDetailReadOnly(sig) + thoughtBlock + composeBlock;
     }
 
     if (!req) {
       // Already-resolved / informational signal (closed, sent, or dangling chat).
       if (sig.channel === "chat" && sig.exchange) {
-        return kicker + renderChatExchangeDetail(sig) + thoughtBlock;
+        return kicker + renderChatExchangeDetail(sig) + thoughtBlock + composeBlock;
       }
-      return kicker + renderInertDetail(sig) + thoughtBlock;
+      return kicker + renderInertDetail(sig) + thoughtBlock + composeBlock;
     }
 
-    if (req.kind === "needs-credential") return kicker + reasonBlock + renderNeedsCredentialDetail(sig) + thoughtBlock;
-    if (req.kind === "needs-link") return kicker + reasonBlock + renderNeedsLinkDetail(sig) + thoughtBlock;
-    if (req.kind === "external-review") return kicker + reasonBlock + renderExternalReviewDetail(sig) + thoughtBlock;
-    return kicker + reasonBlock + renderApproveSendDetail(sig) + thoughtBlock;
+    if (req.kind === "needs-credential") return kicker + reasonBlock + renderNeedsCredentialDetail(sig) + thoughtBlock + composeBlock;
+    if (req.kind === "needs-link") return kicker + reasonBlock + renderNeedsLinkDetail(sig) + thoughtBlock + composeBlock;
+    if (req.kind === "external-review") return kicker + reasonBlock + renderExternalReviewDetail(sig) + thoughtBlock + composeBlock;
+    return kicker + reasonBlock + renderApproveSendDetail(sig) + thoughtBlock + composeBlock;
   }
 
   function renderDetailReadOnly(sig) {
@@ -337,9 +395,17 @@
   }
 
   function renderInertDetail(sig) {
+    const roomInfo = sig.room
+      ? `<div class="notes-box">Group chat in <strong>${esc(sig.room)}</strong> — ${sig.participants?.length || 0} participants. This topic didn't need you; resolved between the people involved.</div>`
+      : "";
+    const exchangeHtml = sig.exchange?.length
+      ? `<div class="section-label">Conversation</div><div class="exchange-thread">${renderExchangeBubbles(sig.exchange)}</div>`
+      : "";
     return `
       <h1 class="detail-title">${esc(sig.summary)}</h1>
       <div class="detail-body-text">${esc(sig.body)}</div>
+      ${roomInfo}
+      ${exchangeHtml}
       ${sig.resolution ? `<div class="notes-box">${esc(sig.resolution)}</div>` : ""}
       ${sig.sendSchedule ? `<div class="schedule-row"><span class="schedule-icon">✓</span><span class="schedule-text">Sent ${sig.sendSchedule.mode === "immediate" ? "immediately" : `with the ${esc(sig.sendSchedule.batchLabel)}`}.</span></div>` : ""}
     `;
@@ -348,23 +414,17 @@
   // ── Needs-link (dangling, actionable) detail ─────────────────────────
 
   function renderNeedsLinkDetail(sig) {
-    const bubbles = (sig.exchange || [])
-      .map((m) => {
-        const mine = m.from === "me";
-        return `
-        <div class="exchange-bubble-row ${mine ? "mine" : "theirs"}">
-          <div class="exchange-bubble">
-            <div class="exchange-bubble-from">${mine ? "You" : esc(m.from)}</div>
-            <div class="exchange-bubble-body">${esc(m.body)}</div>
-            <div class="exchange-bubble-time">${esc(clockTime(m.timestamp))}</div>
-          </div>
-        </div>`;
-      })
-      .join("");
+    const roomInfo = sig.room
+      ? `<div class="notes-box">Group chat in <strong>${esc(sig.room)}</strong> — ${sig.participants?.length || 0} participants. Only this topic is shown; other conversations in the same room that don't involve you are separate signals.</div>`
+      : "";
+    const body = sig.exchange?.length
+      ? `<div class="exchange-thread">${renderExchangeBubbles(sig.exchange)}</div>`
+      : `<div class="detail-body-text">${esc(sig.body)}</div>`;
 
     return `
       <h1 class="detail-title">${esc(sig.summary)}</h1>
-      ${bubbles ? `<div class="exchange-thread">${bubbles}</div>` : `<div class="detail-body-text">${esc(sig.body)}</div>`}
+      ${roomInfo}
+      ${body}
       <div class="action-bar">
         <button class="btn" data-link-thought="${esc(sig.id)}">Link to a ticket or thought</button>
         <button class="btn btn-secondary" data-dismiss-link="${esc(sig.id)}">Dismiss — not actionable</button>
@@ -389,19 +449,10 @@
   // ── Chat exchange (both sides of the conversation) ───────────────────
 
   function renderChatExchangeDetail(sig) {
-    const bubbles = (sig.exchange || [])
-      .map((m) => {
-        const mine = m.from === "me";
-        return `
-        <div class="exchange-bubble-row ${mine ? "mine" : "theirs"}">
-          <div class="exchange-bubble">
-            <div class="exchange-bubble-from">${mine ? "You" : esc(m.from)}</div>
-            <div class="exchange-bubble-body">${esc(m.body)}</div>
-            <div class="exchange-bubble-time">${esc(clockTime(m.timestamp))}</div>
-          </div>
-        </div>`;
-      })
-      .join("");
+    const roomInfo = sig.room
+      ? `<div class="notes-box">Group chat in <strong>${esc(sig.room)}</strong> — ${sig.participants?.length || 0} participants.</div>`
+      : "";
+    const body = `<div class="exchange-thread">${renderExchangeBubbles(sig.exchange)}</div>`;
 
     const danglingNote = sig.needsLinking
       ? `<div class="notes-box">This chat references work that isn't tracked anywhere yet. Link it to a ticket or thought (existing or new) so it doesn't stay dangling.</div>`
@@ -416,7 +467,8 @@
 
     return `
       <h1 class="detail-title">${esc(sig.summary)}</h1>
-      <div class="exchange-thread">${bubbles}</div>
+      ${roomInfo}
+      ${body}
       ${danglingNote}
       ${actionBar}
     `;
@@ -574,65 +626,156 @@
 
   function renderApproveSendDetail(sig) {
     const scheduleHtml = renderScheduleRow(sig);
+    const exchangeHtml = sig.exchange?.length
+      ? `<div class="section-label">Conversation so far</div><div class="exchange-thread">${renderExchangeBubbles(sig.exchange)}</div>`
+      : "";
     return `
       <h1 class="detail-title">${esc(sig.summary)}</h1>
       <div class="detail-sub">${esc(sig.body)}</div>
+      ${exchangeHtml}
 
       <div class="section-label">Drafted reply</div>
       <div class="draft-box" contenteditable="true" id="draft-editor-${esc(sig.id)}">${esc(sig.request.context.draft)}</div>
 
+      <div class="section-label">When should this send?</div>
       ${scheduleHtml}
 
       <div class="action-bar">
-        <button class="btn" data-approve-send="${esc(sig.id)}">Approve &amp; schedule send</button>
+        <button class="btn" data-approve-send="${esc(sig.id)}">Write &amp; schedule</button>
         <button class="btn btn-danger-outline" data-discard-send="${esc(sig.id)}">Discard</button>
       </div>
     `;
   }
 
+  function directionSendSchedule(directionId) {
+    const d = state.directions.find((x) => x.id === directionId);
+    return d?.sendSchedule || { mode: "batched", times: ["17:00"] };
+  }
+
+  function nextBatchLabel(schedule) {
+    if (!schedule?.times?.length) return "next scheduled batch";
+    return `next scheduled batch (${schedule.times.join(", ")})`;
+  }
+
   function renderScheduleRow(sig) {
+    const schedule = directionSendSchedule(sig.directionId);
+    const override = sig.request?.context?.timingOverride || "default";
+    const fixedLabel = schedule.mode === "immediate" ? "immediately (this direction's policy)" : nextBatchLabel(schedule);
+    const isRealtime = REALTIME_CHANNELS.has(sig.channel);
+
     return `
-      <div class="schedule-row" id="schedule-row-${esc(sig.id)}">
+      <div class="schedule-row schedule-row-select" id="schedule-row-${esc(sig.id)}">
         <span class="schedule-icon">◷</span>
-        <span class="schedule-text">Will send with the <strong>next scheduled batch</strong> once approved.</span>
-        <button class="link-btn" data-override-schedule="${esc(sig.id)}">Send immediately instead</button>
+        <select class="setting-input" id="timing-select-${esc(sig.id)}" data-timing-select="${esc(sig.id)}">
+          <option value="default" ${override === "default" ? "selected" : ""}>Default — ${esc(fixedLabel)}</option>
+          <option value="now" ${override === "now" ? "selected" : ""}>Now</option>
+          ${isRealtime ? `<option value="recipient-free" ${override === "recipient-free" ? "selected" : ""}>When ${esc(sig.to || "the recipient")} is next free</option>` : ""}
+        </select>
       </div>
     `;
   }
 
-  function wireApproveSendEvents(pane, sig) {
-    let scheduleOverride = false;
+  function timingOverrideLabel(sig, override) {
+    const schedule = directionSendSchedule(sig.directionId);
+    if (override === "now") return "immediately";
+    if (override === "recipient-free") return `when ${sig.to || "the recipient"} is next free`;
+    return schedule.mode === "immediate" ? "immediately" : nextBatchLabel(schedule);
+  }
 
-    pane.querySelector(`[data-override-schedule]`)?.addEventListener("click", (ev) => {
-      scheduleOverride = true;
-      const row = document.getElementById(`schedule-row-${sig.id}`);
-      row.innerHTML = `
-        <span class="schedule-icon">⚡</span>
-        <span class="schedule-text">Will send <strong>immediately</strong> once approved.</span>
-        <button class="link-btn" data-revert-schedule="${esc(sig.id)}">Use default batch instead</button>
-      `;
-      row.querySelector("[data-revert-schedule]").addEventListener("click", () => {
-        scheduleOverride = false;
-        row.outerHTML = renderScheduleRow(sig);
-        wireApproveSendEvents(pane, sig);
-      });
+  function renderExchangeBubbles(exchange) {
+    return (exchange || [])
+      .map((m) => {
+        const mine = m.from === "me";
+        return `
+        <div class="exchange-bubble-row ${mine ? "mine" : "theirs"}">
+          <div class="exchange-bubble">
+            <div class="exchange-bubble-from">${mine ? "You" : esc(m.from)}</div>
+            <div class="exchange-bubble-body">${esc(m.body)}</div>
+            <div class="exchange-bubble-time">${esc(clockTime(m.timestamp))}</div>
+          </div>
+        </div>`;
+      })
+      .join("");
+  }
+
+  function wireApproveSendEvents(pane, sig) {
+    const schedule = directionSendSchedule(sig.directionId);
+    let timingOverride = sig.request?.context?.timingOverride || "default";
+
+    pane.querySelector(`[data-timing-select]`)?.addEventListener("change", (ev) => {
+      timingOverride = ev.target.value;
     });
 
     pane.querySelector("[data-approve-send]")?.addEventListener("click", () => {
       const editor = document.getElementById(`draft-editor-${sig.id}`);
       const finalBody = editor ? editor.textContent : sig.request.context.draft;
+      const now = new Date().toISOString();
+      const immediate = timingOverride === "now" || (timingOverride === "default" && schedule.mode === "immediate");
       sig.body = finalBody;
       sig.status = "sent";
-      sig.sendSchedule = scheduleOverride
-        ? { mode: "immediate", sentAt: new Date().toISOString() }
-        : { mode: "batched", batchLabel: "next scheduled batch", sentAt: new Date().toISOString() };
+      sig.sendSchedule = {
+        mode: timingOverride === "default" ? schedule.mode : timingOverride,
+        batchLabel: timingOverrideLabel(sig, timingOverride),
+        sentAt: now,
+      };
 
-      const runningLabel = scheduleOverride ? "Sending — immediate" : "Sending — next scheduled batch";
-      toast(scheduleOverride ? `Sending immediately: ${sig.summary}` : `Approved — will go out with the next batch.`);
-      runThenResolve(sig, runningLabel, {
-        resolution: `sent ${scheduleOverride ? "immediately" : "with the next scheduled batch"}`,
-        delayMs: scheduleOverride ? 1200 : 2000,
+      sig.exchange = sig.exchange || [];
+      sig.exchange.push({ from: "me", body: finalBody, timestamp: now });
+
+      state.events.push({
+        id: `ev-${state.events.length + 1}`,
+        timestamp: now,
+        kind: "sent",
+        channel: sig.channel,
+        person: sig.to,
+        summary: sig.summary,
+        signalId: sig.id,
       });
+
+      const label = timingOverrideLabel(sig, timingOverride);
+      const runningLabel = `Sending — ${label}`;
+      toast(`Approved — will send ${label}.`);
+
+      const isAskAi = !!sig.askAi;
+      runThenResolve(sig, runningLabel, {
+        resolution: `sent ${label}`,
+        delayMs: immediate ? 1200 : 2000,
+        // For an ask-AI message, the AI is still "in the conversation" —
+        // model a reply coming back and the signal reopening with it,
+        // instead of just closing once sent.
+        reopenWith: isAskAi
+          ? {
+              kind: "external-review",
+              urgencyScore: 20,
+              escalateBy: null,
+              reason: "A reply came back on the thread you asked the AI to start — reviewing it is informational, nothing further to send unless you want to follow up.",
+              context: {
+                notes: "Reply received. Use \"Write a message about this\" again if you want the AI to draft a follow-up.",
+              },
+            }
+          : undefined,
+      });
+
+      // Simulate the counterparty's reply landing as a new exchange entry
+      // once the send completes, for ask-AI threads specifically.
+      if (isAskAi) {
+        setTimeout(() => {
+          const replyBody = "Good call — let's put it behind a flag until the spoofing concern is fully addressed.";
+          sig.exchange.push({ from: sig.to, body: replyBody, timestamp: new Date().toISOString() });
+          state.events.push({
+            id: `ev-${state.events.length + 1}`,
+            timestamp: new Date().toISOString(),
+            kind: "received",
+            channel: sig.channel,
+            person: sig.to,
+            summary: `Reply: ${replyBody}`,
+            signalId: sig.id,
+          });
+          toast(`${sig.to} replied on the thread you asked AI to start.`);
+          renderDetail();
+          renderLogView();
+        }, (immediate ? 1200 : 2000) + 1500);
+      }
     });
 
     pane.querySelector("[data-discard-send]")?.addEventListener("click", () => {
@@ -647,6 +790,8 @@
   }
 
   function wireDetailEvents(pane, sig) {
+    wireComposeTrigger(pane, sig);
+
     if (sig.runningState) {
       // Read-only while follow-through is in progress, except for the
       // "changed your mind" unlock control.
@@ -770,6 +915,660 @@
     overlay.addEventListener("click", (ev) => { if (ev.target === overlay) closePicker(); }, { once: true });
   }
 
+  // ── Write an outbound signal — compose a goal, AI drafts the actual
+  // message. Generic across channels (chat/Teams, email) and available
+  // from any signal's detail view. The operator states what they need,
+  // not the exact wording; the AI produces a draft the same way it would
+  // for any other reply, which then goes through the normal approve-send
+  // flow. The operator can override when it sends (default: the owning
+  // direction's fixed batch schedule; or now; or when the recipient is
+  // free). This is deliberately not an MCP/tool-call integration — it's
+  // the same signal model everything else in this mockup uses, just with
+  // the AI standing in as the author of the first message.
+
+  let composeContextSig = null;
+
+  function renderComposeTrigger(sig) {
+    return `
+      <div class="compose-trigger-row">
+        <button class="link-btn" data-open-compose="${esc(sig.id)}">✉ Write a message about this</button>
+      </div>`;
+  }
+
+  function wireComposeTrigger(pane, sig) {
+    pane.querySelector("[data-open-compose]")?.addEventListener("click", () => openComposeModal(sig));
+  }
+
+  function openComposeModal(sig) {
+    composeContextSig = sig;
+    const other = sig && (sig.direction === "in" ? sig.from : sig.to);
+    document.getElementById("compose-title").textContent = sig ? `Write an outbound signal — re: ${sig.summary}` : "Write an outbound signal";
+    document.getElementById("compose-channel").value = sig?.channel === "email" ? "email" : "chat";
+    document.getElementById("compose-to").value = other && other !== "me" ? other : "";
+    document.getElementById("compose-body").value = "";
+    document.getElementById("compose-instructions").value = "";
+    document.getElementById("compose-timing").value = "default";
+    updateComposeTimingOptions();
+    document.getElementById("compose-overlay").classList.remove("hidden");
+    document.getElementById("compose-to").focus();
+  }
+
+  /**
+   * "When the recipient is free" only makes sense for a real-time channel
+   * like chat/Teams — email has no concept of the recipient's live
+   * presence the way a chat client does, so the option doesn't appear
+   * for channels where it wouldn't mean anything.
+   */
+  function updateComposeTimingOptions() {
+    const channel = document.getElementById("compose-channel").value;
+    const select = document.getElementById("compose-timing");
+    const hasOption = !!select.querySelector('option[value="recipient-free"]');
+    const isRealtime = REALTIME_CHANNELS.has(channel);
+
+    if (isRealtime && !hasOption) {
+      const opt = document.createElement("option");
+      opt.value = "recipient-free";
+      opt.textContent = "When the recipient is free";
+      select.appendChild(opt);
+    } else if (!isRealtime && hasOption) {
+      if (select.value === "recipient-free") select.value = "default";
+      select.querySelector('option[value="recipient-free"]').remove();
+    }
+  }
+
+  document.getElementById("compose-channel").addEventListener("change", updateComposeTimingOptions);
+
+  function closeComposeModal() {
+    document.getElementById("compose-overlay").classList.add("hidden");
+    composeContextSig = null;
+  }
+
+  /**
+   * Turns a goal + instructions into an actual drafted message. This is a
+   * canned stand-in for a real model call — same shape of output a real
+   * draft() call would produce, so the rest of the pipeline (approve,
+   * schedule, exchange) doesn't need to know the difference.
+   */
+  function draftMessageFromGoal(goal, instructions, to) {
+    const name = (to || "").split("@")[0] || "there";
+    const greeting = name && name !== "there" ? `Hey ${name.charAt(0).toUpperCase() + name.slice(1)} — ` : "Hi — ";
+    const tail = instructions ? ` (${instructions.trim().replace(/\.$/, "")}.)` : "";
+    return `${greeting}${goal.trim().replace(/\.$/, "")}?${tail}`;
+  }
+
+  const TIMING_LABEL = {
+    default: "the default fixed time for this direction",
+    now: "now",
+    "recipient-free": "when the recipient is next free (checked against their calendar)",
+  };
+
+  function sendComposedMessage() {
+    const channel = document.getElementById("compose-channel").value;
+    const to = document.getElementById("compose-to").value.trim();
+    const goal = document.getElementById("compose-body").value.trim();
+    const instructions = document.getElementById("compose-instructions").value.trim();
+    const timing = document.getElementById("compose-timing").value;
+
+    if (!to || !goal) {
+      toast("Add a recipient and what you need before writing it.", true);
+      return;
+    }
+
+    const ctx = composeContextSig;
+    const direction = state.directions.find((d) => d.id === "demo/pm/ask-ai");
+    const id = `s-ask-${state.signals.length + 1}`;
+    const now = new Date().toISOString();
+
+    const newSig = {
+      id,
+      channel,
+      direction: "out",
+      from: "me",
+      to,
+      timestamp: now,
+      summary: `Draft to ${to}: ${goal.length > 50 ? `${goal.slice(0, 47)}...` : goal}`,
+      body: `Asked the AI to find out: ${goal}`,
+      status: "open",
+      threadKey: ctx?.threadKey || null,
+      directionId: direction?.id || null,
+      thoughtId: ctx?.thoughtId || null,
+      runningState: null,
+      askAi: { goal, instructions, askedAt: now, timingOverride: timing },
+      exchange: [{ from: "me", body: `(asked AI: ${goal})`, timestamp: now }],
+      request: null,
+    };
+    state.signals.push(newSig);
+    closeComposeModal();
+    toast("AI is drafting the message…");
+
+    // Model the draft taking a moment, same as any other AI-driven step.
+    newSig.runningState = { label: "AI drafting message", startedAt: now };
+    renderLogView();
+
+    setTimeout(() => {
+      newSig.runningState = null;
+      const draft = draftMessageFromGoal(goal, instructions, to);
+      newSig.request = {
+        kind: "approve-send",
+        urgencyScore: 35,
+        escalateBy: null,
+        reason: `${direction ? direction.name : "ask-ai-requests"} is set to autonomy: draft — the AI drafted this for the question you asked it to write; it still waits for your approval, and will then send at ${TIMING_LABEL[timing]}.`,
+        context: { draft, timingOverride: timing },
+      };
+      toast(`Drafted a message to ${to} — awaiting your approval.`);
+      renderQueueList();
+      renderLogView();
+      refreshPlanIfVisible();
+      if (state.activeView === "queue") selectSignal(newSig.id);
+    }, 1400);
+  }
+
+  document.getElementById("compose-send-btn").addEventListener("click", sendComposedMessage);
+  document.getElementById("compose-cancel-btn").addEventListener("click", closeComposeModal);
+  document.getElementById("compose-close-btn").addEventListener("click", closeComposeModal);
+  document.getElementById("compose-overlay").addEventListener("click", (ev) => {
+    if (ev.target.id === "compose-overlay") closeComposeModal();
+  });
+
+  // ── Directions: table + detail screen ────────────────────────────────
+  // The table (same pattern as Signals/History) is just for scanning;
+  // clicking a row opens the direction's own screen to edit name,
+  // description, match/response prompts, and policy fields — a direction
+  // isn't just a label and a confidence slider, it needs an actual prompt
+  // telling the AI how to recognize a match and how to respond to one.
+
+  function signalCountForDirection(directionId) {
+    return state.signals.filter((s) => s.directionId === directionId).length;
+  }
+
+  function renderDirectionsTable() {
+    const body = document.getElementById("directions-table-body");
+    body.innerHTML = state.directions
+      .map(
+        (d) => `
+      <tr class="data-table-row" data-direction-row="${esc(d.id)}">
+        <td><span class="chip-dot ${d.enabled ? "running" : "paused"}"></span></td>
+        <td>${esc(d.name)}</td>
+        <td>${esc(d.posture)}</td>
+        <td>${esc(d.autonomy)}</td>
+        <td>${d.confidenceMin.toFixed(2)}</td>
+        <td>${signalCountForDirection(d.id)}</td>
+      </tr>
+    `,
+      )
+      .join("");
+
+    body.querySelectorAll("[data-direction-row]").forEach((row) => {
+      row.addEventListener("click", () => openDirectionDetail(row.dataset.directionRow));
+    });
+  }
+
+  function openDirectionDetail(directionId) {
+    state.selectedDirectionId = directionId;
+    setView("direction-detail");
+  }
+
+  function renderDirectionDetail() {
+    const d = state.directions.find((x) => x.id === state.selectedDirectionId);
+    const body = document.getElementById("direction-detail-body");
+    if (!d) {
+      body.innerHTML = `<div class="log-empty">Direction not found.</div>`;
+      return;
+    }
+
+    const relatedLearnings = state.learnings.filter((l) => l.directionId === d.id);
+    const relatedReclass = state.reclassifications.filter((r) => r.toDirectionId === d.id || r.fromDirectionId === d.id);
+    const handledSignals = state.signals.filter((s) => s.directionId === d.id).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    body.innerHTML = `
+      <label class="add-signal-label">Name</label>
+      <input type="text" class="setting-input" id="direction-detail-name" value="${esc(d.name)}">
+      <label class="add-signal-label">Description</label>
+      <textarea class="setting-input" id="direction-detail-description" style="min-height:50px;">${esc(d.description || "")}</textarea>
+
+      <label class="add-signal-label">Match prompt — how AI decides this direction applies</label>
+      <textarea class="setting-input" id="direction-detail-match-prompt" style="min-height:80px;" placeholder="Describe what makes a signal belong to this direction.">${esc(d.matchPrompt || "")}</textarea>
+
+      <label class="add-signal-label">Response prompt — how AI should handle a match</label>
+      <textarea class="setting-input" id="direction-detail-response-prompt" style="min-height:80px;" placeholder="Describe how AI should respond once matched.">${esc(d.responsePrompt || "")}</textarea>
+
+      <div class="direction-row-fields" style="margin-top:14px;">
+        <label class="direction-field">
+          <span>Enabled</span>
+          <select class="setting-input" id="direction-detail-enabled">
+            <option value="true" ${d.enabled ? "selected" : ""}>enabled</option>
+            <option value="false" ${!d.enabled ? "selected" : ""}>disabled</option>
+          </select>
+        </label>
+        <label class="direction-field">
+          <span>Posture</span>
+          <select class="setting-input" id="direction-detail-posture">
+            <option value="absorb" ${d.posture === "absorb" ? "selected" : ""}>absorb</option>
+            <option value="escalate" ${d.posture === "escalate" ? "selected" : ""}>escalate</option>
+          </select>
+        </label>
+        <label class="direction-field">
+          <span>Autonomy</span>
+          <select class="setting-input" id="direction-detail-autonomy">
+            <option value="observe" ${d.autonomy === "observe" ? "selected" : ""}>observe</option>
+            <option value="draft" ${d.autonomy === "draft" ? "selected" : ""}>draft</option>
+            <option value="send" ${d.autonomy === "send" ? "selected" : ""}>send</option>
+          </select>
+        </label>
+        <label class="direction-field">
+          <span>Confidence min</span>
+          <input type="number" min="0" max="1" step="0.05" class="setting-input" id="direction-detail-confidence" value="${d.confidenceMin}">
+        </label>
+      </div>
+      <div class="direction-row-fields">
+        <label class="direction-field">
+          <span>Send policy</span>
+          <select class="setting-input" id="direction-detail-schedule-mode">
+            <option value="batched" ${d.sendSchedule?.mode === "batched" ? "selected" : ""}>batched (default)</option>
+            <option value="immediate" ${d.sendSchedule?.mode === "immediate" ? "selected" : ""}>immediate</option>
+          </select>
+        </label>
+        <label class="direction-field">
+          <span>Batch times</span>
+          <input type="text" class="setting-input" id="direction-detail-schedule-times" value="${esc((d.sendSchedule?.times || []).join(", "))}" placeholder="e.g. 09:00, 17:00">
+        </label>
+      </div>
+
+      <div class="add-signal-actions">
+        <button class="btn" id="direction-detail-save-btn">Save</button>
+      </div>
+
+      <div class="section-label">Learnings for this direction <span class="plan-block-count">${relatedLearnings.length}</span> — <button class="link-btn" id="direction-detail-view-learnings">view in Learnings</button></div>
+      <div class="learnings-list">${relatedLearnings.length ? relatedLearnings.map(learningRowHtml).join("") : `<div class="log-empty">No learnings recorded for this direction yet.</div>`}</div>
+
+      ${relatedReclass.length ? `
+      <div class="section-label">Reclassifications involving this direction</div>
+      <div class="learnings-list">${relatedReclass.map(reclassRowHtml).join("")}</div>` : ""}
+
+      <div class="section-label">Signals handled by this direction <span class="plan-block-count">${handledSignals.length}</span></div>
+      <table class="data-table">
+        <thead><tr><th>Summary</th><th>Status</th><th>When</th><th></th></tr></thead>
+        <tbody>
+          ${handledSignals.length
+            ? handledSignals.map((s) => `
+              <tr class="data-table-row" data-handled-sig="${esc(s.id)}">
+                <td>${esc(s.summary)}</td>
+                <td>${esc(s.status)}</td>
+                <td>${esc(clockTime(s.timestamp))}</td>
+                <td><button class="link-btn" data-reclassify-sig="${esc(s.id)}">Move to another direction</button></td>
+              </tr>
+            `).join("")
+            : `<tr><td colspan="4" class="log-empty">No signals matched to this direction yet.</td></tr>`}
+        </tbody>
+      </table>
+    `;
+
+    document.getElementById("direction-detail-save-btn").addEventListener("click", () => saveDirectionDetail(d.id));
+    document.getElementById("direction-detail-view-learnings").addEventListener("click", () => setView("learnings"));
+    body.querySelectorAll("[data-handled-sig]").forEach((row) => {
+      row.addEventListener("click", (ev) => {
+        if (ev.target.closest("[data-reclassify-sig]")) return;
+        setView("queue");
+        selectSignal(row.dataset.handledSig);
+      });
+    });
+    body.querySelectorAll("[data-reclassify-sig]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openReclassifyPicker(btn.dataset.reclassifySig);
+      });
+    });
+  }
+
+  function learningRowHtml(l) {
+    return `
+      <div class="learning-row ${l.status}">
+        <div class="learning-row-top">
+          <span class="learning-status-tag ${l.status}">${esc(l.status)}</span>
+          <span class="learning-row-title">${esc(l.field)}: ${esc(l.fromValue)} → ${esc(l.toValue)}</span>
+          <span class="log-time">${esc(clockTime(l.appliedAt))}</span>
+        </div>
+        <p class="learning-rationale">${esc(l.rationale)}</p>
+        ${l.rejectedReason ? `<p class="learning-rationale learning-rejected-reason">Why rejected: ${esc(l.rejectedReason)}</p>` : ""}
+      </div>
+    `;
+  }
+
+  function reclassRowHtml(r) {
+    const from = directionName(r.fromDirectionId);
+    const to = directionName(r.toDirectionId);
+    return `
+      <div class="learning-row">
+        <div class="learning-row-top">
+          <span class="learning-row-title">${esc(r.signalId)}: ${esc(from)} → ${esc(to)}</span>
+          <span class="log-time">${esc(clockTime(r.timestamp))}</span>
+        </div>
+        <p class="learning-rationale">${esc(r.reason)}</p>
+      </div>
+    `;
+  }
+
+  function saveDirectionDetail(directionId) {
+    const d = state.directions.find((x) => x.id === directionId);
+    if (!d) return;
+    d.name = document.getElementById("direction-detail-name").value.trim() || d.name;
+    d.description = document.getElementById("direction-detail-description").value.trim();
+    d.matchPrompt = document.getElementById("direction-detail-match-prompt").value.trim();
+    d.responsePrompt = document.getElementById("direction-detail-response-prompt").value.trim();
+    d.enabled = document.getElementById("direction-detail-enabled").value === "true";
+    d.posture = document.getElementById("direction-detail-posture").value;
+    d.autonomy = document.getElementById("direction-detail-autonomy").value;
+    d.confidenceMin = Number(document.getElementById("direction-detail-confidence").value) || 0;
+    d.sendSchedule = d.sendSchedule || {};
+    d.sendSchedule.mode = document.getElementById("direction-detail-schedule-mode").value;
+    d.sendSchedule.times = document.getElementById("direction-detail-schedule-times").value.split(",").map((t) => t.trim()).filter(Boolean);
+    toast(`Saved direction: ${d.name}`);
+    renderDirectionsTable();
+  }
+
+  // ── Reclassification: move a signal that matched the wrong direction ──
+
+  function openReclassifyPicker(signalId) {
+    state._reclassifyTarget = signalId;
+    const overlay = document.getElementById("reclassify-picker-overlay");
+    const list = document.getElementById("reclassify-picker-list");
+    const input = document.getElementById("reclassify-picker-search");
+
+    function renderList(filter) {
+      const f = (filter || "").toLowerCase();
+      const items = state.directions.filter((d) => d.name.toLowerCase().includes(f));
+      list.innerHTML = items
+        .map(
+          (d) => `
+        <div class="quick-pick-item" data-reclassify-direction="${esc(d.id)}">
+          <div class="quick-pick-item-label">${esc(d.name)}</div>
+          <div class="quick-pick-item-desc">${esc(d.description || "")}</div>
+        </div>
+      `,
+        )
+        .join("");
+      list.querySelectorAll("[data-reclassify-direction]").forEach((el) => {
+        el.addEventListener("click", () => {
+          const sig = state.signals.find((s) => s.id === state._reclassifyTarget);
+          if (!sig) return closePicker();
+          const fromId = sig.directionId;
+          const toId = el.dataset.reclassifyDirection;
+          sig.directionId = toId;
+          state.reclassifications.push({
+            id: `rc-${state.reclassifications.length + 1}`,
+            signalId: sig.id,
+            timestamp: new Date().toISOString(),
+            fromDirectionId: fromId,
+            toDirectionId: toId,
+            reason: "Manually reclassified from the Directions screen.",
+          });
+          toast(`Moved ${sig.id} from ${directionName(fromId) || "no direction"} to ${directionName(toId)}.`);
+          closePicker();
+          renderDirectionDetail();
+        });
+      });
+    }
+
+    function closePicker() {
+      overlay.classList.add("hidden");
+      input.removeEventListener("input", onInput);
+      document.removeEventListener("keydown", onKeydown);
+    }
+    function onInput() { renderList(input.value); }
+    function onKeydown(ev) { if (ev.key === "Escape") closePicker(); }
+
+    input.value = "";
+    renderList("");
+    overlay.classList.remove("hidden");
+    input.focus();
+    input.addEventListener("input", onInput);
+    document.addEventListener("keydown", onKeydown);
+    overlay.addEventListener("click", (ev) => { if (ev.target === overlay) closePicker(); }, { once: true });
+  }
+
+  function renderLearningsList() {
+    const container = document.getElementById("learnings-list");
+    if (!state.learnings.length) {
+      container.innerHTML = `<div class="log-empty">No learnings yet.</div>`;
+      return;
+    }
+    container.innerHTML = [...state.learnings]
+      .sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt))
+      .map((l) => {
+        const dir = state.directions.find((d) => d.id === l.directionId);
+        return `
+        <div class="learning-row ${l.status}">
+          <div class="learning-row-top">
+            <span class="learning-status-tag ${l.status}">${esc(l.status)}</span>
+            <span class="learning-row-title">${esc(dir ? dir.name : l.directionId)} → ${esc(l.field)}: ${esc(l.fromValue)} → ${esc(l.toValue)}</span>
+            <span class="log-time">${esc(clockTime(l.appliedAt))}</span>
+          </div>
+          <p class="learning-rationale">${esc(l.rationale)}</p>
+          ${l.rejectedReason ? `<p class="learning-rationale learning-rejected-reason">Why rejected: ${esc(l.rejectedReason)}</p>` : ""}
+          <button class="link-btn" data-view-direction="${esc(l.directionId)}">View direction →</button>
+        </div>
+      `;
+      })
+      .join("");
+
+    container.querySelectorAll("[data-view-direction]").forEach((btn) => {
+      btn.addEventListener("click", () => openDirectionDetail(btn.dataset.viewDirection));
+    });
+  }
+
+  function renderLearningRunsTable() {
+    const body = document.getElementById("learning-runs-table-body");
+    body.innerHTML = [...state.learningRuns]
+      .sort((a, b) => new Date(b.ranAt) - new Date(a.ranAt))
+      .map(
+        (r) => `
+      <tr>
+        <td>${esc(new Date(r.ranAt).toLocaleString())}</td>
+        <td>${r.windowDays}d</td>
+        <td>${r.directionsScanned}</td>
+        <td>${r.eventsScanned}</td>
+        <td>${r.proposalsEmitted}</td>
+      </tr>
+    `,
+      )
+      .join("");
+  }
+
+  function renderReclassificationsList() {
+    const container = document.getElementById("reclassifications-list");
+    if (!state.reclassifications.length) {
+      container.innerHTML = `<div class="log-empty">No reclassifications yet.</div>`;
+      return;
+    }
+    container.innerHTML = state.reclassifications.map(reclassRowHtml).join("");
+  }
+
+  function addDirection() {
+    const name = prompt("Direction name (e.g. customer-escalations):");
+    if (!name || !name.trim()) return;
+    const id = `demo/custom/${name.trim().toLowerCase().replace(/\s+/g, "-")}`;
+    state.directions.push({
+      id,
+      name: name.trim(),
+      posture: "absorb",
+      autonomy: "observe",
+      confidenceMin: 0.6,
+      description: "New direction — adjust posture, autonomy, and confidence as you learn how it should behave.",
+      matchPrompt: "",
+      responsePrompt: "",
+      enabled: true,
+      sendSchedule: { mode: "batched", times: ["17:00"] },
+    });
+    toast(`Created direction: ${name.trim()}`);
+    renderDirectionsTable();
+  }
+
+  document.getElementById("direction-detail-back-btn").addEventListener("click", () => setView("directions"));
+
+  // ── Analytics: volume, override rate, and estimated time saved. ─────
+  // Separate from Learnings — Learnings is about policy evolving over
+  // time; Analytics is about throughput and what it's worth right now.
+
+  function renderAnalyticsView() {
+    const m = state.metrics;
+    document.getElementById("analytics-window-label").textContent = m.window;
+    hideAnalyticsDrilldown();
+
+    document.getElementById("analytics-summary-row").innerHTML = [
+      { label: "Signals", value: m.signals },
+      { label: "Absorbed", value: `${Math.round(m.absorbRate * 100)}%` },
+      { label: "Override rate", value: `${Math.round(m.overrideRate * 100)}%` },
+      { label: "Sends without revert", value: m.sendsWithoutRevert },
+      { label: "Est. minutes saved", value: m.byDirection.reduce((sum, d) => sum + d.minutesSavedEst, 0) },
+    ]
+      .map((card) => `<div class="analytics-card"><div class="analytics-card-value">${esc(card.value)}</div><div class="analytics-card-label">${esc(card.label)}</div></div>`)
+      .join("");
+
+    document.getElementById("analytics-direction-table-body").innerHTML = m.byDirection
+      .map((row) => {
+        const rate = row.handled > 0 ? row.overridden / row.handled : 0;
+        return `
+        <tr class="data-table-row" data-analytics-direction="${esc(row.directionId)}">
+          <td>${esc(directionName(row.directionId) || row.directionId)}</td>
+          <td>${row.handled}</td>
+          <td>${row.overridden}</td>
+          <td><span class="badge ${rate > 0.3 ? "overdue" : rate > 0.1 ? "due" : "conf-high"}">${Math.round(rate * 100)}%</span></td>
+          <td>${row.minutesSavedEst}</td>
+        </tr>
+      `;
+      })
+      .join("");
+    document.querySelectorAll("[data-analytics-direction]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const id = row.dataset.analyticsDirection;
+        showAnalyticsDrilldown(
+          `Signals matched to "${directionName(id) || id}"`,
+          state.signals.filter((s) => s.directionId === id),
+        );
+      });
+    });
+
+    const maxChannel = Math.max(...m.byChannel.map((c) => c.count), 1);
+    document.getElementById("analytics-channel-bars").innerHTML = m.byChannel
+      .map(
+        (c) => `
+      <div class="analytics-bar-row data-table-row" data-analytics-channel="${esc(c.channel)}">
+        <span class="analytics-bar-label">${esc(channelLabel(c.channel))}</span>
+        <div class="analytics-bar-track"><div class="analytics-bar-fill" style="width:${(c.count / maxChannel) * 100}%"></div></div>
+        <span class="analytics-bar-value">${c.count}</span>
+      </div>
+    `,
+      )
+      .join("");
+    document.querySelectorAll("[data-analytics-channel]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const channel = row.dataset.analyticsChannel;
+        showAnalyticsDrilldown(
+          `${channelLabel(channel)} signals`,
+          state.signals.filter((s) => s.channel === channel),
+        );
+      });
+    });
+
+    const maxDaily = Math.max(...m.dailyVolume.map((d) => d.count), 1);
+    document.getElementById("analytics-daily-bars").innerHTML = m.dailyVolume
+      .map(
+        (d) => `
+      <div class="analytics-bar-row data-table-row" data-analytics-day="${esc(d.date)}">
+        <span class="analytics-bar-label">${esc(new Date(d.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }))}</span>
+        <div class="analytics-bar-track"><div class="analytics-bar-fill" style="width:${(d.count / maxDaily) * 100}%"></div></div>
+        <span class="analytics-bar-value">${d.count}</span>
+      </div>
+    `,
+      )
+      .join("");
+    document.querySelectorAll("[data-analytics-day]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const date = row.dataset.analyticsDay;
+        const dayStart = new Date(date);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart.getTime() + 86400_000);
+        showAnalyticsDrilldown(
+          `Signals from ${new Date(date).toLocaleDateString()}`,
+          state.signals.filter((s) => {
+            const t = new Date(s.timestamp).getTime();
+            return t >= dayStart.getTime() && t < dayEnd.getTime();
+          }),
+        );
+      });
+    });
+  }
+
+  function showAnalyticsDrilldown(label, matches) {
+    document.getElementById("analytics-drilldown-label").textContent = `${label} (${matches.length})`;
+    document.getElementById("analytics-drilldown").classList.remove("hidden");
+    renderSignalRows(document.getElementById("analytics-drilldown-list"), matches.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+    document.getElementById("analytics-drilldown").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function hideAnalyticsDrilldown() {
+    document.getElementById("analytics-drilldown").classList.add("hidden");
+    document.getElementById("analytics-drilldown-list").innerHTML = "";
+  }
+
+  // ── Journal: append-only, operator-written notes ─────────────────────
+  // Distinct from `events`: these are notes the person writes themselves,
+  // never system-generated, and never edited or removed once added.
+
+  function renderJournalList() {
+    const container = document.getElementById("journal-list");
+    if (!state.journal.length) {
+      container.innerHTML = `<div class="log-empty">No journal entries yet.</div>`;
+      return;
+    }
+    container.innerHTML = [...state.journal]
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .map(
+        (j) => `
+      <div class="journal-entry">
+        <div class="journal-entry-time">${esc(new Date(j.timestamp).toLocaleString())}</div>
+        <p class="journal-entry-text">${esc(j.text)}</p>
+      </div>
+    `,
+      )
+      .join("");
+  }
+
+  function addJournalEntry() {
+    const input = document.getElementById("journal-input");
+    const text = input.value.trim();
+    if (!text) {
+      toast("Write something before adding it to the journal.", true);
+      return;
+    }
+    state.journal.push({
+      id: `j-${state.journal.length + 1}`,
+      timestamp: new Date().toISOString(),
+      text,
+    });
+    input.value = "";
+    toast("Added to journal.");
+    renderJournalList();
+  }
+
+  // ── Retention: events older than the configured window are treated as
+  // pruned — applied wherever `events` is read (currently only the
+  // per-item Work History tab, since the standalone History view was
+  // folded into Signals).
+
+  function withinRetention(ev) {
+    const cutoff = Date.now() - state.historySettings.retentionDays * 86400_000;
+    return new Date(ev.timestamp).getTime() >= cutoff;
+  }
+
+  const HISTORY_KIND_LABEL = {
+    sent: "sent",
+    received: "received",
+    "learning-applied": "learning",
+    "learning-rejected": "learning",
+    "direction-edited": "direction",
+  };
+
   // ── Today ────────────────────────────────────────────────────────────
 
   function renderPlan() {
@@ -853,6 +1652,50 @@
           `).join("")
           : `<div class="plan-empty">No pending proposals.</div>`}
       </div>
+
+      <div class="plan-block">
+        <div class="plan-block-header">Requests you've asked for <span class="plan-block-count">${state.requests.length}</span></div>
+        ${state.requests.length
+          ? state.requests.map((r) => `
+            <div class="plan-row">
+              <span class="plan-row-title">${esc(r.text)}</span>
+              <span class="badge ${r.status === "done" ? "conf-high" : r.status === "failed" ? "overdue" : "conf-mid"}">${esc(r.status)}</span>
+            </div>
+          `).join("")
+          : `<div class="plan-empty">Nothing asked for yet — ask AI to reach out from any item, or for a summary of a thread.</div>`}
+      </div>
+
+      <div class="plan-block">
+        <div class="plan-block-header">Knowledge base <span class="plan-block-count">${state.knowledge.length}</span></div>
+        <input type="text" class="history-search" id="knowledge-search" placeholder="Ask a question — answers cite their source…" style="width:100%; margin-bottom:10px; box-sizing:border-box;">
+        <div id="knowledge-results"></div>
+      </div>
+
+      <div class="plan-block">
+        <div class="plan-block-header">Connector health <span class="plan-block-count">${state.sources.length}</span></div>
+        ${state.sources.map((src) => `
+          <div class="direction-chip-row">
+            <span>${CHANNEL_ICON[src.channel] || "•"} ${esc(src.label)}</span>
+            <span class="source-health-tag ${esc(src.health || "connected")}">${esc(HEALTH_LABEL[src.health] || "Connected")}</span>
+          </div>
+        `).join("")}
+      </div>
+
+      <div class="plan-block">
+        <div class="plan-block-header">Paired devices <span class="plan-block-count">${state.devices.length}</span> — <button class="link-btn" id="plan-view-devices-btn">manage in Devices</button></div>
+        ${state.devices.map((d) => `
+          <div class="direction-chip-row">
+            <span>${esc(d.name)}</span>
+            <span class="posture-tag">${esc(d.scopes.join(", "))}</span>
+          </div>
+        `).join("")}
+        <p class="setting-desc" style="margin-top:8px;">Settings, queue, journal, and knowledge belong to you, not the device — a change on one shows up on every paired client.</p>
+      </div>
+
+      <div class="plan-block">
+        <div class="plan-block-header">Daily brief</div>
+        <p class="setting-desc">Delivered at <strong>${esc(state.briefSettings.time)}</strong>${state.briefSettings.audioEnabled ? ", text and audio" : ", text only"}. Change the time and voice from Directions once that settings panel exists for real.</p>
+      </div>
     `;
   }
 
@@ -879,6 +1722,36 @@
     scroll.querySelectorAll("[data-reject-proposal]").forEach((btn) => {
       btn.addEventListener("click", () => resolveProposal(btn.dataset.rejectProposal, "rejected"));
     });
+
+    const knowledgeSearch = document.getElementById("knowledge-search");
+    const knowledgeResults = document.getElementById("knowledge-results");
+    function renderKnowledgeResults(query) {
+      const q = (query || "").trim().toLowerCase();
+      if (!q) {
+        knowledgeResults.innerHTML = `<p class="setting-desc">Type a question — results cite the Confluence page, ticket, or doc they came from, never answered without a source.</p>`;
+        return;
+      }
+      const matches = state.knowledge.filter((k) => k.title.toLowerCase().includes(q) || k.source.toLowerCase().includes(q));
+      knowledgeResults.innerHTML = matches.length
+        ? matches
+            .map(
+              (k) => `
+          <div class="learning-row accepted">
+            <div class="learning-row-top">
+              <span class="learning-row-title">${esc(k.title)}</span>
+              <span class="log-time">${esc(new Date(k.updatedAt).toLocaleDateString())}</span>
+            </div>
+            <p class="learning-rationale">Source: <a class="external-link" href="${esc(k.url)}" target="_blank" rel="noopener">${esc(k.source)} ↗</a></p>
+          </div>
+        `,
+            )
+            .join("")
+        : `<p class="setting-desc">No match in the knowledge base for "${esc(query)}" — nothing is answered without a source to cite.</p>`;
+    }
+    knowledgeSearch?.addEventListener("input", (ev) => renderKnowledgeResults(ev.target.value));
+    renderKnowledgeResults("");
+
+    document.getElementById("plan-view-devices-btn")?.addEventListener("click", () => setView("devices"));
   }
 
   function resolveProposal(eventId, resolution) {
@@ -894,11 +1767,32 @@
   }
 
   // ── Signals ──────────────────────────────────────────────────────────
+  // Signals absorbed what was a separate History tab — the split wasn't
+  // adding clarity. Defaults to "today"; the range selector widens it to
+  // 7 days, 30 days, or all time. A signal's own row always reflects its
+  // live status (open/sent/closed); nothing is dropped when status
+  // changes, so this still works as the durable record once widened.
+
+  function rangeCutoffMs(range) {
+    const now = Date.now();
+    if (range === "today") {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      return start.getTime();
+    }
+    if (range === "7d") return now - 7 * 86400_000;
+    if (range === "30d") return now - 30 * 86400_000;
+    return null; // "all"
+  }
 
   function filteredLog() {
+    const textLower = (state.logFilter.text || "").trim().toLowerCase();
+    const cutoff = rangeCutoffMs(state.logFilter.range);
     return state.signals
+      .filter((s) => cutoff == null || new Date(s.timestamp).getTime() >= cutoff)
       .filter((s) => state.logFilter.channel === "all" || s.channel === state.logFilter.channel)
       .filter((s) => state.logFilter.direction === "all" || s.direction === state.logFilter.direction)
+      .filter((s) => !textLower || s.summary.toLowerCase().includes(textLower) || s.from.toLowerCase().includes(textLower) || s.to.toLowerCase().includes(textLower))
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   }
 
@@ -908,11 +1802,21 @@
     return "closed";
   }
 
+  const RANGE_LABEL = { today: "today", "7d": "last 7 days", "30d": "last 30 days", all: "all time" };
+
   function renderLogView() {
     const list = filteredLog();
-    document.getElementById("log-count").textContent = `${list.length} signal${list.length === 1 ? "" : "s"}`;
+    document.getElementById("log-count").textContent = `${list.length} signal${list.length === 1 ? "" : "s"} — ${RANGE_LABEL[state.logFilter.range] || "today"}`;
 
-    const container = document.getElementById("log-list");
+    renderSignalRows(document.getElementById("log-list"), list);
+  }
+
+  /**
+   * Shared row renderer so Analytics drill-downs produce exactly the same
+   * clickable rows as the main Signals list, instead of a second, looser
+   * implementation that could drift from it.
+   */
+  function renderSignalRows(container, list) {
     if (list.length === 0) {
       container.innerHTML = `<div class="log-empty">No signals match these filters.</div>`;
       return;
@@ -950,7 +1854,8 @@
         } else if (sig?.channel === "chat") {
           openChatInDetailOverlay(sig);
         } else {
-          toast(`${esc(sig.summary)} — ${sig.resolution || sig.status}`);
+          setView("queue");
+          selectSignal(sig.id);
         }
       });
     });
@@ -964,8 +1869,10 @@
   // ── Signal sources (connectors, not signals themselves) ─────────────
 
   function channelLabel(ch) {
-    return { email: "Email", chat: "Chat", jira: "Jira", calendar: "Calendar", sms: "SMS" }[ch] || ch;
+    return { email: "Email", chat: "Chat", jira: "Jira", calendar: "Calendar", sms: "SMS", confluence: "Confluence", github: "GitHub", ci: "CI" }[ch] || ch;
   }
+
+  const HEALTH_LABEL = { connected: "Connected", disconnected: "Disconnected", erroring: "Erroring" };
 
   function renderSourcesList() {
     const container = document.getElementById("sources-list");
@@ -979,6 +1886,8 @@
       <div class="source-row" data-source-id="${esc(src.id)}">
         <div class="source-channel-tag">${CHANNEL_ICON[src.channel] || "•"} ${esc(channelLabel(src.channel))}</div>
         <div class="source-label">${esc(src.label)}</div>
+        ${src.health ? `<span class="source-health-tag ${esc(src.health)}">${esc(HEALTH_LABEL[src.health] || src.health)}</span>` : ""}
+        ${src.firer ? `<span class="source-firer-tag" title="Fires a believable signal every ${Math.round(src.firer.minMs / 1000)}-${Math.round(src.firer.maxMs / 1000)}s while Demo data is on">demo firer</span>` : ""}
         <button class="chip-btn source-toggle ${src.enabled ? "" : "disabled"}" data-toggle-source="${esc(src.id)}">
           <span class="chip-dot ${src.enabled ? "running" : "paused"}"></span> ${src.enabled ? "Enabled" : "Disabled"}
         </button>
@@ -994,6 +1903,8 @@
         if (!src) return;
         src.enabled = !src.enabled;
         toast(`${src.label}: ${src.enabled ? "enabled" : "disabled"}.`);
+        if (src.enabled) scheduleDemoFirer(src);
+        else if (src._firerTimer) clearTimeout(src._firerTimer);
         renderSourcesList();
       });
     });
@@ -1027,11 +1938,243 @@
       return;
     }
     const id = `src-${state.sources.length + 1}`;
-    state.sources.push({ id, channel, label, enabled: true });
+    state.sources.push({ id, channel, label, enabled: true, health: "connected" });
     document.getElementById("add-source-label").value = "";
     toast(`Added source: ${label}. It will start feeding signals in once connected for real.`);
     renderSourcesList();
   }
+
+  // ── Demo mode: sample data connectors firing believable signals ──────
+  // Each enabled source with a `firer` schedules its next synthetic
+  // signal at a random point in its [minMs, maxMs] window. This models
+  // "real connectors receiving real traffic" for demo purposes only —
+  // nothing here talks to a real inbox, Jira, or chat.
+
+  const DEMO_FIRER_TEMPLATES = {
+    "email-pm": () => ({
+      channel: "email",
+      from: ["pm-lead@demo.corp", "director@demo.corp", "finance@demo.corp"][Math.floor(Math.random() * 3)],
+      summaries: [
+        "Quick check — are we still on track for the Friday release?",
+        "Can you loop me in on the status of the billing-sync investigation?",
+        "Leadership is asking for a one-line update on TICKET-4821.",
+      ],
+      directionId: "demo/pm/status-requests",
+    }),
+    "jira-ticket": () => ({
+      channel: "jira",
+      from: "jira-automation",
+      summaries: [
+        "TICKET-4901 — add retry backoff to the webhook dispatcher",
+        "TICKET-4902 — fix pagination bug in the admin signal list",
+      ],
+      directionId: "demo/eng/pr-pipeline",
+    }),
+    "chat-ping": () => ({
+      channel: "chat",
+      from: ["jordan@demo.corp", "priya@demo.corp", "lin@demo.corp"][Math.floor(Math.random() * 3)],
+      summaries: [
+        "Did the demo-data firer just create this chat message? 👀",
+        "Quick one — do we need a migration for the new source health field?",
+        "Heads up, CI's been flaky on main for the last hour.",
+      ],
+      directionId: null,
+    }),
+  };
+
+  function fireDemoSignal(source) {
+    const template = DEMO_FIRER_TEMPLATES[source.firer.kind];
+    if (!template) return;
+    const seed = template();
+    const summary = seed.summaries[Math.floor(Math.random() * seed.summaries.length)];
+    const now = new Date().toISOString();
+    const id = `s-demo-${state.signals.length + 1}`;
+
+    const sig = {
+      id,
+      channel: seed.channel,
+      direction: "in",
+      from: seed.from,
+      to: "me",
+      timestamp: now,
+      summary,
+      body: summary,
+      status: "open",
+      threadKey: null,
+      directionId: seed.directionId,
+      thoughtId: null,
+      runningState: null,
+      request: {
+        kind: "approve-send",
+        urgencyScore: 20 + Math.floor(Math.random() * 40),
+        escalateBy: null,
+        reason: seed.directionId
+          ? `New signal from ${source.label} — routed through ${directionName(seed.directionId)} the same as anything else on that channel.`
+          : `New signal from ${source.label} — no matching direction yet, so it waits here for you to decide.`,
+        context: { draft: `Acknowledged — looking into it now.` },
+      },
+    };
+    state.signals.push(sig);
+    state.demoMode.firedCount++;
+    toast(`Demo data: new signal from ${source.label}.`);
+    renderQueueList();
+    refreshPlanIfVisible();
+    renderLogView();
+    scheduleDemoFirer(source);
+  }
+
+  function scheduleDemoFirer(source) {
+    if (source._firerTimer) clearTimeout(source._firerTimer);
+    if (!state.demoMode.enabled || !source.enabled || !source.firer) return;
+    const delay = source.firer.minMs + Math.random() * (source.firer.maxMs - source.firer.minMs);
+    source._firerTimer = setTimeout(() => fireDemoSignal(source), delay);
+  }
+
+  function stopAllDemoFirers() {
+    state.sources.forEach((src) => {
+      if (src._firerTimer) {
+        clearTimeout(src._firerTimer);
+        src._firerTimer = null;
+      }
+    });
+  }
+
+  function startAllDemoFirers() {
+    state.sources.filter((src) => src.enabled && src.firer).forEach(scheduleDemoFirer);
+  }
+
+  function renderDemoModeChip() {
+    const chips = [document.getElementById("demo-mode-chip"), document.getElementById("sources-demo-mode-btn")];
+    const html = state.demoMode.enabled
+      ? `<span class="chip-dot running"></span> Demo data on (${state.demoMode.firedCount} fired)`
+      : `<span class="chip-dot paused"></span> Demo data off`;
+    chips.forEach((chip) => {
+      if (chip) chip.innerHTML = html;
+    });
+  }
+
+  function toggleDemoMode() {
+    state.demoMode.enabled = !state.demoMode.enabled;
+    if (state.demoMode.enabled) {
+      startAllDemoFirers();
+      toast("Demo data on — enabled sources will start firing sample signals.");
+    } else {
+      stopAllDemoFirers();
+      toast("Demo data off.");
+    }
+    renderDemoModeChip();
+  }
+
+  document.getElementById("demo-mode-chip").addEventListener("click", toggleDemoMode);
+  document.getElementById("sources-demo-mode-btn").addEventListener("click", toggleDemoMode);
+
+  // ── Devices: paired clients, one person's shared state ──────────────
+  // Pairing a new device (the eventual Android app) generates a
+  // short-lived code shown here; in the real system, entering that code
+  // on the other device completes the pairing and issues it its own
+  // credential. There is no second device in this mockup, so "complete
+  // pairing" is simulated with a button instead of a real handshake.
+
+  function renderDevicesTable() {
+    const body = document.getElementById("devices-table-body");
+    body.innerHTML = state.devices
+      .map(
+        (d) => `
+      <tr>
+        <td>${esc(d.name)}</td>
+        <td>${esc(d.kind)}</td>
+        <td>${esc(new Date(d.pairedAt).toLocaleDateString())}</td>
+        <td>${d.lastSeen ? esc(relativeTime(d.lastSeen)) : "—"}</td>
+        <td>${esc(d.scopes.join(", "))}</td>
+        <td><button class="link-btn danger" data-revoke-device="${esc(d.id)}">Revoke</button></td>
+      </tr>
+    `,
+      )
+      .join("");
+
+    body.querySelectorAll("[data-revoke-device]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = state.devices.findIndex((d) => d.id === btn.dataset.revokeDevice);
+        if (idx === -1) return;
+        const [removed] = state.devices.splice(idx, 1);
+        toast(`Revoked: ${removed.name}. It's locked out immediately; other devices are unaffected.`);
+        renderDevicesTable();
+      });
+    });
+  }
+
+  function startDevicePairing() {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    state.pendingPairing = { code, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() };
+    renderPairingPanel();
+  }
+
+  function renderPairingPanel() {
+    const panel = document.getElementById("devices-pairing-panel");
+    const pairing = state.pendingPairing;
+    if (!pairing) {
+      panel.innerHTML = "";
+      return;
+    }
+    panel.innerHTML = `
+      <div class="pairing-panel">
+        <div class="pairing-code">${esc(pairing.code.slice(0, 3))} ${esc(pairing.code.slice(3))}</div>
+        <p class="setting-desc">
+          Enter this code on the device you're pairing (e.g. the Android app) before it expires
+          ${esc(relativeTime(pairing.expiresAt))}. Each device gets its own credential and a
+          scoped set of permissions — a new phone defaults to the least it needs.
+        </p>
+        <label class="add-signal-label">Device name</label>
+        <input type="text" class="setting-input" id="pairing-device-name" placeholder="e.g. My phone" value="My Android phone">
+        <label class="add-signal-label">Permissions for this device</label>
+        <div class="pairing-scopes" id="pairing-scopes">
+          ${["read", "capture", "send", "render", "settings"]
+            .map(
+              (scope) => `
+            <label class="pairing-scope-option">
+              <input type="checkbox" value="${esc(scope)}" ${scope === "read" || scope === "capture" ? "checked" : ""}>
+              ${esc(scope)}
+            </label>
+          `,
+            )
+            .join("")}
+        </div>
+        <div class="add-signal-actions">
+          <button class="btn" id="pairing-complete-btn">Simulate device entering code</button>
+          <button class="btn btn-secondary" id="pairing-cancel-btn">Cancel</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("pairing-complete-btn").addEventListener("click", completeDevicePairing);
+    document.getElementById("pairing-cancel-btn").addEventListener("click", () => {
+      state.pendingPairing = null;
+      renderPairingPanel();
+    });
+  }
+
+  function completeDevicePairing() {
+    const name = document.getElementById("pairing-device-name").value.trim() || "New device";
+    const scopes = Array.from(document.querySelectorAll("#pairing-scopes input:checked")).map((el) => el.value);
+    if (!scopes.length) {
+      toast("Give the device at least one permission.", true);
+      return;
+    }
+    state.devices.push({
+      id: `dev-${state.devices.length + 1}`,
+      name,
+      kind: "android",
+      pairedAt: new Date().toISOString(),
+      scopes,
+      lastSeen: new Date().toISOString(),
+    });
+    state.pendingPairing = null;
+    toast(`Paired: ${name}.`);
+    renderDevicesTable();
+    renderPairingPanel();
+  }
+
+  document.getElementById("devices-pair-btn").addEventListener("click", startDevicePairing);
 
   // ── View switching ───────────────────────────────────────────────────
 
@@ -1041,8 +2184,20 @@
     document.getElementById("view-queue").classList.toggle("hidden", view !== "queue");
     document.getElementById("view-today").classList.toggle("hidden", view !== "today");
     document.getElementById("view-signals").classList.toggle("hidden", view !== "signals");
+    document.getElementById("view-directions").classList.toggle("hidden", view !== "directions");
+    document.getElementById("view-direction-detail").classList.toggle("hidden", view !== "direction-detail");
+    document.getElementById("view-learnings").classList.toggle("hidden", view !== "learnings");
+    document.getElementById("view-analytics").classList.toggle("hidden", view !== "analytics");
+    document.getElementById("view-journal").classList.toggle("hidden", view !== "journal");
+    document.getElementById("view-devices").classList.toggle("hidden", view !== "devices");
     if (view === "today") renderPlanView();
     if (view === "signals") renderLogView();
+    if (view === "directions") renderDirectionsTable();
+    if (view === "direction-detail") renderDirectionDetail();
+    if (view === "learnings") { renderLearningsList(); renderLearningRunsTable(); renderReclassificationsList(); }
+    if (view === "analytics") renderAnalyticsView();
+    if (view === "journal") renderJournalList();
+    if (view === "devices") renderDevicesTable();
   }
 
   document.querySelectorAll(".nav-tab").forEach((btn) => {
@@ -1060,7 +2215,7 @@
     });
   });
 
-  // ── Log filters ──────────────────────────────────────────────────────
+  // ── Log filters (collapsed behind a search toggle / Ctrl+F) ─────────
 
   document.getElementById("log-channel-filter").addEventListener("change", (ev) => {
     state.logFilter.channel = ev.target.value;
@@ -1070,6 +2225,45 @@
     state.logFilter.direction = ev.target.value;
     renderLogView();
   });
+  document.getElementById("signals-search").addEventListener("input", (ev) => {
+    state.logFilter.text = ev.target.value;
+    renderLogView();
+  });
+  document.getElementById("signals-clear-filters-btn").addEventListener("click", () => {
+    state.logFilter = { channel: "all", direction: "all", text: "", range: state.logFilter.range };
+    document.getElementById("log-channel-filter").value = "all";
+    document.getElementById("log-direction-filter").value = "all";
+    document.getElementById("signals-search").value = "";
+    renderLogView();
+  });
+
+  function toggleFiltersRow(rowId, inputId) {
+    const row = document.getElementById(rowId);
+    const willShow = row.classList.contains("hidden");
+    row.classList.toggle("hidden");
+    if (willShow) document.getElementById(inputId)?.focus();
+  }
+
+  document.getElementById("signals-search-toggle").addEventListener("click", () => toggleFiltersRow("signals-filters-row", "signals-search"));
+
+  document.addEventListener("keydown", (ev) => {
+    if (!(ev.ctrlKey || ev.metaKey) || ev.key.toLowerCase() !== "f") return;
+    if (state.activeView === "signals") {
+      ev.preventDefault();
+      document.getElementById("signals-filters-row").classList.remove("hidden");
+      document.getElementById("signals-search").focus();
+    }
+  });
+
+  document.querySelectorAll("#signals-range-segmented .segmented-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.logFilter.range = btn.dataset.range;
+      document.querySelectorAll("#signals-range-segmented .segmented-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      renderLogView();
+    });
+  });
+
+  document.getElementById("journal-add-btn").addEventListener("click", addJournalEntry);
 
   // ── Status chips: pause/resume (topbar + Signals toolbar) ───────────
 
@@ -1111,6 +2305,7 @@
     document.getElementById("budget-tokens-per-task").value = b.tokenBudgetPerTask;
     document.getElementById("budget-tokens-per-day").value = b.tokenBudgetPerDay;
     document.getElementById("budget-on-exceeded").value = b.onBudgetExceeded;
+    document.getElementById("retention-days-input").value = state.historySettings.retentionDays;
     renderBudgetUsage();
     document.getElementById("budget-overlay").classList.remove("hidden");
   }
@@ -1137,7 +2332,15 @@
     b.tokenBudgetPerTask = Number(document.getElementById("budget-tokens-per-task").value) || 0;
     b.tokenBudgetPerDay = Number(document.getElementById("budget-tokens-per-day").value) || 0;
     b.onBudgetExceeded = document.getElementById("budget-on-exceeded").value;
-    toast("AI usage budgets saved. Takes effect on the next AI call — no restart needed.");
+
+    const days = Number(document.getElementById("retention-days-input").value);
+    if (!days || days < 1) {
+      toast("Retention must be at least 1 day.", true);
+      return;
+    }
+    state.historySettings.retentionDays = days;
+
+    toast("Settings saved. Takes effect on the next AI call — no restart needed.");
     closeBudgetModal();
   }
 
@@ -1148,12 +2351,13 @@
   document.getElementById("sources-overlay").addEventListener("click", (ev) => {
     if (ev.target.id === "sources-overlay") closeSourcesModal();
   });
-  document.getElementById("budget-chip").addEventListener("click", openBudgetModal);
+  document.getElementById("settings-chip").addEventListener("click", openBudgetModal);
   document.getElementById("budget-save-btn").addEventListener("click", saveBudgetSettings);
   document.getElementById("budget-close-btn").addEventListener("click", closeBudgetModal);
   document.getElementById("budget-overlay").addEventListener("click", (ev) => {
     if (ev.target.id === "budget-overlay") closeBudgetModal();
   });
+  document.getElementById("directions-add-btn").addEventListener("click", addDirection);
 
   function openAiProviderPicker() {
     const overlay = document.getElementById("command-palette-overlay");
@@ -1210,6 +2414,7 @@
   renderDetail();
   renderPauseChip();
   renderAiChip();
+  renderDemoModeChip();
 
   // Auto-select the top item so the detail pane isn't empty on first load.
   const first = sortedQueue()[0]?.items?.[0];
