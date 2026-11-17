@@ -6,6 +6,41 @@ import type { Db } from "@mind/core";
 export function metricsRouter(db: Db) {
   const app = new Hono();
 
+  // GET /metrics/signals?directionId=&adapter=&day=YYYY-MM-DD
+  // Analytics drill-down: the signals behind one bar/row of the summary
+  // below. At least one filter is required so this can't silently return
+  // the whole table.
+  app.get("/signals", (c) => {
+    const directionId = c.req.query("directionId");
+    const adapter = c.req.query("adapter");
+    const day = c.req.query("day");
+
+    if (!directionId && !adapter && !day) {
+      return c.json(
+        { error: "Provide at least one of directionId, adapter, day" },
+        400,
+      );
+    }
+
+    const conditions: ReturnType<typeof sql>[] = [];
+    if (directionId) conditions.push(sql`${signals.directionId} = ${directionId}`);
+    if (adapter) conditions.push(sql`${signals.adapter} = ${adapter}`);
+    if (day) {
+      conditions.push(sql`substr(${signals.receivedAt}, 1, 10) = ${day}`);
+    }
+
+    const whereClause = sql.join(conditions, sql` and `);
+
+    const rows = db
+      .select()
+      .from(signals)
+      .where(whereClause)
+      .orderBy(sql`${signals.receivedAt} desc`)
+      .all();
+
+    return c.json(rows);
+  });
+
   // GET /metrics?window=7d (default 7d)
   app.get("/", (c) => {
     const window = c.req.query("window") ?? "7d";
@@ -81,7 +116,6 @@ export function metricsRouter(db: Db) {
 
     // Per-direction stats
     const directionRows = db.select().from(directions).all();
-
     const byDirection = directionRows.map((dir) => {
       const dirSignals =
         db
@@ -136,6 +170,29 @@ export function metricsRouter(db: Db) {
       };
     });
 
+    // Per-channel (adapter) stats — clickable bars in Analytics
+    const byChannel = db
+      .select({
+        adapter: signals.adapter,
+        count: sql<number>`count(*)`,
+      })
+      .from(signals)
+      .where(sql`${signals.receivedAt} >= ${since}`)
+      .groupBy(signals.adapter)
+      .all();
+
+    // Daily volume — clickable bars in Analytics, one per calendar day in window
+    const dailyVolume = db
+      .select({
+        day: sql<string>`substr(${signals.receivedAt}, 1, 10)`,
+        count: sql<number>`count(*)`,
+      })
+      .from(signals)
+      .where(sql`${signals.receivedAt} >= ${since}`)
+      .groupBy(sql`substr(${signals.receivedAt}, 1, 10)`)
+      .orderBy(sql`substr(${signals.receivedAt}, 1, 10)`)
+      .all();
+
     return c.json({
       window,
       signals: signalCount,
@@ -150,6 +207,8 @@ export function metricsRouter(db: Db) {
       avgTimeToDecisionMs: avgTimeRow?.avgMs ?? null,
       sendsWithoutRevert: sentCount,
       byDirection,
+      byChannel,
+      dailyVolume,
     });
   });
 

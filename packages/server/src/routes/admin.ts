@@ -22,6 +22,10 @@ import {
   draftModel,
   aiBaseUrl,
   loadApiKey,
+  quietPeriodConfig,
+  writeQuietPeriodConfig,
+  isWithinNotificationWindow,
+  QuietPeriodConfigSchema,
 } from "@mind/core";
 
 const AiConfigRequestSchema = z.object({
@@ -68,6 +72,23 @@ export function adminRouter() {
   app.put("/ai-config", zValidator("json", AiConfigRequestSchema), (c) => {
     const body = c.req.valid("json");
     writeAiConfig(body);
+    return c.json({ ok: true });
+  });
+
+  // GET /admin/notifications — the current quiet-period window, plus
+  // whether a notification sent right now would be allowed through.
+  app.get("/notifications", (c) => {
+    const config = quietPeriodConfig();
+    return c.json({ ...config, allowedNow: isWithinNotificationWindow(new Date(), config) });
+  });
+
+  // PUT /admin/notifications — overwrite the quiet-period window.
+  // This only gates proactive notifications (e.g. "your brief is ready");
+  // it never affects asking for something right now, and never affects
+  // ingestion, matching, or drafting.
+  app.put("/notifications", zValidator("json", QuietPeriodConfigSchema), (c) => {
+    const body = c.req.valid("json");
+    writeQuietPeriodConfig(body);
     return c.json({ ok: true });
   });
 

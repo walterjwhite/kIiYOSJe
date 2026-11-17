@@ -108,4 +108,17 @@ export interface DirectionConfig {
   confidenceMin?: number | undefined;
   standard: string;
   guards?: DirectionGuards | undefined;
+  /**
+   * Optional free-text description of how to recognize a match, used to
+   * assist the classifier's directionId choice when scope's literal
+   * substring match misses real phrasing (STATUS.md gap #12). Falls back
+   * to scope-only matching when absent.
+   */
+  matchPrompt?: string | undefined;
+  /**
+   * Optional free-text description of how to actually handle a match,
+   * passed to the drafter alongside `standard`. When absent, `standard`
+   * alone still drives drafting, same as before this field existed.
+   */
+  responsePrompt?: string | undefined;
 }

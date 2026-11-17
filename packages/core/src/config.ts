@@ -220,5 +220,94 @@ export function aiConfigured(): boolean {
   return aiProvider() === "ollama" || loadApiKey() !== undefined;
 }
 
+// ── Notification quiet period ───────────────────────────────────────────────
+
+/**
+ * Gates when mind may proactively notify the person (e.g. "your brief is
+ * ready", a future escalation alert) — separate from asking for something
+ * right now, which is always an explicit, one-off act the person initiated
+ * and is never held back by this window. Ingestion, matching, and drafting
+ * are never gated by this; only the act of telling the person about it.
+ *
+ * Config lives at ~/.config/mind/notifications.json (mode 600), read fresh
+ * on every call, same pattern as ai.json. Defaults to Mon–Fri 08:00–15:00
+ * in the server's local time zone if no file exists.
+ */
+export interface QuietPeriodConfig {
+  /** When false, notifications are never held back by time of day. */
+  enabled: boolean;
+  /** 0=Sunday .. 6=Saturday. Days notifications are allowed to go out. */
+  days: number[];
+  /** 0-23, local time. */
+  startHour: number;
+  startMinute: number;
+  /** 0-23, local time. */
+  endHour: number;
+  endMinute: number;
+}
+
+export const DEFAULT_QUIET_PERIOD: QuietPeriodConfig = {
+  enabled: true,
+  days: [1, 2, 3, 4, 5], // Mon–Fri
+  startHour: 8,
+  startMinute: 0,
+  endHour: 15,
+  endMinute: 0,
+};
+
+export function notificationsConfigPath(): string {
+  return join(configDir(), "notifications.json");
+}
+
+function readNotificationsConfigFile(): Partial<QuietPeriodConfig> {
+  try {
+    const raw = readFileSync(notificationsConfigPath(), "utf8");
+    return JSON.parse(raw) as Partial<QuietPeriodConfig>;
+  } catch {
+    return {};
+  }
+}
+
+/** Current effective quiet-period config: file overrides, defaults fill gaps. */
+export function quietPeriodConfig(): QuietPeriodConfig {
+  return { ...DEFAULT_QUIET_PERIOD, ...readNotificationsConfigFile() };
+}
+
+/** Writes the quiet-period config file atomically (temp file + rename), mode 600. */
+export function writeQuietPeriodConfig(config: QuietPeriodConfig): void {
+  ensureDirs();
+  const path = notificationsConfigPath();
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, JSON.stringify(config, null, 2), { mode: 0o600 });
+  renameSync(tmp, path);
+}
+
+/**
+ * True when `at` (default now) falls inside the configured notification
+ * window. When `enabled` is false, always true — the window is off, not
+ * just wide open. A notification outside this window should be queued or
+ * dropped by the caller, never forced through; this function only answers
+ * "is it allowed right now."
+ */
+export function isWithinNotificationWindow(
+  at: Date = new Date(),
+  config: QuietPeriodConfig = quietPeriodConfig(),
+): boolean {
+  if (!config.enabled) return true;
+
+  const day = at.getDay();
+  if (!config.days.includes(day)) return false;
+
+  const minutesNow = at.getHours() * 60 + at.getMinutes();
+  const startMinutes = config.startHour * 60 + config.startMinute;
+  const endMinutes = config.endHour * 60 + config.endMinute;
+
+  if (startMinutes <= endMinutes) {
+    return minutesNow >= startMinutes && minutesNow < endMinutes;
+  }
+  // Window crosses midnight (e.g. 22:00–06:00) — not the default, but supported.
+  return minutesNow >= startMinutes || minutesNow < endMinutes;
+}
+
 export const SERVER_PORT = 8787;
 export const SERVER_HOST = "127.0.0.1";

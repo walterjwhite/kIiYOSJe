@@ -23,6 +23,8 @@ export const directions = sqliteTable("directions", {
   autonomy: text("autonomy").notNull().default("observe"), // DirectionAutonomy
   confidenceMin: real("confidence_min").notNull().default(0.7),
   guards: text("guards"), // JSON blob of DirectionGuards
+  matchPrompt: text("match_prompt"),       // how to recognize a match, beyond scope
+  responsePrompt: text("response_prompt"), // how to actually respond, alongside standard
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   version: integer("version").notNull().default(1),
   createdAt: text("created_at")

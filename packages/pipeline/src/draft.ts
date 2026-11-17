@@ -14,6 +14,8 @@ export interface DraftInput {
   sender: string;
   standard: string;
   classifierOutput: ClassifierOutput;
+  /** Matched direction's responsePrompt, if any — specific handling guidance beyond `standard`. */
+  responsePrompt?: string | null;
 }
 
 const SYSTEM = `You are a professional assistant drafting replies on behalf of the message recipient.
@@ -41,7 +43,7 @@ function buildPrompt(input: DraftInput): string {
 
   return `Direction standard:
 ${input.standard}
-
+${input.responsePrompt ? `\nAdditional response guidance for this direction:\n${input.responsePrompt}\n` : ""}
 Classifier notes:
   kind: ${co.signalKind}
   intent: ${co.intent}

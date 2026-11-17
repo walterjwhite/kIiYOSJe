@@ -55,6 +55,12 @@ explain it. Readable as a timeline and exportable as text.
  
 **6. Settings, per person.** Brief time, voice and rate, which connectors are on,
 notification choices, model provider. Written once and read by every client.
+Notification choices include a configurable quiet period — a day-of-week and
+time-of-day window (default Mon–Fri, 08:00–15:00, person's local time) outside
+of which nothing is sent to notify the person, even though ingestion, matching,
+and drafting keep running. This is distinct from asking for a notification
+right now (an explicit, one-off act) — the quiet period only constrains the
+system's own unprompted notifications.
  
 **7. Retention and backup.** Item bodies are redacted after a window the person sets;
 everything is backed up and restorable.

@@ -20,6 +20,82 @@ Teams, email, and VS Code-interactive testing are still not done — see "Not ve
 | P5 Learning loop | Tested with real override data | first proposal generated from real override data | Yes, partially. In the same real seed run, two personas' deliberately loose directions accumulated real overrides (simulated operator reactions to real model drafts) and the learning loop generated real `narrow` proposals from that data — confirmed via `GET /proposals`. This is probabilistic: it is not guaranteed on every seed run, because the classification outcomes that drive it are real model output, not scripted. |
 | P6 Mobile, FTS5 | Deferred | n/a | n/a |
 
+## Mockup reconciliation (this round)
+
+A separate `mockup/` HTML/JS prototype explored a richer UI model (match/
+response prompts on a Direction, reclassification, an interactive Analytics
+drill-down, a ranged Signals view, a Journal tab, and a Devices/pairing
+tab). This round ports the parts of that exploration that fit the real
+architecture — server (`packages/server`) plus the VS Code extension only,
+no Android yet:
+
+- **`matchPrompt` / `responsePrompt`** — two new optional columns on
+  `directions` (migration `0002`). `matchPrompt` is a comma/line-separated
+  list of phrases checked against the signal body in `match.ts`, in
+  addition to the existing literal `scope.value` substring check — a direct
+  fix for gap #12 below, without adding an LLM call to the synchronous
+  match step. `responsePrompt` is passed to `draft()` alongside `standard`
+  for extra handling guidance. Both are optional and backward compatible;
+  existing YAML files with only `scope`/`standard` behave exactly as
+  before. See `directions/work/boss.yaml` for an example of both fields.
+- **Reclassification** — `PATCH /signals/:id` moves a signal to a different
+  `directionId` and logs a `signal.reclassified` event, distinct from an
+  action override (`/actions/:id/discard`, which means "the draft was
+  wrong") — this means "the match itself was wrong." Reachable from the
+  extension's new Signals tree view via **mind: Reclassify Signal**.
+- **Signals view, ranged** — `GET /signals?range=today|7d|30d|all` (did not
+  exist before this round; only ingress existed). New **Signals** tree
+  view in the extension, defaulting to `today`, widened via **mind: Set
+  Signals Range**.
+- **Analytics, interactive** — `/metrics` now also returns `byChannel` and
+  `dailyVolume`; a new `GET /metrics/signals?directionId=&adapter=&day=`
+  drill-down endpoint (requires at least one filter) backs a new
+  **Analytics** webview (`mind.analytics` command) where every direction
+  row, channel bar, and daily-volume bar is clickable and opens the
+  matching signals below it.
+- **Journal** — `GET /events` exposes the existing append-only audit log
+  read-only, with `kind`/`actor`/`since`/`limit` filters. New **Journal**
+  tree view in the extension. This is a window onto the same `events`
+  table every decision already writes to, not a new log.
+- **Devices** — intentionally a placeholder only. PLAN.md defers remote
+  authentication to P6 and there is no second client to pair yet (no
+  Android app, per this round's explicit instruction). The new **Devices**
+  webview (`mind.devices` command) reuses the mockup's devices-table/
+  pairing-panel layout as a static preview with a visible "development in
+  progress" notice — no device registry, scoped tokens, or real pairing
+  flow exist.
+- **Deliberately not ported:** the mockup's "recipient is free" scheduling
+  option and the split-group-chat-signal model. Both are meaningless
+  without a live chat adapter — Teams is still a stub (P1 blocked by
+  decision, see below) — and would be speculative to build against it.
+
+## Notification quiet period (this round)
+
+TODO.md Foundations §6 names "notification choices" as a per-person
+setting; this implements the first concrete piece of it. `@mind/core`
+gained `QuietPeriodConfig`, `quietPeriodConfig()`/`writeQuietPeriodConfig()`
+(reads/writes `~/.config/mind/notifications.json`, mode 600, same pattern
+as `ai.json`), and `isWithinNotificationWindow(at?, config?)` — a pure
+function, 9 tests in `config.test.ts` covering the default window, both
+boundary minutes, a weekend block, `enabled: false`, a midnight-crossing
+custom window, and a custom day list.
+
+`GET`/`PUT /admin/notifications` exposes it over HTTP (3 tests in
+`app.test.ts`); the extension's **mind: Configure Notification Quiet
+Period** command (`notifications-config.ts`) drives it with a QuickPick
+for on/off, a multi-select for days, and two validated `HH:MM` inputs.
+
+This is a standalone primitive, not yet called from anywhere, because
+nothing in the system proactively notifies the person today — PLAN.md's
+own non-goal ("not a notification system... nothing is pushed to me") and
+the "no badge counts, no status-bar counter, no notifications" rule for
+the extension mean there is no OS-level push to gate yet. It is built so
+that the one real candidate — PLAN §6's "notify when it is ready" for the
+morning brief, were it ever implemented — has a check to call before
+firing. It is explicitly **not** a send gate: `decide()` and the §7 send
+gates are untouched, and asking for something right now (`mind.brief`,
+`mind.capture`) is never affected by this window.
+
 ## Implemented and tested
 
 - **Core:** five-table Drizzle schema, two migrations, config, pino logger, zod schemas, status file (`~/.local/share/mind/status.json`, atomic, mode 600).
@@ -38,7 +114,7 @@ Teams, email, and VS Code-interactive testing are still not done — see "Not ve
 
 ## Not verified
 
-- **VS Code extension** compiles, including the new AI-provider status bar item and configure command, but has never been loaded in VS Code and clicked through interactively. The thought-open, approve/discard menus, brief refresh button, and pause/resume commands are untested in the actual editor.
+- **VS Code extension** compiles, including the new AI-provider status bar item, configure command, this round's Signals/Journal tree views and Analytics/Devices webviews, and the notification quiet-period command, but has never been loaded in VS Code and clicked through interactively. The thought-open, approve/discard menus, brief refresh button, pause/resume commands, signal reclassification, the Analytics drill-down clicks, and the quiet-period QuickPick flow are all untested in the actual editor — they are covered by the server-side route tests only (`app.test.ts`, `match.test.ts`, `config.test.ts`), not by driving the webview/tree UI itself.
 - **`/send` for human approval** is tested only up to the pause check. No real adapter implements `send`, so a successful human-approved send to a real destination has never run — only the demo's no-op adapter, which proves the gate logic but not real delivery.
 - **Cloud providers** (openai/anthropic/google) are untested this session — only ollama was exercised for real. The provider-switch code path itself is exercised by `admin.ts`'s PUT handler and the extension command, but no actual cloud call has been made.
 
@@ -55,7 +131,7 @@ Teams, email, and VS Code-interactive testing are still not done — see "Not ve
 9. **Override tracking:** `sendsWithoutRevert` counts sent actions only. Reverts are not tracked.
 10. **Dependencies:** `npm audit` reports 4 moderate vulnerabilities, not reviewed. `skipLibCheck: true` is set because `drizzle-orm@0.45.4` declarations fail under TypeScript 7 (PLAN §11).
 11. **Git:** nothing is committed.
-12. **`match()` uses literal substring matching** on each Direction's `scope.value`. In a real seed run, two signals that should have matched a specific Direction (a PR review request, a migration-location question) instead fell through to the catch-all because the exact scope keyword wasn't present verbatim in the body. This is a real limitation for real traffic, not just the demo — consider classifier-assisted matching or fuzzy matching as a follow-up.
+12. **`match()` uses literal substring matching** on each Direction's `scope.value`, **partially addressed this round**: a `matchPrompt` field now lets a direction's author list additional phrases/synonyms checked against the signal body (see "Mockup reconciliation" above), still without an LLM call in the synchronous match step. This helps when the author anticipates the gap, but doesn't help an existing direction nobody has revisited — classifier-assisted or fuzzy matching remains a real option for a future round.
 13. **`escalateBy` grounding:** the classifier prompt now includes the signal's `receivedAt` so relative deadlines ("by Friday") resolve to the correct date — this was wrong (resolving to 2023) before the fix made this session. Not yet re-verified against a cloud provider, only ollama.
 
 ## Open decisions (PLAN §17)

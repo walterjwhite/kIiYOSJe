@@ -7,14 +7,23 @@ import { ReviewProvider } from "./review-provider.js";
 import { BriefPanel } from "./brief-panel.js";
 import { apiFetch } from "./api-client.js";
 import { configureAiProvider, refreshAiStatusBarItem, createAiStatusBarItem } from "./ai-config.js";
+import { configureNotificationQuietPeriod } from "./notifications-config.js";
+import { SignalsProvider, reclassifySignal } from "./signals-provider.js";
+import { JournalProvider } from "./journal-provider.js";
+import { AnalyticsPanel } from "./analytics-panel.js";
+import { DevicesPanel } from "./devices-panel.js";
 
 export function activate(context: vscode.ExtensionContext): void {
   const thoughtsProvider = new ThoughtsProvider();
   const reviewProvider = new ReviewProvider();
+  const signalsProvider = new SignalsProvider();
+  const journalProvider = new JournalProvider();
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("mind.thoughts", thoughtsProvider),
     vscode.window.registerTreeDataProvider("mind.review", reviewProvider),
+    vscode.window.registerTreeDataProvider("mind.signals", signalsProvider),
+    vscode.window.registerTreeDataProvider("mind.journal", journalProvider),
   );
 
   // ── Commands ───────────────────────────────────────────────────────────────
@@ -184,6 +193,58 @@ export function activate(context: vscode.ExtensionContext): void {
         thoughtsProvider.refresh();
       },
     ),
+  );
+
+  // Signals: range selector and refresh
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.signals.setRange", async () => {
+      await signalsProvider.setRange();
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.signals.refresh", () => {
+      signalsProvider.refresh();
+    }),
+  );
+
+  // Reclassify a signal — the match itself was wrong, not just the draft
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "mind.signal.reclassify",
+      async (item: vscode.TreeItem & { signalId?: string }) => {
+        await reclassifySignal(item);
+        signalsProvider.refresh();
+      },
+    ),
+  );
+
+  // Journal: refresh
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.journal.refresh", () => {
+      journalProvider.refresh();
+    }),
+  );
+
+  // Analytics — interactive drill-down webview
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.analytics", () => {
+      AnalyticsPanel.show(context);
+    }),
+  );
+
+  // Devices — placeholder webview; pairing is not implemented yet
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.devices", () => {
+      DevicesPanel.show(context);
+    }),
+  );
+
+  // Notification quiet period — when mind may proactively notify, separate
+  // from asking for something right now and from the send gates.
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.notifications.configure", async () => {
+      await configureNotificationQuietPeriod();
+    }),
   );
 }
 

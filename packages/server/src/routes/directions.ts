@@ -1,15 +1,8 @@
 import { Hono } from "hono";
 import { eq, sql } from "drizzle-orm";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { directions, events, signals, actions, newId } from "@mind/core";
+import { directions, events, signals, actions, newId, UpdateDirectionRequestSchema } from "@mind/core";
 import type { Db } from "@mind/core";
-
-const UpdateDirectionSchema = z.object({
-  enabled: z.boolean().optional(),
-  autonomy: z.enum(["observe", "draft", "send"]).optional(),
-  confidenceMin: z.number().min(0).max(1).optional(),
-});
 
 export function directionsRouter(db: Db) {
   const app = new Hono();
@@ -82,10 +75,10 @@ export function directionsRouter(db: Db) {
     return c.json(enriched);
   });
 
-  // PUT /directions/:id — update guarded fields only
+  // PUT /directions/:id — update guarded fields, plus name/standard/prompts
   app.put(
     "/:id",
-    zValidator("json", UpdateDirectionSchema),
+    zValidator("json", UpdateDirectionRequestSchema),
     (c) => {
       const { id } = c.req.param();
       const body = c.req.valid("json");
@@ -101,10 +94,19 @@ export function directionsRouter(db: Db) {
 
       db.update(directions)
         .set({
+          ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
+          ...(body.posture !== undefined ? { posture: body.posture } : {}),
           ...(body.autonomy !== undefined ? { autonomy: body.autonomy } : {}),
           ...(body.confidenceMin !== undefined
             ? { confidenceMin: body.confidenceMin }
+            : {}),
+          ...(body.standard !== undefined ? { standard: body.standard } : {}),
+          ...(body.matchPrompt !== undefined
+            ? { matchPrompt: body.matchPrompt }
+            : {}),
+          ...(body.responsePrompt !== undefined
+            ? { responsePrompt: body.responsePrompt }
             : {}),
           version: existing.version + 1,
           updatedAt: now,

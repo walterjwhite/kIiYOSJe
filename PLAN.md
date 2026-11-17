@@ -140,14 +140,24 @@ standard: |
   Acknowledge same day. Restate the ask in one line. State when a plan or
   answer will arrive. Never commit to a date you were not given.
   Escalate if the request implies headcount, budget, or external commitment.
+# Both optional. matchPrompt adds phrases checked against the signal body,
+# beyond the literal scope.value substring match. responsePrompt adds
+# handling guidance passed to the drafter alongside `standard`.
+matchPrompt: "status update, progress check, where are we on"
+responsePrompt: |
+  Lead with current state in one sentence, then the next milestone and date.
 guards:
   maxPerThreadPerHour: 1
   escalateOn: [headcount, budget, legal, external-commitment]
 ```
 
 `scope.kind` is `person` | `project` | `topic` | `thread`. Rules are matched by
-scope first, then by classifier output; the highest-specificity match wins and
-the match is recorded on the Signal so every decision is explainable.
+scope first — plus `matchPrompt`'s phrases, if present — then by classifier
+output; the highest-specificity match wins and the match is recorded on the
+Signal so every decision is explainable. Moving a signal to a different
+Direction after the fact (the match itself was wrong, not just the draft) is
+a **reclassification** — `PATCH /signals/:id` — logged separately from an
+action override.
 
 ## 7. Decisions and permissions
 
@@ -202,30 +212,75 @@ needed; the extension is a local client.
 | POST   | `/thoughts`         | capture a thought (used by extension) |
 | PATCH  | `/thoughts/:id`     | state, nextAction, reviewAt           |
 | GET    | `/directions`       | all directions with match stats       |
-| PUT    | `/directions/:id`   | enable/disable, edit guarded fields   |
+| PUT    | `/directions/:id`   | edit name, posture, autonomy, standard, matchPrompt, responsePrompt, confidenceMin, enabled |
 | GET    | `/actions?status=`  | review queue                          |
 | POST   | `/actions/:id/send` | human approval of a proposed action   |
 | POST   | `/actions/:id/discard` | reject, recorded as override       |
+| PATCH  | `/actions/:id`      | edit a draft's body before sending    |
 | POST   | `/signals`          | adapter ingress (internal only)       |
-| GET    | `/metrics?window=`  | signals/thoughts ratio and rates      |
+| GET    | `/signals?range=`   | list signals, `today`\|`7d`\|`30d`\|`all`, newest first |
+| PATCH  | `/signals/:id`      | reclassify: move to a different direction, logged as `signal.reclassified` |
+| GET    | `/metrics?window=`  | signals/thoughts ratio and rates, plus byChannel and dailyVolume |
+| GET    | `/metrics/signals?directionId=\|adapter=\|day=` | Analytics drill-down: the signals behind one bar/row |
+| GET    | `/events?kind=&actor=&since=&limit=` | the Journal — read-only window onto the audit log |
+| GET    | `/proposals?status=` | learning-loop proposals               |
+| POST   | `/proposals/run`    | generate proposals now                |
+| POST   | `/proposals/:id/accept` \| `/reject` | resolve a proposal     |
+| GET    | `/admin/notifications` | the notification quiet-period window, plus whether a notification sent now would be allowed |
+| PUT    | `/admin/notifications` | set the quiet-period window (days, start/end time)       |
 
 Approving an action and discarding it are both events — overrides are the
-training signal for §12.
+training signal for §12. Reclassifying a signal is a separate, explicit
+correction: it means the match was wrong, not that the draft was wrong.
 
 ## 10. VS Code extension
 
-The only UI for now. Native views where possible; a webview only for the brief.
+The only UI for now. Native views where possible; webviews for the brief,
+Analytics, and the Devices placeholder.
 
 - **Thoughts** tree view — `active` first, then `seedling`; grouped by Direction.
   Item click opens the thought body as a markdown editor.
 - **Review** tree view — `proposed` actions, one line each, with inline
   approve/discard commands. This is the only place I authorize a send.
+- **Signals** tree view — every signal, defaulting to today, widened with
+  `mind.signals.setRange`. Inline **Reclassify** command moves a signal to
+  a different Direction when the match itself was wrong.
+- **Journal** tree view — read-only window onto `events`, the append-only
+  audit log; nothing here is edited from the extension.
 - **Today** webview — Directions in effect, thoughts needing a decision,
   actions proposed, commitments due, and a one-line absorb summary.
+- **Analytics** webview — volume by Direction, by channel, and by day;
+  every row and bar is clickable and opens the matching signals below it.
+- **Devices** webview — placeholder only. No pairing exists yet; this
+  previews the planned layout and says so, pending the Android app this
+  is meant for and PLAN.md's own P6 deferral of remote authentication.
 - **Commands** — `mind.capture`, `mind.pause` (kill switch), `mind.brief`,
-  `mind.direction.edit`.
+  `mind.direction.edit`, `mind.analytics`, `mind.devices`,
+  `mind.signal.reclassify`, `mind.notifications.configure`.
 - **No badge counts, no status-bar counter, no notifications.** Absence is the
   feature; a count would reintroduce the thing being removed.
+
+### Notification quiet period
+
+A setting, not a send gate: `~/.config/mind/notifications.json` holds a
+day-of-week + time-of-day window (default Mon–Fri 08:00–15:00, local time)
+outside of which mind does not proactively notify me — e.g. a future
+"your brief is ready" ping. `isWithinNotificationWindow()` in `@mind/core`
+is the single check any future proactive-notification code calls before
+firing. It is deliberately separate from everything else that gates
+behaviour:
+
+- It never touches ingestion, matching, classification, or drafting —
+  those keep running regardless of the time of day.
+- It never touches the §7 send gates — whether an autonomous send goes out
+  is governed by `autonomy`, the kill switch, and guards, not by this.
+- It never blocks something I ask for right now (`mind.brief`, `mind
+  capture`, approving a draft) — those are explicit, one-off acts I
+  initiated, not the system interrupting me.
+
+`GET`/`PUT /admin/notifications` exposes it over HTTP, read fresh on every
+call like `ai.json` — no restart needed. The extension's **mind: Configure
+Notification Quiet Period** command drives it from the editor.
 
 ## 11. Stack
 

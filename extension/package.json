@@ -1,7 +1,7 @@
 {
   "name": "mind-vscode",
   "displayName": "mind",
-  "description": "Local attention manager — Thoughts, Review, and Today brief",
+  "description": "Local attention manager — Thoughts, Review, Signals, Analytics, Journal, and Devices",
   "version": "0.0.1",
   "publisher": "mind-local",
   "license": "BSD-3-Clause",
@@ -49,9 +49,54 @@
       {
         "command": "mind.action.discard",
         "title": "mind: Discard"
+      },
+      {
+        "command": "mind.signals.setRange",
+        "title": "mind: Set Signals Range"
+      },
+      {
+        "command": "mind.signals.refresh",
+        "title": "mind: Refresh Signals"
+      },
+      {
+        "command": "mind.signal.reclassify",
+        "title": "mind: Reclassify Signal"
+      },
+      {
+        "command": "mind.journal.refresh",
+        "title": "mind: Refresh Journal"
+      },
+      {
+        "command": "mind.analytics",
+        "title": "mind: Open Analytics"
+      },
+      {
+        "command": "mind.devices",
+        "title": "mind: Open Devices"
+      },
+      {
+        "command": "mind.notifications.configure",
+        "title": "mind: Configure Notification Quiet Period"
       }
     ],
     "menus": {
+      "view/title": [
+        {
+          "command": "mind.signals.setRange",
+          "when": "view == mind.signals",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mind.signals.refresh",
+          "when": "view == mind.signals",
+          "group": "navigation@2"
+        },
+        {
+          "command": "mind.journal.refresh",
+          "when": "view == mind.journal",
+          "group": "navigation@1"
+        }
+      ],
       "view/item/context": [
         {
           "command": "mind.action.send",
@@ -62,6 +107,11 @@
           "command": "mind.action.discard",
           "when": "view == mind.review && viewItem == action",
           "group": "inline@2"
+        },
+        {
+          "command": "mind.signal.reclassify",
+          "when": "view == mind.signals && viewItem == signal",
+          "group": "inline@1"
         }
       ]
     },
@@ -75,6 +125,16 @@
         {
           "id": "mind.review",
           "name": "Review",
+          "type": "tree"
+        },
+        {
+          "id": "mind.signals",
+          "name": "Signals",
+          "type": "tree"
+        },
+        {
+          "id": "mind.journal",
+          "name": "Journal",
           "type": "tree"
         }
       ]

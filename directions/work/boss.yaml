@@ -11,6 +11,16 @@ standard: |
   Acknowledge same day. Restate the ask in one line. State when a plan or
   answer will arrive. Never commit to a date you were not given.
   Escalate if the request implies headcount, budget, or external commitment.
+# matchPrompt and responsePrompt are both optional. scope alone still works
+# exactly as before — these just give the pipeline more to go on than a
+# literal substring match (see STATUS.md gap #12) and give the drafter more
+# than the one `standard` paragraph to work from.
+matchPrompt: |
+  status update, progress check, where are we on, any update
+responsePrompt: |
+  Lead with the current state in one sentence, then the next milestone and
+  its date if one exists. If nothing has changed since the last update, say
+  so explicitly rather than restating old status as if it were new.
 guards:
   maxPerThreadPerHour: 1
   escalateOn:

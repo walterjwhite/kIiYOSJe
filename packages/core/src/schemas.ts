@@ -35,6 +35,39 @@ export const DirectionConfigSchema = z.object({
   confidenceMin: z.number().min(0).max(1).default(0.7),
   standard: z.string().min(1),
   guards: DirectionGuardsSchema.optional(),
+  // How to recognize a match beyond the literal scope value, and how to
+  // actually respond. Both optional for backward compatibility with
+  // existing YAML files that only set scope/standard.
+  matchPrompt: z.string().optional(),
+  responsePrompt: z.string().optional(),
+});
+
+// PATCH /directions/:id — editable fields, all optional.
+export const UpdateDirectionRequestSchema = z.object({
+  name: z.string().min(1).optional(),
+  enabled: z.boolean().optional(),
+  posture: DirectionPostureSchema.optional(),
+  autonomy: DirectionAutonomySchema.optional(),
+  confidenceMin: z.number().min(0).max(1).optional(),
+  standard: z.string().min(1).optional(),
+  matchPrompt: z.string().nullable().optional(),
+  responsePrompt: z.string().nullable().optional(),
+});
+
+// PATCH /signals/:id — currently only supports reclassification.
+export const ReclassifySignalRequestSchema = z.object({
+  directionId: z.string().min(1),
+  reason: z.string().optional(),
+});
+
+// PUT /admin/notifications — the quiet period window (Foundations §6).
+export const QuietPeriodConfigSchema = z.object({
+  enabled: z.boolean(),
+  days: z.array(z.number().int().min(0).max(6)),
+  startHour: z.number().int().min(0).max(23),
+  startMinute: z.number().int().min(0).max(59),
+  endHour: z.number().int().min(0).max(23),
+  endMinute: z.number().int().min(0).max(59),
 });
 
 // LLM classifier structured output schema

@@ -72,6 +72,8 @@ function upsertDirection(db: Db, id: string, cfg: DirectionConfig): void {
         autonomy: cfg.autonomy,
         confidenceMin: cfg.confidenceMin ?? 0.7,
         guards: guardsJson,
+        matchPrompt: cfg.matchPrompt ?? null,
+        responsePrompt: cfg.responsePrompt ?? null,
         enabled: true,
         version: 1,
       })
@@ -87,6 +89,8 @@ function upsertDirection(db: Db, id: string, cfg: DirectionConfig): void {
         autonomy: cfg.autonomy,
         confidenceMin: cfg.confidenceMin ?? 0.7,
         guards: guardsJson,
+        matchPrompt: cfg.matchPrompt ?? null,
+        responsePrompt: cfg.responsePrompt ?? null,
         version: existing.version + 1,
         updatedAt: now,
       })

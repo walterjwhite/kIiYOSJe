@@ -51,6 +51,7 @@ export async function ingest(
     sender: signal.sender,
     standard: match?.direction.standard ?? null,
     receivedAt: signal.receivedAt,
+    matchPrompt: match?.direction.matchPrompt ?? null,
   });
 
   // ── 4b. Compute escalation deadline ──────────────────────────────────────
@@ -139,6 +140,7 @@ export async function ingest(
           sender: signal.sender,
           standard: dir.standard,
           classifierOutput: classifierOut,
+          responsePrompt: dir.responsePrompt,
         });
 
     const actionId = newId();

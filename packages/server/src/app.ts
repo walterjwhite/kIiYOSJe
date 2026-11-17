@@ -16,6 +16,7 @@ import { briefRouter } from "./routes/brief.js";
 import { signalsRouter } from "./routes/signals-ingress.js";
 import { adminRouter } from "./routes/admin.js";
 import { proposalsRouter } from "./routes/proposals.js";
+import { eventsRouter } from "./routes/events.js";
 
 export function buildApp(db: Db, adapters: AdapterRegistry) {
   const app = new Hono();
@@ -32,6 +33,7 @@ export function buildApp(db: Db, adapters: AdapterRegistry) {
   app.route("/metrics", metricsRouter(db));
   app.route("/admin", adminRouter());
   app.route("/proposals", proposalsRouter(db));
+  app.route("/events", eventsRouter(db));
 
   return app;
 }

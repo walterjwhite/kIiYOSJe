@@ -116,4 +116,53 @@ describe("matchSignal", () => {
     expect(result?.direction.id).toBe("topic/report");
     expect(result?.isFallback).toBe(false);
   });
+
+  it("matchPrompt phrase catches wording the literal scope value misses", () => {
+    const db = openTestDb();
+    ensureFallbackDirection(db);
+
+    // scopeValue is a keyword that won't appear verbatim in the signal body,
+    // but matchPrompt lists a phrase that does (STATUS.md gap #12).
+    db.insert(directions).values({
+      id: "topic/status-update",
+      name: "status updates",
+      scopeKind: "topic",
+      scopeValue: "status-update-keyword-not-present",
+      posture: "surface",
+      standard: "Surface for review.",
+      autonomy: "observe",
+      confidenceMin: 0.6,
+      guards: null,
+      matchPrompt: "review the quarterly report, send a status update",
+      enabled: true,
+      version: 1,
+    }).run();
+
+    const result = matchSignal(db, signal);
+    expect(result?.direction.id).toBe("topic/status-update");
+    expect(result?.isFallback).toBe(false);
+  });
+
+  it("matchPrompt alone does not match when no phrase is present", () => {
+    const db = openTestDb();
+    ensureFallbackDirection(db);
+
+    db.insert(directions).values({
+      id: "topic/unrelated",
+      name: "unrelated",
+      scopeKind: "topic",
+      scopeValue: "nope",
+      posture: "surface",
+      standard: "Surface for review.",
+      autonomy: "observe",
+      confidenceMin: 0.6,
+      guards: null,
+      matchPrompt: "totally unrelated phrase, something else entirely",
+      enabled: true,
+      version: 1,
+    }).run();
+
+    const result = matchSignal(db, signal);
+    expect(result?.direction.id).toBe(FALLBACK_DIRECTION_ID);
+  });
 });

@@ -28,6 +28,8 @@ export interface ClassifyInput {
   standard: string | null;
   /** The signal's receivedAt — used to ground relative deadlines ("by Friday") to an absolute date. */
   receivedAt: Date;
+  /** Matched direction's matchPrompt, if any — how it recognizes a match, for context only. */
+  matchPrompt?: string | null;
 }
 
 const SYSTEM = `You are a signal classifier for a local attention-management system.
@@ -46,10 +48,13 @@ function buildPrompt(input: ClassifyInput): string {
   const directionContext = input.standard
     ? `Matched direction standard:\n${input.standard}\n`
     : "No specific direction matched — apply the catch-all standard.\n";
+  const matchContext = input.matchPrompt
+    ? `How this direction is recognized: ${input.matchPrompt}\n`
+    : "";
 
   return `Current date/time (use this to resolve relative deadlines): ${input.receivedAt.toISOString()}
 
-${directionContext}
+${directionContext}${matchContext}
 From: ${input.sender}
 
 Message:

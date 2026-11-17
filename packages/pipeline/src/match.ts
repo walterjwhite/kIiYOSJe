@@ -41,7 +41,7 @@ export function matchSignal(db: Db, signal: NewSignal): MatchResult | null {
     // The catch-all only matches if nothing else does.
     if (dir.id === FALLBACK_DIRECTION_ID) continue;
 
-    if (!matchesScope(dir, signal)) continue;
+    if (!matchesScope(dir, signal) && !matchesPrompt(dir, signal)) continue;
     const specificity = SPECIFICITY[dir.scopeKind] ?? 0;
     if (best === null || specificity > best.specificity) {
       best = { direction: dir, specificity, isFallback: false };
@@ -81,4 +81,22 @@ function matchesScope(dir: DirectionRow, signal: NewSignal): boolean {
     default:
       return false;
   }
+}
+
+/**
+ * STATUS.md gap #12: `scope.value` substring matching misses real phrasing
+ * that doesn't contain the exact keyword verbatim. `matchPrompt` gives a
+ * direction's author a place to list the phrases/synonyms that should also
+ * count as a match, without requiring an LLM call in this synchronous step.
+ * Treated as a plain list of phrases, one per line or comma-separated;
+ * any phrase found in the signal body is enough.
+ */
+function matchesPrompt(dir: DirectionRow, signal: NewSignal): boolean {
+  if (!dir.matchPrompt) return false;
+  const body = signal.body.toLowerCase();
+  const phrases = dir.matchPrompt
+    .split(/[\n,;]+/)
+    .map((p) => p.trim().toLowerCase())
+    .filter((p) => p.length > 0);
+  return phrases.some((p) => body.includes(p));
 }
