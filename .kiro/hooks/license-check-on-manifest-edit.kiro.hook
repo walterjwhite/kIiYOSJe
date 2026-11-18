@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "License audit after a manifest edit",
+  "description": "Re-runs the offline license audit whenever dependencies change, so a copyleft, non-commercial, or unlicensed package cannot enter the tree unnoticed.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "package.json",
+      "package-lock.json",
+      "packages/*/package.json",
+      "extension/package.json"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "node scripts/check-licenses.mjs"
+  }
+}

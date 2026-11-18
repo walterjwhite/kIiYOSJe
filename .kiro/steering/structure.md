@@ -14,6 +14,7 @@ packages/demo-data  synthetic personas replayed through the real pipeline
 extension           VS Code client: Queue, Thoughts, Signals, Journal, webviews
 directions          operator-authored YAML (source of truth), hot-reloaded
 mockup              standalone HTML/JS design prototype, no build step
+scripts             repo checks with no build step (check-licenses.mjs)
 ```
 
 ## Layering rules

@@ -20,7 +20,7 @@ inclusion: auto
 | DB | `better-sqlite3` + `drizzle-orm`, plain SQL migrations |
 | Validation | `zod` — one schema for config, HTTP, and LLM structured output |
 | LLM | Vercel AI SDK (`ai`, `@ai-sdk/*`), plus ACP over stdio for `kiro-cli`/`copilot` |
-| Logging | `pino` (JSON; never log message bodies or tokens) |
+| Logging | `pino` (JSON; redact paths in `logger.ts` censor tokens, keys, cookies, and auth headers; never log message bodies) |
 | Tests | `vitest`, headless |
 | UI | VS Code extension: tree views + webviews, no framework |
 
@@ -45,6 +45,7 @@ inclusion: auto
 npm run dev      # build + start the server with --watch
 npm test         # vitest run
 npm run lint     # tsc --build (typecheck)
+npm run license:check   # offline license audit of the lockfile
 sh build-server.sh
 bash build-extension.sh
 ```
