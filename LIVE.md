@@ -106,7 +106,12 @@ OAuth scopes: `gmail.modify` (read + drafts). The adapter polls
 
 1. Create an OAuth client (desktop) in a Google Cloud project, enable the Gmail
    API, and authorise the scopes in `packages/adapters/src/google/auth.ts`.
-2. Exchange the code for a refresh token and put it in `credentials.yml`.
+2. Mint a refresh token: `scripts/google-refresh-token.sh --account you@gmail.com`.
+   It runs the loopback consent flow (`access_type=offline` + `prompt=consent`),
+   checks the result against the Gmail profile so a second mailbox cannot
+   silently authorise the first, and prints the `google:` block — or writes it
+   with `--write`. Run it once per mailbox: the first token fills the flat
+   `refreshToken`, later ones append to `accounts`.
 3. `mind doctor` should now say `ok gmail`.
 4. Start with one narrow Direction (a sender you know, or a topic), `posture:
    absorb`, `autonomy: observe`. Read the Signals view for a day before adding
