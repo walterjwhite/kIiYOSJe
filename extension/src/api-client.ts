@@ -21,7 +21,10 @@ function tokenPath(): string {
     .getConfiguration("mind")
     .get<string>("tokenPath");
   if (configured) return configured;
-  return path.join(os.homedir(), ".config", "mind", "token");
+  const configDir = process.env["MIND_CONFIG_DIR"];
+  return configDir
+    ? path.join(configDir, "token")
+    : path.join(os.homedir(), ".config", "kIiYOSJe", "mind", "token");
 }
 
 function getToken(): string {
@@ -29,7 +32,7 @@ function getToken(): string {
     return fs.readFileSync(tokenPath(), "utf8").trim();
   } catch {
     throw new Error(
-      "mind: could not read API token. Is the server running? Check ~/.config/mind/token",
+      "mind: could not read API token. Is the server running? Check ~/.config/kIiYOSJe/mind/token",
     );
   }
 }

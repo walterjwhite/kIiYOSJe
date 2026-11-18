@@ -11,6 +11,7 @@ import { configureNotificationQuietPeriod } from "./notifications-config.js";
 import { SignalsProvider, reclassifySignal } from "./signals-provider.js";
 import { JournalProvider } from "./journal-provider.js";
 import { AnalyticsPanel } from "./analytics-panel.js";
+import { watchForServerRecovery } from "./server-watch.js";
 import { DevicesPanel } from "./devices-panel.js";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -30,6 +31,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.registerTreeDataProvider("mind.review", reviewProvider),
     vscode.window.registerTreeDataProvider("mind.signals", signalsProvider),
     vscode.window.registerTreeDataProvider("mind.journal", journalProvider),
+    // The server is a separate process: refresh trees stuck on an error row so
+    // they fill in by themselves once it starts.
+    watchForServerRecovery(trees),
   );
 
   // ── Commands ───────────────────────────────────────────────────────────────

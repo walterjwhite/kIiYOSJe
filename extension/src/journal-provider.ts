@@ -1,5 +1,14 @@
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
+import {
+  errorNode,
+  errorTreeItem,
+  isErrorNode,
+  publishErrorContext,
+  type ErrorNode,
+} from "./error-node.js";
+
+const VIEW_ID = "mind.journal";
 
 export interface JournalEvent {
   id: string;
@@ -16,17 +25,28 @@ export interface JournalEvent {
  * log the way the mockup briefly considered before folding History into
  * Signals.
  */
-export class JournalProvider implements vscode.TreeDataProvider<JournalEvent> {
+export class JournalProvider implements vscode.TreeDataProvider<
+  JournalEvent | ErrorNode
+> {
   private _onDidChangeTreeData = new vscode.EventEmitter<
     JournalEvent | undefined | void
   >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
+  private failure: string | undefined;
+
+  /** True while the last load failed, so the tree shows a retry row. */
+  get hasError(): boolean {
+    return this.failure !== undefined;
+  }
+
   refresh(): void {
     this._onDidChangeTreeData.fire();
   }
 
-  getTreeItem(event: JournalEvent): vscode.TreeItem {
+  getTreeItem(node: JournalEvent | ErrorNode): vscode.TreeItem {
+    if (isErrorNode(node)) return errorTreeItem(node);
+    const event = node;
     const item = new vscode.TreeItem(
       event.kind,
       vscode.TreeItemCollapsibleState.None,
@@ -43,12 +63,20 @@ export class JournalProvider implements vscode.TreeDataProvider<JournalEvent> {
     return item;
   }
 
-  async getChildren(): Promise<JournalEvent[]> {
+  async getChildren(): Promise<Array<JournalEvent | ErrorNode>> {
     try {
-      return await apiFetch<JournalEvent[]>("/events?limit=200");
+      const events = await apiFetch<JournalEvent[]>("/events?limit=200");
+      this.setFailure(undefined);
+      return events;
     } catch (err) {
-      vscode.window.showErrorMessage(String(err));
-      return [];
+      const node = errorNode(err);
+      this.setFailure(node.message);
+      return [node];
     }
+  }
+
+  private setFailure(message: string | undefined): void {
+    this.failure = message;
+    publishErrorContext(VIEW_ID, message !== undefined);
   }
 }

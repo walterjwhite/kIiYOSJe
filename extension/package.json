@@ -209,7 +209,7 @@
         "mind.tokenPath": {
           "type": "string",
           "default": "",
-          "description": "Path to token file. Leave empty to use default (~/.config/mind/token)."
+          "description": "Path to token file. Leave empty to use default (~/.config/kIiYOSJe/mind/token)."
         }
       }
     }

@@ -1,11 +1,16 @@
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
+import {
+  errorNode,
+  errorTreeItem,
+  isErrorNode,
+  publishErrorContext,
+  type ErrorNode,
+} from "./error-node.js";
 
-// Displayed in the sidebar as "Queue" (package.json views) — this is the
-// review queue PLAN.md §10 describes: proposed actions awaiting approval.
-// The view id (mind.review) is unchanged from before the rename; only the
-// label shown to the user changed.
-interface Action {
+const VIEW_ID = "mind.review";
+
+export interface Action {
   id: string;
   kind: string;
   status: string;
@@ -14,23 +19,34 @@ interface Action {
   signalId: string | null;
 }
 
-export class ReviewProvider implements vscode.TreeDataProvider<Action> {
+export class ReviewProvider implements vscode.TreeDataProvider<
+  Action | ErrorNode
+> {
   private _onDidChangeTreeData = new vscode.EventEmitter<
     Action | undefined | void
   >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
+  private failure: string | undefined;
+
+  /** True while the last load failed, so the tree shows a retry row. */
+  get hasError(): boolean {
+    return this.failure !== undefined;
+  }
+
   refresh(): void {
     this._onDidChangeTreeData.fire();
   }
 
-  getTreeItem(action: Action): vscode.TreeItem {
+  getTreeItem(node: Action | ErrorNode): vscode.TreeItem {
+    if (isErrorNode(node)) return errorTreeItem(node);
+    const action = node;
     let preview = "";
     try {
-      const payload = JSON.parse(action.payload) as { body?: string; to?: string[] };
-      preview = payload.body?.slice(0, 60) ?? "";
+      const payload = JSON.parse(action.payload) as { body?: string };
+      preview = payload.body?.replace(/\s+/g, " ").trim().slice(0, 60) ?? "";
     } catch {
-      /* ignore */
+      // A malformed payload still needs a label.
     }
 
     const item = new vscode.TreeItem(
@@ -44,12 +60,20 @@ export class ReviewProvider implements vscode.TreeDataProvider<Action> {
     return item;
   }
 
-  async getChildren(): Promise<Action[]> {
+  async getChildren(): Promise<Array<Action | ErrorNode>> {
     try {
-      return await apiFetch<Action[]>("/actions?status=proposed");
+      const actions = await apiFetch<Action[]>("/actions?status=proposed");
+      this.setFailure(undefined);
+      return actions;
     } catch (err) {
-      vscode.window.showErrorMessage(String(err));
-      return [];
+      const node = errorNode(err);
+      this.setFailure(node.message);
+      return [node];
     }
+  }
+
+  private setFailure(message: string | undefined): void {
+    this.failure = message;
+    publishErrorContext(VIEW_ID, message !== undefined);
   }
 }

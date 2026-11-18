@@ -1,5 +1,14 @@
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
+import {
+  errorNode,
+  errorTreeItem,
+  isErrorNode,
+  publishErrorContext,
+  type ErrorNode,
+} from "./error-node.js";
+
+const VIEW_ID = "mind.signals";
 
 export type SignalRange = "today" | "7d" | "30d" | "all";
 
@@ -36,13 +45,21 @@ const RANGE_LABEL: Record<SignalRange, string> = {
  * same reasoning as the mockup: a signal's row already reflects its own
  * current state.
  */
-export class SignalsProvider implements vscode.TreeDataProvider<Signal> {
+export class SignalsProvider implements vscode.TreeDataProvider<
+  Signal | ErrorNode
+> {
   private _onDidChangeTreeData = new vscode.EventEmitter<
     Signal | undefined | void
   >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   private range: SignalRange = "today";
+  private failure: string | undefined;
+
+  /** True while the last load failed, so the tree shows a retry row. */
+  get hasError(): boolean {
+    return this.failure !== undefined;
+  }
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
@@ -61,7 +78,9 @@ export class SignalsProvider implements vscode.TreeDataProvider<Signal> {
     this.refresh();
   }
 
-  getTreeItem(signal: Signal): vscode.TreeItem {
+  getTreeItem(node: Signal | ErrorNode): vscode.TreeItem {
+    if (isErrorNode(node)) return errorTreeItem(node);
+    const signal = node;
     const item = new vscode.TreeItem(
       `[${signal.adapter}] ${signal.sender}`,
       vscode.TreeItemCollapsibleState.None,
@@ -76,13 +95,23 @@ export class SignalsProvider implements vscode.TreeDataProvider<Signal> {
     return item;
   }
 
-  async getChildren(): Promise<Signal[]> {
+  async getChildren(): Promise<Array<Signal | ErrorNode>> {
     try {
-      return await apiFetch<Signal[]>(`/signals?range=${this.range}`);
+      const signals = await apiFetch<Signal[]>(
+        `/signals?range=${this.range}`,
+      );
+      this.setFailure(undefined);
+      return signals;
     } catch (err) {
-      vscode.window.showErrorMessage(String(err));
-      return [];
+      const node = errorNode(err);
+      this.setFailure(node.message);
+      return [node];
     }
+  }
+
+  private setFailure(message: string | undefined): void {
+    this.failure = message;
+    publishErrorContext(VIEW_ID, message !== undefined);
   }
 }
 
