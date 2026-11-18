@@ -16,6 +16,15 @@
 # catches "I was still signed into the other account" — a mistake that surfaces
 # weeks later as one mailbox silently reading another's mail.
 #
+# The consent screen must let the mailbox in. Under Google Auth Platform ->
+# Audience either add the address to Test users, or press Publish app. Without
+# one of those Google answers `Error 403: access_denied` before any code is
+# issued. Test users work immediately, but Google expires their refresh token
+# after 7 days; a published (unverified) app keeps working and only shows the
+# "hasn't verified this app" warning, which is the right trade for six personal
+# mailboxes. `gmail.modify` is a restricted scope, so real verification means a
+# third-party security assessment — not worth it here.
+#
 # Options:
 #   --account EMAIL        Mailbox to authorise (passed as login_hint)
 #   --label NAME           Account label; defaults to the address' local part
@@ -44,7 +53,7 @@ TOKEN=${MIND_GOOGLE_REFRESH_TOKEN:-}
 WRITE=0
 URL_ONLY=0
 
-usage() { sed -n '2,41p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,/^[^#]/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; }
 
 while [ $# -gt 0 ]; do
   case $1 in
@@ -104,6 +113,16 @@ function fail(msg, hint) {
   console.error(`\n[error] ${msg}`);
   if (hint) console.error(`        ${hint}`);
   process.exit(1);
+}
+
+/** Google blocks consent for unlisted mailboxes before it issues a code. */
+function denialHint(err) {
+  if (err !== "access_denied") return `Consent failed with ${err}.`;
+  return (
+    "Google blocked consent. Add this address under Google Auth Platform \u2192 " +
+    "Audience \u2192 Test users, or press Publish app there. " +
+    "(Clicking Cancel on the consent screen also returns access_denied.)"
+  );
 }
 
 function readConfig() {
@@ -172,7 +191,7 @@ async function tokenExchange(code) {
           : err === "invalid_client"
             ? "Google rejected the client id/secret pair."
             : err === "access_denied"
-              ? "The account is not added as a test user on the OAuth consent screen."
+              ? denialHint(err)
               : undefined;
     fail(
       `token exchange failed: ${err}${body.error_description ? ` — ${body.error_description}` : ""}`,
@@ -296,6 +315,10 @@ function finish(result, refreshToken) {
   }
 
   console.log(`\n${snippet(email, label, refreshToken)}`);
+  console.log(
+    "\nIf the consent screen is still in Testing, Google revokes this refresh token\n" +
+      "after 7 days. Publish the app (Audience \u2192 Publish app) to stop re-running this.",
+  );
 }
 
 async function main() {
@@ -332,7 +355,9 @@ async function main() {
         res.writeHead(400, { "content-type": "text/plain" });
         res.end(`Authorization failed: ${denied} — you can close this tab.`);
         server.close();
-        reject(new Error(`authorization was denied (${denied})`));
+        const error = new Error(`authorization was denied (${denied})`);
+        error.hint = denialHint(denied);
+        reject(error);
         return;
       }
       if (!got) {
@@ -340,8 +365,15 @@ async function main() {
         res.end("Waiting for the authorization code…");
         return;
       }
-      res.writeHead(200, { "content-type": "text/plain" });
-      res.end("Authorised — you can close this tab and return to the terminal.");
+      res.writeHead(200, {
+        "content-type": "text/plain",
+        connection: "close",
+      });
+      res.end("Authorised — you can close this tab and return to the terminal.", () => {
+        // Browsers keep the socket in a keep-alive pool, and server.close()
+        // waits for it: that is what left the script hanging after a good run.
+        req.socket.destroy();
+      });
       server.close();
       resolve(got);
     });
@@ -355,7 +387,7 @@ async function main() {
       ),
     );
     server.listen(Number(process.env.PORT_), "127.0.0.1");
-  }).catch((err) => fail(err.message));
+  }).catch((err) => fail(err.message, err.hint));
 
   const tokens = await tokenExchange(code);
   if (!tokens.refresh_token) {
@@ -370,7 +402,13 @@ async function main() {
   finish(result, tokens.refresh_token);
 }
 
-main().catch((err) => fail(err.message));
+main()
+  .then(() => {
+    // Everything is written; do not let the loopback listener's remaining
+    // sockets decide when the script exits.
+    process.stdout.write("", () => process.exit(0));
+  })
+  .catch((err) => fail(err.message, err.hint));
 NODE
 
 REPO_DIR=$REPO_DIR CREDENTIALS=$CREDENTIALS PORT_=$PORT ACCOUNT=$ACCOUNT \

@@ -106,6 +106,15 @@ OAuth scopes: `gmail.modify` (read + drafts). The adapter polls
 
 1. Create an OAuth client (desktop) in a Google Cloud project, enable the Gmail
    API, and authorise the scopes in `packages/adapters/src/google/auth.ts`.
+   Then let the mailboxes in: Google Auth Platform → Audience → either add each
+   address under **Test users**, or press **Publish app**. A new project starts
+   in *Testing*, where any address not on the test list is refused with
+   `Error 403: access_denied` before a code is ever issued — that is the block,
+   not a client or redirect problem. Testing also expires refresh tokens after
+   7 days, so for several personal mailboxes publish the app and click through
+   the "Google hasn't verified this app" warning once per mailbox. Real
+   verification is not worth it: `gmail.modify` is a *restricted* scope, so it
+   means a third-party security assessment.
 2. Mint a refresh token: `scripts/google-refresh-token.sh --account you@gmail.com`.
    It runs the loopback consent flow (`access_type=offline` + `prompt=consent`),
    checks the result against the Gmail profile so a second mailbox cannot
