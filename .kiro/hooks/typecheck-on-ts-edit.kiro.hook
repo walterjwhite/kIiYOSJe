@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "Typecheck after a TypeScript edit",
+  "description": "Rebuild the workspace with tsc so a type error is caught in the same turn it was introduced, before the pipeline or extension drifts.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": ["packages/**/*.ts", "extension/src/**/*.ts"]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "npx tsc --build --pretty false"
+  }
+}

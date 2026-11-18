@@ -5,8 +5,8 @@ It ingests events from messaging and mail sources, applies standing
 **Directions** that I author, answers or files what it can, and surfaces only
 the **Thoughts** that genuinely need my judgement.
 
-Status: P0 to P5 implemented in code; Gmail, Outlook (Graph), Teams, Google
-Messages, and Calendar adapters are implemented. See
+Status: P0 to P5 implemented in code; Gmail, Outlook (Graph), Google Messages,
+and Calendar adapters are implemented. See
 [STATUS.md](STATUS.md) for what is built, what is verified, and what remains.
 This document is self-contained and assumes nothing
 about where the project lives.
@@ -44,7 +44,7 @@ modules behind one interface, so a new source is a class, not an integration.
 
 ```
             ┌──────────── adapters (in-process) ────────────┐
-            │  teams (web client bridge)   email (IMAP)      │
+            │  gmail · outlook (Graph)     calendar (ICS)    │
             └───────────────────┬───────────────────────────┘
                                 │ Signal
                     ┌───────────▼───────────┐
@@ -107,7 +107,7 @@ work mail account may only be readable.
 
 ```ts
 export interface Adapter {
-  readonly id: string;                       // "teams" | "email"
+  readonly id: string;                       // "gmail" | "outlook"
   readonly capabilities: { canSend: boolean; canStream: boolean };
   start(sink: (signal: NewSignal) => void): Promise<void>;
   stop(): Promise<void>;
@@ -118,11 +118,12 @@ export interface Adapter {
 A shared **contract test suite** runs against every adapter with a recorded
 fixture stream, so a new source cannot ship half-conformant.
 
-The Teams adapter bridges an existing web client already under my control — one
-that can send messages and stream inbound ones. It subscribes to that stream,
-maps payloads to `NewSignal`, and routes outbound drafts back through the same
-client. The email adapter polls IMAP for read and saves replies to the Drafts
-folder for send. Both are replaceable without touching the pipeline.
+Every adapter uses a documented, authorized API: Gmail REST with OAuth, Microsoft
+Graph for Outlook mail, Google Calendar's private iCal feed, and the Matrix
+client-server API for a self-hosted Google Messages bridge. (An earlier Teams
+adapter drove the Teams web client with consumer tokens; it was removed because
+that access is not authorized by Microsoft's terms.) Adapters are replaceable
+without touching the pipeline.
 
 ## 6. Directions
 
@@ -355,7 +356,7 @@ any path.
 ├── packages/
 │   ├── core/               # types, zod schemas, db, config, clock
 │   ├── pipeline/           # dedupe, normalize, match, classify, decide
-│   ├── adapters/           # gmail, outlook, teams, gmessages, calendar
+│   ├── adapters/           # gmail, outlook, gmessages, calendar
 │   ├── server/             # hono app, auth, routes
 │   └── cli/                # mind start|pause|observe|metrics
 └── extension/              # VS Code extension
@@ -373,8 +374,9 @@ Each phase ends with something usable, and states how it is verified.
 Hono on `127.0.0.1:8787`, token auth, `/health`, `mind start`, vitest.
 *Done when:* `npm run dev` serves `/health`, migration is idempotent, tests pass.
 
-**P1 — Teams ingest, observe only (2–3 days).** Teams adapter linked to the
-existing web client, dedupe, persistence, signal count visible via `/metrics`.
+**P1 — Email and calendar ingest, observe only (2–3 days).** Gmail and Outlook
+(Graph) adapters plus the calendar feed, dedupe, persistence, signal count
+visible via `/metrics`.
 *Done when:* a full working day of traffic is stored with zero outbound
 messages, restart produces no duplicates, and the count matches the client's.
 
@@ -419,7 +421,7 @@ Recorded from P1 onward, so the thesis is testable rather than asserted:
 
 | risk                             | mitigation                                                    |
 | -------------------------------- | ------------------------------------------------------------- |
-| Messaging bridge is unofficial   | adapter isolated behind the contract; expect drift, keep response mapping in one file |
+| Messaging bridge is unofficial   | Google Messages arrives via a self-hosted Matrix bridge; adapter isolated behind the contract, response mapping in one file |
 | Employer policy on programmatic access | confirm before P1; if prohibited, that source stays observe-only via the client and email carries the load |
 | Auto-reply to a sensitive sender | `escalateOn` topics, sender allowlist, default `observe`, send off until P4 |
 | Classifier confidence theatre    | `confidenceMin` per Direction plus override rate; a Direction overridden >20% is disabled automatically |
@@ -431,6 +433,8 @@ Recorded from P1 onward, so the thesis is testable rather than asserted:
 ## 17. Open decisions
 
 1. **Model provider** — pinned per task (classify vs draft). Stop and let me choose.
-2. **Teams transport details** — Resolved: `teams-api` against the Teams Chat Service.
+2. **Teams transport** — Removed. The unofficial `teams-api` web-client bridge was
+   deleted for third-party terms-of-use reasons; a supported integration would
+   require Microsoft Graph with an authorized app registration.
 3. **Email write capability** — Resolved: Gmail send and Outlook (Graph) draft-then-send.
 4. **Remote authentication** — deferred to P6.

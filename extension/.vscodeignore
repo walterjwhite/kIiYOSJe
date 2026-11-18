@@ -4,3 +4,20 @@ tsconfig.tsbuildinfo
 **/*.map
 .vscodeignore
 **/.gitignore
+
+# Local credentials and runtime state must never enter the package, even if a
+# stray copy is left in this folder (.gitignore does not apply to vsce).
+credentials.yml
+**/credentials.yml
+ai.json
+**/ai.json
+.env
+.env.*
+*.pem
+*.p12
+*.key
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite*

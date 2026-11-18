@@ -11,7 +11,6 @@ import { CalendarAdapter } from "./calendar/adapter.js";
 import { GmailAdapter } from "./gmail/adapter.js";
 import { GmessagesAdapter } from "./gmessages/adapter.js";
 import { OutlookAdapter } from "./outlook/adapter.js";
-import { TeamsAdapter } from "./teams/adapter.js";
 
 export * from "./errors.js";
 export * from "./calendar/adapter.js";
@@ -26,18 +25,15 @@ export * from "./google/auth.js";
 export * from "./outlook/adapter.js";
 export * from "./outlook/auth.js";
 export * from "./outlook/client.js";
-export * from "./teams/adapter.js";
 
 // Mappers share helper names (`toSignal`, `stripHtml`), so they are namespaced.
 export * as gmailMapping from "./gmail/mapper.js";
 export * as gmessagesMapping from "./gmessages/mapping.js";
 export * as outlookMapping from "./outlook/mapper.js";
-export * as teamsMapping from "./teams/mapper.js";
 
 export function registerDefaultAdapters(registry: AdapterRegistry): void {
   registry.register(new GmailAdapter());
   registry.register(GmessagesAdapter.fromConfig());
   registry.register(new CalendarAdapter());
-  registry.register(new TeamsAdapter());
   registry.register(new OutlookAdapter());
 }

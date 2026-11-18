@@ -14,7 +14,7 @@ testing is still not done — see "Not verified" below.
 | Phase | Status | Done-when criterion | Met? |
 | ----- | ------ | ------------------- | ---- |
 | P0 Skeleton | Complete | server serves `/health`, migration idempotent, tests pass | Yes. `/health` verified through `npm start` (same `dist/main.js` that `npm run dev` runs, minus `--watch`). The sandbox blocked running `npm run dev` itself. |
-| P1 Teams ingest | Implemented, unverified | a day of traffic stored, no duplicates on restart, count matches client | No. Adapter is implemented against the Teams Chat Service (`teams-api`); not yet run against a live tenant. Dedupe, persistence and `/metrics` work via `POST /signals`. |
+| P1 Email and calendar ingest | Implemented, unverified | a day of traffic stored, no duplicates on restart, count matches client | No. The unofficial Teams adapter was removed for third-party terms-of-use reasons. Gmail, Outlook (Graph), and Calendar are implemented; not yet run against a live account. Dedupe, persistence and `/metrics` work via `POST /signals`. |
 | P2 Directions + draft absorb | Tested with a real model | ≥60% match a Direction, drafts match what I'd write, discards recorded | Partially measured. In one real seed run across 30 synthetic signals, several matched the catch-all instead of an intended Direction because `match()` uses literal substring matching and real phrasing doesn't always contain the exact scope string (known gap, #12 below). Drafts are real model output, not scripted, and are mediocre at 3B-model quality — acceptable for a free local default, worth comparing against a cloud model. Discards are recorded (tested). |
 | P3 Email | Implemented, unverified | drafts in Drafts folder, Message-ID dedupe | No. Gmail send/reply and Outlook (Graph) draft-then-send are implemented; not yet run against a live mailbox. |
 | P4 Autonomy | Code complete, no end-to-end path | send only for `autonomy: send`, `mind pause` stops all sends, sends reconstructible from `events` | Partly. Gates and pause are tested with a fake adapter. No real adapter can send. |
@@ -67,9 +67,9 @@ no Android yet:
   flow exist.
 - **Deliberately not ported:** the mockup's "recipient is free" scheduling
   option and the split-group-chat-signal model. Both are meaningless
-  without a live chat adapter — Teams ingest is implemented but unverified
-  against a real tenant, see below — and would be speculative to build
-  against it.
+  without a live chat adapter — there is no Teams integration in this tree,
+  and the remaining sources are mail and calendar — and would be speculative
+  to build against it.
 
 ## Notification quiet period (this round)
 
@@ -139,8 +139,9 @@ gates are untouched, and asking for something right now (`mind.brief`,
 ## Open decisions (PLAN §17)
 
 1. **Model provider:** defaults to `ollama` (local, free, `qwen2.5:3b-instruct`). Switch via the VS Code **mind: Configure AI Provider** command, the status-bar item, or `PUT /admin/ai-config`. HTTP providers (`ollama`, `openai`, `anthropic`, `google`, `openai-compatible`, `copilot`) go through the Vercel AI SDK; `kiro` and `copilot-cli` are driven over ACP (`kiro-cli acp`, `copilot --acp`). Cloud and CLI providers remain unverified against live accounts this session.
-2. **Teams transport:** decided — `teams-api` with token credentials from
-   `credentials.yml`.
+2. **Teams transport:** removed. The unofficial `teams-api` web-client bridge was
+   deleted for third-party terms-of-use reasons; a supported integration would
+   need Microsoft Graph with an authorized app registration.
 3. **Email write capability:** decided — Gmail `messages/send` and Outlook
    Graph create-draft-then-send.
 4. **Remote authentication:** deferred to P6.

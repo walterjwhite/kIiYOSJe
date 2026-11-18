@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Keep spec tasks current",
+  "description": "Spec-driven work only stays honest if the task list moves with the code. When the agent stops, check off finished tasks and record any new one in the relevant spec.",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Before finishing: update the matching file under .kiro/specs/**/tasks.md — mark completed items [x], add any task this change revealed, and leave genuinely deferred work unchecked with a one-line reason."
+  }
+}

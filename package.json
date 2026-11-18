@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "description": "Local attention manager — events in, Thoughts out.",
+  "license": "BSD-3-Clause",
   "type": "module",
   "workspaces": [
     "packages/*",

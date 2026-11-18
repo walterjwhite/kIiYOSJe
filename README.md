@@ -98,3 +98,15 @@ See `packages/demo-data/README.md` for details.
 ```bash
 npm test
 ```
+
+## License
+
+BSD-3-Clause. See [LICENSE](LICENSE).
+
+## Trademarks
+
+Product names used here — including Gmail, Google Calendar, Google Messages,
+Microsoft Outlook, Microsoft Teams, GitHub, Jira, Confluence, VS Code, Kiro, and
+Copilot — are trademarks of their respective owners. They are used only to
+describe interoperability with those products. This project is not affiliated
+with, endorsed by, or sponsored by any of them.

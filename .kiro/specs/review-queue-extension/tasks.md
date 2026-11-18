@@ -1,0 +1,27 @@
+# Tasks — review queue extension
+
+- [x] 1. Extension skeleton
+  - [x] 1.1 Activity Bar container, icon, activation on startup
+  - [x] 1.2 `ApiClient` with token-from-disk and loopback validation
+  - [x] 1.3 Command registration and refresh plumbing
+- [x] 2. Queue
+  - [x] 2.1 Tree of `proposed` actions
+  - [x] 2.2 Inline approve (`/actions/:id/send`) and discard (`/actions/:id/discard`)
+  - [x] 2.3 Surface 423 pause and gate failures verbatim
+- [x] 3. Thoughts and Signals
+  - [x] 3.1 Thoughts tree, markdown editor on click
+  - [x] 3.2 Signals tree with `today` default and range command
+  - [x] 3.3 Reclassify command (`PATCH /signals/:id`)
+  - [x] 3.4 Journal tree, read-only, filtered by kind/actor/since
+- [x] 4. Webviews
+  - [x] 4.1 Today brief with Directions, Thoughts, actions, commitments
+  - [x] 4.2 Analytics with clickable direction/channel/day drill-down
+  - [x] 4.3 Devices placeholder with an explicit "not implemented" notice
+  - [x] 4.4 Strict CSP with per-render nonce, no remote assets
+- [x] 5. Configuration
+  - [x] 5.1 `mind.ai.configure` writes `/admin/ai-config`, blank key preserved
+  - [x] 5.2 Quiet-period command with validated `HH:MM` inputs
+  - [x] 5.3 Pause/resume commands
+- [ ] 6. Interactive verification
+  - [ ] 6.1 Load the VSIX and click every tree action and webview
+  - [ ] 6.2 Record the result in `STATUS.md` "Not verified"

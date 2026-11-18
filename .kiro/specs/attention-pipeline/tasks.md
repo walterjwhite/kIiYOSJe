@@ -1,0 +1,35 @@
+# Tasks — attention pipeline
+
+- [x] 1. Core schema and migrations
+  - [x] 1.1 Five tables with enums validated by zod
+  - [x] 1.2 Migrations `0000`–`0004`, idempotent apply
+  - [x] 1.3 Status file and config under `~/.config/kIiYOSJe/mind/`, mode 600
+- [x] 2. Ingest stages
+  - [x] 2.1 `dedupeKey = adapter:externalId`, unique column, drop before inference
+  - [x] 2.2 Quote/signature stripping and participant resolution
+  - [x] 2.3 Specificity-ordered match plus `matchPrompt` phrases
+  - [x] 2.4 Catch-all Direction so nothing is silently filed
+- [x] 3. Model layer
+  - [x] 3.1 Provider abstraction: ollama (default), OpenAI, Anthropic, Google, OpenAI-compatible
+  - [x] 3.2 ACP transport for `kiro-cli acp` and `copilot --acp`
+  - [x] 3.3 Structured classifier output parsed with zod
+  - [x] 3.4 Deadline grounding against `receivedAt`
+  - [x] 3.5 Prompt-injection guard around treated-as-data bodies
+- [x] 4. Decide and record
+  - [x] 4.1 Postures: absorb, draft, surface, escalate
+  - [x] 4.2 Five independent send gates, re-checked at send time
+  - [x] 4.3 One action and one event per decision, including no-op reasons
+  - [x] 4.4 Pause/resume kill switch, HTTP 423 on a blocked human send
+- [x] 5. Learning loop
+  - [x] 5.1 Override-rate proposals: narrow, widen, new Direction
+  - [x] 5.2 Auto-disable a Direction above 20% overrides with ≥5 decisions
+  - [x] 5.3 Proposals are events, never auto-applied to YAML
+- [x] 6. Retention and backup
+  - [x] 6.1 Body redaction after 30 days, configurable
+  - [x] 6.2 Startup + daily `.backup()`, keep 14
+- [ ] 7. Adapter contract suite
+  - [ ] 7.1 Shared recorded fixture stream run against every adapter
+  - [ ] 7.2 Live smoke test per adapter, recorded in `STATUS.md`
+- [ ] 8. Retrieval (deferred to P6)
+  - [ ] 8.1 FTS5 over signals and thoughts
+  - [ ] 8.2 Embeddings only if FTS5 proves insufficient

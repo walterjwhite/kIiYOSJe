@@ -1,6 +1,6 @@
 /**
- * HTML to plain text for mail and chat bodies. Shared by the Outlook and Teams
- * mappers so the two sources cannot drift into different flattening rules.
+ * HTML to plain text for mail bodies. Shared by every HTML-bodied source so the
+ * sources cannot drift into different flattening rules.
  */
 
 export function stripHtml(html: string): string {
