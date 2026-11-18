@@ -2,8 +2,11 @@
 
 A local attention manager: it ingests signals from your accounts, matches
 them against Directions you write, drafts or sends replies, and surfaces
-only what needs your judgement. See [PLAN.md](PLAN.md) for the design and
-[STATUS.md](STATUS.md) for what's actually implemented and verified.
+only what needs your judgement. See [PLAN.md](PLAN.md) for the design,
+[STATUS.md](STATUS.md) for what's actually implemented and verified,
+[DIRECTION.md](DIRECTION.md) for what the project is betting on,
+[LIVE.md](LIVE.md) for running it against your own accounts, and
+[references.md](references.md) for prior art and where each idea came from.
 
 Everything runs on your machine. The server is the one source of truth;
 the VS Code extension is the only client right now.
@@ -14,6 +17,11 @@ the VS Code extension is the only client right now.
 - [Ollama](https://ollama.com) running locally (default AI provider, free,
   no API key) — or an OpenAI/Anthropic/Google/Copilot API key, any
   OpenAI-compatible endpoint, or the Kiro/Copilot CLI over ACP
+
+Sources are optional and additive: Gmail, Google Calendar, GitHub pull
+requests, and SMS via a self-hosted Google Messages bridge. Each one
+stays idle until its credentials exist. [LIVE.md](LIVE.md) has the setup
+and the order to add them in.
 
 ## 1. Install and build
 
@@ -80,6 +88,15 @@ Commands (Cmd/Ctrl+Shift+P, type `mind:`):
 - **mind: Pause Sends** / **Resume Sends** — kill switch for all outbound
   sends.
 
+There is also a small CLI, built with the rest of the workspace:
+
+```bash
+node packages/cli/dist/index.js doctor                # what is configured, what is missing
+node packages/cli/dist/index.js coverage              # absorb rate per week against coverage
+node packages/cli/dist/index.js preview <directionId> # dry-run a Direction; writes nothing
+node packages/cli/dist/index.js explain <signalId>    # why one decision happened
+```
+
 ## Demo data
 
 To try it without connecting real accounts:
@@ -101,6 +118,8 @@ directories; `MIND_DB_PATH` relocates the database alone, which is how
 `demo:serve` points the server at `demo.db`.
 
 - `config/ai.json` — provider, models, base URL, API key
+- `config/credentials.yml` — Google, GitHub, Google Messages bridge tokens
+  (mode 600, never committed)
 - `config/notifications.json` — notification quiet period
 - `config/token` — API bearer token
 - `config/paused` — send kill-switch flag
@@ -117,7 +136,9 @@ Environment overrides: `MIND_AI_PROVIDER`, `MIND_AI_API_KEY`, `MIND_AI_BASE_URL`
 `GET /health`, `GET /brief`, `GET|POST /thoughts`, `PATCH /thoughts/:id`,
 `GET /directions`, `PUT /directions/:id`, `GET /actions`, `PATCH /actions/:id`,
 `POST /actions/:id/send`, `POST /actions/:id/discard`, `POST /signals`,
-`GET /signals`, `PATCH /signals/:id`, `GET /metrics`, `GET /metrics/signals`,
+`GET /signals`, `PATCH /signals/:id`, `GET /signals/:id/explain`,
+`POST /signals/:id/undo`, `POST /directions/preview`, `GET /metrics`,
+`GET /metrics/signals`, `GET /metrics/coverage`,
 `GET /proposals`, `POST /proposals/run`, `POST /admin/pause`,
 `POST /admin/resume`, `GET /admin/status`, `GET /admin/ai-config`,
 `PUT /admin/ai-config`, `GET /admin/notifications`,

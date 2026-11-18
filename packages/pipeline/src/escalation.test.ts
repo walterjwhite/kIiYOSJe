@@ -9,6 +9,7 @@ function makeOutput(overrides: Partial<ClassifierOutput> = {}): ClassifierOutput
     signalKind: "question",
     urgency: "medium",
     commitment: null,
+    commitmentDueDate: null,
     escalateBy: null,
     sensitiveTopics: [],
     answerable: true,

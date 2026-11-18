@@ -62,6 +62,12 @@ Classify this message and return all required fields.
 For escalateBy: if the message contains an explicit deadline (e.g. "by Friday",
 "EOD", "within 24 hours"), compute the ISO-8601 datetime relative to the current
 date/time given above. Otherwise return null.
+For commitment: quote the promise the message makes, in one short sentence, or
+return null. A commitment is something someone has undertaken to deliver.
+For commitmentDueDate: if a commitment exists and the message gives a date for
+it ("I'll send it Friday", "by end of week"), compute that ISO-8601 datetime
+the same way. This is the promise date, which is not always the reply deadline.
+Return null when no date is given — do not invent one.
 For signalKind: question | task | acknowledgement | information | event | other.
 For answerBlocker: if answerable=false, name the single thing that blocks an answer.`;
 }
@@ -94,6 +100,7 @@ function stub(): ClassifierOutput {
     signalKind: "other",
     urgency: "low",
     commitment: null,
+    commitmentDueDate: null,
     escalateBy: null,
     sensitiveTopics: [],
     answerable: false,

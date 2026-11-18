@@ -12,6 +12,7 @@ import {
   logger,
 } from "@mind/core";
 import type { Db } from "@mind/core";
+import { markThreadAwaitingReply } from "@mind/pipeline";
 import type { AdapterRegistry } from "@mind/pipeline";
 import type { OutboundDraft } from "@mind/core";
 
@@ -96,16 +97,35 @@ export function actionsRouter(db: Db, adapters: AdapterRegistry) {
       .where(eq(actions.id, id))
       .run();
 
+    // Two-sided tracking: a send only counts as absorption once the other side
+    // answers. Without this, "absorbed" hides a thread that went quiet.
+    let awaitingReply = false;
+    if (action.signalId) {
+      const sentSignal = db
+        .select({ threadId: signals.threadId })
+        .from(signals)
+        .where(eq(signals.id, action.signalId))
+        .get();
+      if (sentSignal?.threadId) {
+        markThreadAwaitingReply(db, sentSignal.threadId, now, action.thoughtId);
+        awaitingReply = true;
+      }
+    }
+
     db.insert(events)
       .values({
         id: newId(),
         actor: "user",
         kind: "action.sent",
-        payload: JSON.stringify({ actionId: id, externalId: result.externalId }),
+        payload: JSON.stringify({
+          actionId: id,
+          externalId: result.externalId,
+          awaitingReply,
+        }),
       })
       .run();
 
-    return c.json({ ok: true, externalId: result.externalId });
+    return c.json({ ok: true, externalId: result.externalId, awaitingReply });
   });
 
   // POST /actions/:id/discard

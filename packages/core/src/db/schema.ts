@@ -57,10 +57,15 @@ export const signals = sqliteTable(
     signalKind: text("signal_kind"),   // SignalKind from classifier
     escalateBy: text("escalate_by"),   // ISO-8601, computed at ingest
     dedupeKey: text("dedupe_key").notNull(),
+    // Two-sided reply tracking: set when a reply to this thread went out,
+    // cleared by replyReceivedAt when the other side answers.
+    awaitingReplyAt: text("awaiting_reply_at"),
+    replyReceivedAt: text("reply_received_at"),
   },
   (t) => [
     uniqueIndex("signals_dedupe_key_idx").on(t.dedupeKey),
     index("signals_received_at_idx").on(t.receivedAt),
+    index("signals_thread_id_idx").on(t.threadId),
   ],
 );
 
@@ -75,6 +80,13 @@ export const thoughts = sqliteTable("thoughts", {
   nextAction: text("next_action"),
   reviewAt: text("review_at"),
   escalateBy: text("escalate_by"),   // deadline; checker promotes thought when this passes
+  // Commitment JSON (packages/core/src/commitments.ts). States are replaced,
+  // previousStates is append-only, so a changed promise keeps its history.
+  commitment: text("commitment"),
+  // Set when state = disputed: the one thing blocking a safe answer.
+  disputedReason: text("disputed_reason"),
+  // Set when an outbound reply went out and we are waiting on the other side.
+  awaitingReplyAt: text("awaiting_reply_at"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),

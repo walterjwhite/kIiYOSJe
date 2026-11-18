@@ -35,6 +35,8 @@ export type SignalDisposition =
 export const ThoughtState = {
   seedling: "seedling",
   active: "active",
+  /** Conflicting or missing information: needs me to settle it, not a draft. */
+  disputed: "disputed",
   parked: "parked",
   closed: "closed",
 } as const;

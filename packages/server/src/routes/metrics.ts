@@ -1,7 +1,13 @@
 import { Hono } from "hono";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, gte } from "drizzle-orm";
 import { signals, thoughts, actions, directions } from "@mind/core";
 import type { Db } from "@mind/core";
+import {
+  COVERAGE_TARGET,
+  FALLBACK_DIRECTION_ID,
+  WEEK_MS,
+  weeklyCoverage,
+} from "@mind/pipeline";
 
 export function metricsRouter(db: Db) {
   const app = new Hono();
@@ -39,6 +45,65 @@ export function metricsRouter(db: Db) {
       .all();
 
     return c.json(rows);
+  });
+
+  // GET /metrics/coverage?weeks=12 — the curve, not the total. Absorb rate per
+  // week against the number of Directions in force, which is the only version
+  // of the claim that can fail. See DIRECTION.md §3 and references.md.
+  app.get("/coverage", (c) => {
+    const weeks = Math.min(
+      Math.max(Number(c.req.query("weeks") ?? "12") || 12, 1),
+      52,
+    );
+    const since = new Date(Date.now() - (weeks + 1) * WEEK_MS).toISOString();
+
+    const signalRows = db
+      .select({
+        receivedAt: signals.receivedAt,
+        disposition: signals.disposition,
+        directionId: signals.directionId,
+        awaitingReplyAt: signals.awaitingReplyAt,
+        replyReceivedAt: signals.replyReceivedAt,
+      })
+      .from(signals)
+      .where(gte(signals.receivedAt, since))
+      .all();
+
+    // Explicit Directions only. The catch-all matches everything, so counting
+    // its absorptions would let the rate rise without any authored policy
+    // improving — the exact mistake STATUS gap #8 warns about.
+    const excludedFallback = signalRows.filter(
+      (row) => row.directionId === FALLBACK_DIRECTION_ID,
+    ).length;
+    const explicitRows = signalRows.filter(
+      (row) => row.directionId !== FALLBACK_DIRECTION_ID,
+    );
+
+    const thoughtRows = db
+      .select({ createdAt: thoughts.createdAt })
+      .from(thoughts)
+      .where(gte(thoughts.createdAt, since))
+      .all();
+
+    const directionRows = db
+      .select({ createdAt: directions.createdAt, enabled: directions.enabled })
+      .from(directions)
+      .all();
+
+    return c.json({
+      scope: "explicit-directions",
+      // How many signals were left out of the rate because no authored
+      // Direction covered them. If this grows, coverage is not growing.
+      excludedFallback,
+      ...weeklyCoverage(
+        {
+          signals: explicitRows,
+          thoughts: thoughtRows,
+          directions: directionRows,
+        },
+        { weeks, target: COVERAGE_TARGET },
+      ),
+    });
   });
 
   // GET /metrics?window=7d (default 7d)

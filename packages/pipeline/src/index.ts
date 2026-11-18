@@ -14,3 +14,4 @@ export * from "./retention.js";
 export * from "./backup.js";
 export * from "./status-writer.js";
 export * from "./learning-loop.js";
+export * from "./coverage.js";

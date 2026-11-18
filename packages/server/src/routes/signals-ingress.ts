@@ -17,10 +17,19 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { eq, desc, sql } from "drizzle-orm";
+import { and, eq, desc, sql } from "drizzle-orm";
 import { ingest } from "@mind/pipeline";
 import type { AdapterRegistry } from "@mind/pipeline";
-import { signals, directions, events, newId, ReclassifySignalRequestSchema } from "@mind/core";
+import {
+  signals,
+  directions,
+  thoughts,
+  actions,
+  events,
+  newId,
+  parseCommitment,
+  ReclassifySignalRequestSchema,
+} from "@mind/core";
 import type { Db, NewSignal } from "@mind/core";
 
 const NewSignalSchema = z.object({
@@ -133,6 +142,162 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
       return c.json({ ok: true, fromDirectionId, toDirectionId: directionId });
     },
   );
+
+  /**
+   * GET /signals/:id/explain — the full trail for one decision: the signal, the
+   * Direction it matched, the Thought and commitment it produced, every action,
+   * and the audit events. This is what `mind explain <id>` prints, and it is the
+   * answer to "why did it do that" without reading the database by hand.
+   */
+  app.get("/:id/explain", (c) => {
+    const { id } = c.req.param();
+    const signal = db.select().from(signals).where(eq(signals.id, id)).get();
+    if (!signal) return c.json({ error: "Not found" }, 404);
+
+    const direction = signal.directionId
+      ? (db
+          .select()
+          .from(directions)
+          .where(eq(directions.id, signal.directionId))
+          .get() ?? null)
+      : null;
+
+    const thought = signal.thoughtId
+      ? (db.select().from(thoughts).where(eq(thoughts.id, signal.thoughtId)).get() ??
+        null)
+      : null;
+
+    const relatedActions = db
+      .select()
+      .from(actions)
+      .where(eq(actions.signalId, id))
+      .all();
+
+    const threadCondition = signal.threadId
+      ? sql` or json_extract(${events.payload}, '$.threadId') = ${signal.threadId}`
+      : sql``;
+    const relatedEvents = db
+      .select()
+      .from(events)
+      .where(
+        sql`json_extract(${events.payload}, '$.signalId') = ${id}${threadCondition}`,
+      )
+      .orderBy(desc(events.at))
+      .all();
+
+    return c.json({
+      signal,
+      direction: direction
+        ? {
+            id: direction.id,
+            name: direction.name,
+            posture: direction.posture,
+            autonomy: direction.autonomy,
+            confidenceMin: direction.confidenceMin,
+            enabled: direction.enabled,
+            standard: direction.standard,
+          }
+        : null,
+      thought,
+      commitment: thought ? parseCommitment(thought.commitment) : null,
+      actions: relatedActions,
+      events: relatedEvents,
+    });
+  });
+
+  /**
+   * POST /signals/:id/undo — reverse a decision that did not send anything.
+   *
+   * Reclassify covers "the match was wrong"; this covers "it filed something it
+   * should have kept". Refused once a reply from this signal has gone out,
+   * because an outbound message cannot be undone by clearing a row. Borrowed
+   * from smartmail's undo (references.md §2.3); the audit trail is kept — the
+   * signal goes back to `new`, its proposed actions are discarded, and one
+   * `signal.undone` event records what was reversed.
+   */
+  app.post("/:id/undo", (c) => {
+    const { id } = c.req.param();
+    const signal = db.select().from(signals).where(eq(signals.id, id)).get();
+    if (!signal) return c.json({ error: "Not found" }, 404);
+    if (signal.disposition === "new") {
+      return c.json({ error: "Nothing to undo" }, 409);
+    }
+
+    const relatedActions = db
+      .select()
+      .from(actions)
+      .where(eq(actions.signalId, id))
+      .all();
+
+    const sent = relatedActions.filter((action) => action.status === "sent");
+    if (sent.length > 0) {
+      return c.json(
+        {
+          error: "Cannot undo: a reply from this signal was already sent",
+          actionIds: sent.map((action) => action.id),
+        },
+        409,
+      );
+    }
+
+    for (const action of relatedActions) {
+      if (action.status === "proposed" || action.status === "failed") {
+        db.update(actions)
+          .set({ status: "discarded" })
+          .where(eq(actions.id, action.id))
+          .run();
+      }
+    }
+
+    // Close the Thought only if this signal is what created it; a Thought that
+    // gathered several signals stays open for the others.
+    if (signal.thoughtId) {
+      const siblings =
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(signals)
+          .where(
+            and(
+              eq(signals.thoughtId, signal.thoughtId),
+              sql`${signals.id} != ${id}`,
+            ),
+          )
+          .get()?.count ?? 0;
+
+      if (siblings === 0) {
+        db.update(thoughts)
+          .set({ state: "closed", updatedAt: new Date().toISOString() })
+          .where(eq(thoughts.id, signal.thoughtId))
+          .run();
+      }
+    }
+
+    db.update(signals)
+      .set({ disposition: "new", thoughtId: null })
+      .where(eq(signals.id, id))
+      .run();
+
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "user",
+        kind: "signal.undone",
+        payload: JSON.stringify({
+          signalId: id,
+          previousDisposition: signal.disposition,
+          thoughtId: signal.thoughtId,
+          actionIds: relatedActions.map((action) => action.id),
+        }),
+      })
+      .run();
+
+    return c.json({
+      ok: true,
+      previousDisposition: signal.disposition,
+      revertedActions: relatedActions.length,
+      thoughtClosed: signal.thoughtId !== null,
+    });
+  });
 
   return app;
 }

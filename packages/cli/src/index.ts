@@ -5,6 +5,10 @@
  *   mind start                 start the server, adapters, and jobs
  *   mind health                server + adapter status
  *   mind metrics [7d]          signals/thoughts ratio and rates
+ *   mind coverage [12]         absorb rate per week against coverage
+ *   mind preview <id> [--classify]  dry-run a Direction, writes nothing
+ *   mind explain <signalId>    why one decision happened
+ *   mind doctor                what is configured and what is missing
  *   mind observe               current metrics
  *   mind proposals [status]    Direction proposals awaiting a decision
  *   mind capture <title>       create a Thought by hand
@@ -15,9 +19,19 @@
  *   mind pause | resume        the send kill switch
  */
 
-import { capture, health, metrics, observe, proposals } from "./commands/api.js";
+import {
+  capture,
+  coverage,
+  explain,
+  health,
+  metrics,
+  observe,
+  preview,
+  proposals,
+} from "./commands/api.js";
 import { demo } from "./commands/demo.js";
 import {
+  doctor,
   pauseSends,
   resumeSends,
   restoreSnapshot,
@@ -45,6 +59,18 @@ try {
       break;
     case "metrics":
       await metrics(args[0] ?? "7d");
+      break;
+    case "coverage":
+      await coverage(args[0] ?? "12");
+      break;
+    case "preview":
+      await preview(args[0] ?? "", args.includes("--classify"));
+      break;
+    case "explain":
+      await explain(args[0] ?? "");
+      break;
+    case "doctor":
+      await doctor();
       break;
     case "observe":
       await observe();
@@ -75,6 +101,10 @@ try {
           "  mind start               start the server and all adapters",
           "  mind health              server and adapter status",
           "  mind metrics [7d]        signals/thoughts ratio for a window",
+          "  mind coverage [12]       absorb rate per week against coverage",
+          "  mind preview <id>        dry-run a Direction over stored signals",
+          "  mind explain <signalId>  why one decision happened",
+          "  mind doctor              what is configured and what is missing",
           "  mind observe             current metrics",
           "  mind proposals [status]  Direction proposals (default: pending)",
           "  mind capture <title>     record a Thought",

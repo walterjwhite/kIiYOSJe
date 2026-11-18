@@ -23,6 +23,7 @@ export const DirectionAutonomySchema = z.enum(["observe", "draft", "send"]);
 export const ThoughtStateSchema = z.enum([
   "seedling",
   "active",
+  "disputed",
   "parked",
   "closed",
 ]);
@@ -94,6 +95,13 @@ export const ClassifierOutputSchema = z.object({
   signalKind: SignalKindSchema,
   urgency: z.enum(["low", "medium", "high"]),
   commitment: z.string().nullable(),
+  /**
+   * ISO-8601 datetime the promise is due, when `commitment` is set. Distinct
+   * from escalateBy: a promise date is when I owe something, a reply deadline
+   * is when an answer is expected. Optional so a model that omits it still
+   * produces a valid classification (it falls back to escalateBy at ingest).
+   */
+  commitmentDueDate: z.string().datetime().nullable().default(null),
   /** ISO-8601 datetime by which a reply is expected, or null. */
   escalateBy: z.string().datetime().nullable(),
   sensitiveTopics: z.array(z.string()),
@@ -114,4 +122,18 @@ export const UpdateThoughtRequestSchema = z.object({
   state: ThoughtStateSchema.optional(),
   nextAction: z.string().nullable().optional(),
   reviewAt: z.string().datetime().nullable().optional(),
+});
+
+// POST /directions/preview — dry run a Direction over stored signals.
+// No writes to signals, thoughts, or actions: this answers "what would this
+// Direction have caught", which is the question an author actually has.
+//
+// The id is in the body, not the path, because Direction ids contain slashes
+// (`work/boss`, `system/catch-all`) — a path segment cannot carry one.
+export const PreviewDirectionRequestSchema = z.object({
+  directionId: z.string().min(1),
+  limit: z.number().int().min(1).max(200).optional(),
+  since: z.string().datetime().optional(),
+  /** Run the real classifier over the would-match samples (slow, capped at 10). */
+  classify: z.boolean().optional(),
 });

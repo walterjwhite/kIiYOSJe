@@ -2,6 +2,7 @@ export * from "./types.js";
 export * from "./schemas.js";
 export * from "./config.js";
 export * from "./credentials.js";
+export * from "./commitments.js";
 export * from "./http.js";
 export * from "./clock.js";
 export * from "./logger.js";

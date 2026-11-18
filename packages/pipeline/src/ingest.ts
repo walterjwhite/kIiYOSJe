@@ -3,11 +3,43 @@
  * Runs all steps for a single NewSignal and persists the result.
  * Returns the full result: disposition plus the ids written, so callers can
  * act on more than "what happened" without re-querying the database.
+ *
+ * Three behaviours beyond PLAN §8 live here, all of them borrowed concepts
+ * listed in references.md:
+ *   - reply tracking (two-sided, so a send is not silently "absorbed")
+ *   - commitment reconciliation (a later message replaces an earlier promise
+ *     instead of competing with it)
+ *   - disputed thoughts (confident but unanswerable becomes a Thought with the
+ *     blocker attached, not a plausible wrong draft)
  */
 
-import { eq, and, gte, or, sql } from "drizzle-orm";
-import type { Db, NewSignal, OutboundDraft, SignalDisposition } from "@mind/core";
-import { events, signals, thoughts, actions, logger, newId, globalSendEnabled } from "@mind/core";
+import { and, desc, eq, gte, isNotNull, isNull, or, sql } from "drizzle-orm";
+import type {
+  Commitment,
+  Db,
+  DirectionPosture,
+  NewSignal,
+  OutboundDraft,
+  SignalDisposition,
+} from "@mind/core";
+import {
+  actions,
+  directions,
+  events,
+  globalSendEnabled,
+  isOpenCommitment,
+  logger,
+  newCommitment,
+  newId,
+  operatorAddresses,
+  parseCommitment,
+  sameCommitmentText,
+  serializeCommitment,
+  signals,
+  supersedeCommitment,
+  thoughts,
+  verifyCommitment,
+} from "@mind/core";
 import { dedupeKey, isDuplicate } from "./dedupe.js";
 import { normalize } from "./normalize.js";
 import { matchSignal } from "./match.js";
@@ -17,6 +49,8 @@ import { draft } from "./draft.js";
 import { decide } from "./decide.js";
 import { computeEscalateBy } from "./escalation.js";
 import type { AdapterRegistry } from "./adapter-registry.js";
+
+type DirectionRow = typeof directions.$inferSelect;
 
 export interface IngestOverrides {
   /** Skip the real classifier call and use this result instead. For tests and demo data. */
@@ -57,6 +91,14 @@ export async function ingest(
   // ── 2. Normalize ─────────────────────────────────────────────────────────
   const { body: normalizedBody } = normalize(signal.body);
 
+  const now = new Date().toISOString();
+
+  // ── 2b. Reply tracking ───────────────────────────────────────────────────
+  // Before anything else: if this signal is an inbound reply in a thread we
+  // were waiting on, the wait is over. Recorded whether or not a Direction
+  // matches, because it is a fact about the thread, not a decision.
+  const replyAnsweredThread = markReplyReceived(db, signal, now);
+
   // ── 3. Match ─────────────────────────────────────────────────────────────
   const match = matchSignal(db, signal);
 
@@ -72,9 +114,69 @@ export async function ingest(
   // ── 4b. Compute escalation deadline ──────────────────────────────────────
   const escalateBy = computeEscalateBy(classifierOut, signal.receivedAt);
 
+  const signalId = newId();
+
+  // ── 4c. Commitment reconciliation ────────────────────────────────────────
+  // One open commitment per thread. A later message either verifies it, or
+  // replaces it — and the replacement keeps the old state in previousStates.
+  // The failure this prevents: two competing dates, two reminders, no way to
+  // tell which promise is dead.
+  const open = signal.threadId
+    ? findOpenCommitmentInThread(db, signal.threadId)
+    : null;
+
+  let commitment: Commitment | null = null;
+  let commitmentThoughtId: string | null = null;
+  let commitmentEvent: { kind: string; payload: Record<string, unknown> } | null =
+    null;
+
+  if (classifierOut.commitment) {
+    const incoming = newCommitment({
+      text: classifierOut.commitment,
+      dueDate: classifierOut.commitmentDueDate ?? escalateBy,
+      confidence: classifierOut.confidence,
+      sourceSignalId: signalId,
+      at: now,
+    });
+
+    if (!open) {
+      commitment = incoming;
+    } else if (
+      sameCommitmentText(open.commitment.text, incoming.text) &&
+      (incoming.dueDate === null ||
+        incoming.dueDate === open.commitment.dueDate)
+    ) {
+      commitment = verifyCommitment(open.commitment, now);
+      commitmentThoughtId = open.thoughtId;
+      commitmentEvent = {
+        kind: "commitment.verified",
+        payload: {
+          thoughtId: open.thoughtId,
+          signalId,
+          text: commitment.text,
+          dueDate: commitment.dueDate,
+        },
+      };
+    } else {
+      commitment = supersedeCommitment(open.commitment, incoming, now);
+      commitmentThoughtId = open.thoughtId;
+      commitmentEvent = {
+        kind: "commitment.superseded",
+        payload: {
+          thoughtId: open.thoughtId,
+          signalId,
+          previousText: open.commitment.text,
+          previousDueDate: open.commitment.dueDate,
+          text: commitment.text,
+          dueDate: commitment.dueDate,
+        },
+      };
+    }
+  }
+
   // ── 5. Decide ─────────────────────────────────────────────────────────────
   let disposition: SignalDisposition;
-  let createThought = false;
+  let disputed = false;
   let shouldSend = false;
   let reason = match ? "matched" : "no specific direction";
 
@@ -82,7 +184,6 @@ export async function ingest(
     // No direction and no fallback — this shouldn't happen once ensureFallbackDirection
     // has run, but be safe: escalate so nothing is silently dropped.
     disposition = "escalated";
-    createThought = true;
   } else {
     const dir = match.direction;
     const adapter = adapters.get(signal.adapter);
@@ -90,7 +191,7 @@ export async function ingest(
     if (guards.triggered) reason = "guard triggered";
 
     const outcome = decide({
-      posture: dir.posture as any,
+      posture: dir.posture as DirectionPosture,
       autonomy: dir.autonomy,
       adapterCanSend: adapter?.capabilities.canSend ?? false,
       confidence: classifierOut.confidence,
@@ -101,11 +202,72 @@ export async function ingest(
 
     disposition = outcome.disposition;
     shouldSend = "shouldSend" in outcome ? outcome.shouldSend : false;
-    createThought = disposition === "promoted" || disposition === "escalated";
+    if (outcome.disposition === "escalated" && outcome.disputed) {
+      disputed = true;
+      reason = classifierOut.answerBlocker ?? "needs my judgement";
+    }
   }
 
   // ── 6. Record ─────────────────────────────────────────────────────────────
-  const signalId = newId();
+  // The Thought is written first: signals.thought_id is a real foreign key.
+  let thoughtId: string | null = null;
+
+  if (commitmentThoughtId) {
+    const existing = db
+      .select()
+      .from(thoughts)
+      .where(eq(thoughts.id, commitmentThoughtId))
+      .get();
+
+    if (existing) {
+      thoughtId = existing.id;
+      db.update(thoughts)
+        .set({
+          ...(commitment
+            ? {
+                commitment: serializeCommitment(commitment),
+                nextAction: commitment.text,
+                reviewAt: commitment.dueDate,
+                escalateBy: commitment.dueDate,
+              }
+            : {}),
+          ...(disputed
+            ? { state: "disputed", disputedReason: classifierOut.answerBlocker }
+            : {}),
+          updatedAt: now,
+        })
+        .where(eq(thoughts.id, thoughtId))
+        .run();
+    }
+  }
+
+  if (
+    !thoughtId &&
+    (disposition === "promoted" ||
+      disposition === "escalated" ||
+      commitment !== null)
+  ) {
+    thoughtId = newId();
+    db.insert(thoughts)
+      .values({
+        id: thoughtId,
+        title: buildThoughtTitle(classifierOut, signal.sender),
+        body: normalizedBody,
+        state: disputed
+          ? "disputed"
+          : disposition === "escalated"
+            ? "active"
+            : "seedling",
+        directionId: match?.direction.id ?? null,
+        nextAction: commitment?.text ?? classifierOut.commitment,
+        reviewAt: commitment?.dueDate ?? null,
+        escalateBy: commitment?.dueDate ?? escalateBy,
+        commitment: commitment ? serializeCommitment(commitment) : null,
+        disputedReason: disputed ? classifierOut.answerBlocker : null,
+      })
+      .run();
+  }
+
   let actionId: string | null = null;
 
   db.insert(signals)
@@ -122,30 +284,36 @@ export async function ingest(
       urgencyHint: signal.urgencyHint,
       disposition,
       directionId: match?.direction.id ?? null,
+      thoughtId,
       signalKind: classifierOut.signalKind,
       escalateBy,
       dedupeKey: key,
     })
     .run();
 
-  let thoughtId: string | undefined;
-  if (createThought) {
-    thoughtId = newId();
-    db.insert(thoughts)
+  if (commitmentEvent) {
+    db.insert(events)
       .values({
-        id: thoughtId,
-        title: buildThoughtTitle(classifierOut, signal.sender),
-        body: normalizedBody,
-        state: disposition === "escalated" ? "active" : "seedling",
-        directionId: match?.direction.id ?? null,
-        nextAction: classifierOut.commitment,
-        escalateBy,
+        id: newId(),
+        actor: "system",
+        kind: commitmentEvent.kind,
+        payload: JSON.stringify(commitmentEvent.payload),
       })
       .run();
+  }
 
-    db.update(signals)
-      .set({ thoughtId })
-      .where(eq(signals.id, signalId))
+  if (replyAnsweredThread) {
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "system",
+        kind: "reply.received",
+        payload: JSON.stringify({
+          threadId: replyAnsweredThread,
+          signalId,
+          sender: signal.sender,
+        }),
+      })
       .run();
   }
 
@@ -205,9 +373,12 @@ export async function ingest(
         try {
           const result = await sender.send(outbound);
           db.update(actions)
-            .set({ status: "sent", sentAt: new Date().toISOString() })
+            .set({ status: "sent", sentAt: now })
             .where(eq(actions.id, actionId))
             .run();
+          // A send is not absorption until the other side answers: start the
+          // clock the two-sided metric is computed from.
+          markThreadAwaitingReply(db, signal.threadId, now, thoughtId);
           db.insert(events)
             .values({
               id: newId(),
@@ -218,6 +389,7 @@ export async function ingest(
                 externalId: result.externalId,
                 autonomous: true,
                 directionId: dir.id,
+                awaitingReply: signal.threadId !== null,
               }),
             })
             .run();
@@ -244,7 +416,8 @@ export async function ingest(
     }
   }
 
-  // Audit event
+  // Audit event — carries the reasoning, not just the outcome, so the Journal
+  // can answer "why did it do that" without a second lookup.
   db.insert(events)
     .values({
       id: newId(),
@@ -253,11 +426,29 @@ export async function ingest(
       payload: JSON.stringify({
         signalId,
         disposition,
+        reason,
         directionId: match?.direction.id ?? null,
+        matchedBy: match
+          ? match.isFallback
+            ? "fallback"
+            : `scope:${match.direction.scopeKind}`
+          : null,
         confidence: classifierOut.confidence,
+        intent: classifierOut.intent,
         signalKind: classifierOut.signalKind,
+        urgency: classifierOut.urgency,
         answerable: classifierOut.answerable,
+        answerBlocker: classifierOut.answerBlocker,
+        sensitiveTopics: classifierOut.sensitiveTopics,
+        disputed,
+        commitment: commitment?.text ?? classifierOut.commitment,
+        commitmentDueDate: commitment?.dueDate ?? null,
+        commitmentStatus: commitment?.status ?? null,
+        commitmentSuperseded: commitmentEvent?.kind === "commitment.superseded",
         escalateBy,
+        thoughtId,
+        actionId,
+        replyReceivedFrom: replyAnsweredThread ? signal.sender : null,
       }),
     })
     .run();
@@ -268,6 +459,7 @@ export async function ingest(
       directionId: match?.direction.id ?? null,
       signalKind: classifierOut.signalKind,
       answerable: classifierOut.answerable,
+      disputed,
       escalateBy,
     },
     "signal processed",
@@ -288,8 +480,113 @@ function buildThoughtTitle(classifierOut: ClassifierOutput, sender: string): str
   return `Signal from ${sender}`;
 }
 
-function evaluateGuards(
-  dir: typeof import("@mind/core").directions.$inferSelect,
+/**
+ * The newest open commitment in this thread, if any. Reads from the Thought,
+ * but uses the Signal rows to establish thread membership, so a thread that
+ * spans several Thoughts still resolves chronologically.
+ */
+export function findOpenCommitmentInThread(
+  db: Db,
+  threadId: string,
+): { thoughtId: string; commitment: Commitment } | null {
+  const rows = db
+    .select({
+      thoughtId: thoughts.id,
+      commitment: thoughts.commitment,
+      receivedAt: signals.receivedAt,
+    })
+    .from(signals)
+    .innerJoin(thoughts, eq(thoughts.id, signals.thoughtId))
+    .where(
+      and(eq(signals.threadId, threadId), isNotNull(thoughts.commitment)),
+    )
+    .orderBy(desc(signals.receivedAt))
+    .limit(20)
+    .all();
+
+  for (const row of rows) {
+    if (!row.thoughtId) continue;
+    const commitment = parseCommitment(row.commitment);
+    if (commitment && isOpenCommitment(commitment)) {
+      return { thoughtId: row.thoughtId, commitment };
+    }
+  }
+  return null;
+}
+
+/**
+ * An inbound message from someone other than the operator closes every
+ * outstanding wait in that thread. Returns the thread id when it did.
+ */
+function markReplyReceived(
+  db: Db,
+  signal: NewSignal,
+  at: string,
+): string | null {
+  if (!signal.threadId) return null;
+  const self = new Set(operatorAddresses().map((a) => a.toLowerCase()));
+  if (self.has(signal.sender.toLowerCase())) return null;
+
+  const pending = db
+    .select({ id: signals.id })
+    .from(signals)
+    .where(
+      and(
+        eq(signals.threadId, signal.threadId),
+        isNotNull(signals.awaitingReplyAt),
+        isNull(signals.replyReceivedAt),
+      ),
+    )
+    .all();
+  if (pending.length === 0) return null;
+
+  db.update(signals)
+    .set({ replyReceivedAt: at })
+    .where(
+      and(
+        eq(signals.threadId, signal.threadId),
+        isNotNull(signals.awaitingReplyAt),
+        isNull(signals.replyReceivedAt),
+      ),
+    )
+    .run();
+
+  db.update(thoughts)
+    .set({ awaitingReplyAt: null })
+    .where(
+      and(
+        isNotNull(thoughts.awaitingReplyAt),
+        sql`${thoughts.id} in (select thought_id from signals where thread_id = ${signal.threadId} and thought_id is not null)`,
+      ),
+    )
+    .run();
+
+  return signal.threadId;
+}
+
+/** Called after an outbound reply (autonomous or approved) actually goes out. */
+export function markThreadAwaitingReply(
+  db: Db,
+  threadId: string | null,
+  at: string,
+  thoughtId?: string | null,
+): void {
+  if (threadId) {
+    db.update(signals)
+      .set({ awaitingReplyAt: at })
+      .where(eq(signals.threadId, threadId))
+      .run();
+  }
+  if (thoughtId) {
+    db.update(thoughts)
+      .set({ awaitingReplyAt: at })
+      .where(eq(thoughts.id, thoughtId))
+      .run();
+  }
+}
+
+export function evaluateGuards(
+  dir: DirectionRow,
   signal: NewSignal,
   db: Db,
 ): { triggered: boolean } {

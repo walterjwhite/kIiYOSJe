@@ -1,0 +1,29 @@
+# GitHub pull requests that are waiting on me.
+#
+# The adapter emits one signal per (PR, reason) and writes a `Reason:` line into
+# the body — that is what this Direction matches on. GitHub is read-only here
+# (the adapter's canSend is false), so a PR produces a Thought to look at, never
+# a reply to approve.
+name: github-prs
+scope:
+  kind: topic
+  value: "review requested"
+posture: surface
+autonomy: observe
+confidenceMin: 0.6
+standard: |
+  A review request is a decision, not a reply. Work out what the change does,
+  what it could break, and whether it needs me now or can wait for a batch.
+  Name the one file or decision that most needs my attention. Escalate anything
+  touching auth, data migrations, or a public interface.
+matchPrompt: |
+  review requested, changes requested on your PR, assigned to you
+responsePrompt: |
+  There is nothing to send here. Summarise the ask in one line and point at the
+  file or decision that needs a human.
+guards:
+  escalateOn:
+    - migration
+    - auth
+    - breaking change
+    - security

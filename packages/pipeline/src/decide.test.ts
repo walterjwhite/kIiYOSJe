@@ -8,6 +8,7 @@ const baseClassifier = {
   signalKind: "task" as const,
   urgency: "medium" as const,
   commitment: null,
+  commitmentDueDate: null,
   escalateBy: null,
   sensitiveTopics: [],
   answerable: true,

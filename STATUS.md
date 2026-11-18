@@ -145,3 +145,52 @@ gates are untouched, and asking for something right now (`mind.brief`,
 3. **Email write capability:** decided — Gmail `messages/send` and Outlook
    Graph create-draft-then-send.
 4. **Remote authentication:** deferred to P6.
+
+## This round — direction, measurement, live testing (2026-11-18)
+
+Written up as [DIRECTION.md](DIRECTION.md) (the bet and the five moves) and
+[LIVE.md](LIVE.md) (the runbook for real accounts). Code changes:
+
+- **Commitments are state machines** (`@mind/core/commitments.ts`, migration
+  `0005`). `thoughts.commitment` holds JSON with `status`, `dueDate`,
+  `lastVerifiedAt`, `supersededBy`, and an append-only `previousStates` array.
+  Ingest reconciles **per thread**: a later message either verifies the open
+  commitment (`commitment.verified`) or replaces it
+  (`commitment.superseded`), so a changed deadline cannot leave two live
+  reminders. An absorbed signal that carries a commitment now creates a Thought
+  — previously the promise was silently dropped when no Thought was created.
+- **Two-sided reply tracking** (`signals.awaitingReplyAt` /
+  `replyReceivedAt`, `thoughts.awaitingReplyAt`). A successful send — autonomous
+  or approved — starts the clock; an inbound signal from someone other than
+  `operator.addresses` closes it and writes `reply.received`. `absorbedUnanswered`
+  is reported separately in the coverage curve because "answered into a void" is
+  not absorption.
+- **`disputed` Thoughts.** `decide()` returns a disputed escalation when the
+  classifier is confident but reports `answerable: false` with a blocker on a
+  question or task: a Thought with `state: disputed` and `disputedReason`, no
+  draft. Acknowledgements and information are excluded. Low confidence still
+  escalates as before (not disputed).
+- **Direction preview** (`POST /directions/preview`, `mind preview`): dry-runs
+  the matcher and guards over stored signals, optionally against the real
+  classifier (capped at 10 samples). Writes nothing but one
+  `direction.previewed` event.
+- **Coverage curve** (`GET /metrics/coverage`, `mind coverage`,
+  `packages/pipeline/src/coverage.ts`): absorb rate and signals/thoughts ratio
+  per week against the number of Directions, with a 0.6 target and
+  `meetsTarget` per bucket. `/brief` gained the evening half: `handled`, plus
+  `commitments`, `awaiting`, and `thoughts.disputed`.
+- **Undo and explain** (`POST /signals/:id/undo`, `GET /signals/:id/explain`,
+  `mind explain`). Undo refuses after a send; it discards proposed actions,
+  closes the Thought if this signal created it, and records `signal.undone`.
+  The `signal.processed` event now carries `intent`, `confidence`, `urgency`,
+  `answerBlocker`, `sensitiveTopics`, `commitment*`, `matchedBy`, `reason`, and
+  `disputed`.
+- **GitHub adapter** (`github`, read-only, `canSend: false`): three searches —
+  review requested, assigned, changes requested on yours. One signal per
+  (PR, reason); `directions/work/github-prs.yaml` matches the `Reason:` line.
+
+Verified: `npm run lint` and `npm test` (see the run recorded in the commit).
+Still unverified: no live account has been connected, the GitHub adapter has
+never called the real API, the migration has not run against an existing
+`mind.db` with data, and the commit prompt's new `commitmentDueDate` field has
+only been exercised through the schema, not a real model.

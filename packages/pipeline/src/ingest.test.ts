@@ -5,11 +5,15 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import * as schema from "@mind/core";
-import { directions } from "@mind/core";
+import { directions, parseCommitment } from "@mind/core";
 import type { NewSignal } from "@mind/core";
 import { AdapterRegistry } from "./adapter-registry.js";
 import { ensureFallbackDirection } from "./fallback-direction.js";
-import { ingest, type IngestOverrides } from "./ingest.js";
+import {
+  ingest,
+  markThreadAwaitingReply,
+  type IngestOverrides,
+} from "./ingest.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = join(__dirname, "..", "..", "core", "migrations");
@@ -20,6 +24,7 @@ const classifier = {
   signalKind: "task" as const,
   urgency: "low" as const,
   commitment: null,
+  commitmentDueDate: null,
   escalateBy: null,
   sensitiveTopics: [],
   answerable: true,
@@ -147,5 +152,152 @@ describe("ingest", () => {
       { classifierOutput: { ...classifier, confidence: 0.3 } },
     );
     expect(result.disposition).toBe("escalated");
+  });
+
+  it("supersedes a commitment restated with a new date in the same thread", async () => {
+    const db = setup("surface");
+    const first = await ingest(db, signal, new AdapterRegistry(), {
+      classifierOutput: {
+        ...classifier,
+        commitment: "review the quarterly report",
+        commitmentDueDate: "2026-11-20T17:00:00.000Z",
+      },
+    });
+
+    const second = await ingest(
+      db,
+      {
+        ...signal,
+        externalId: "m-2",
+        body: "Pushing the review to Wednesday.",
+        receivedAt: new Date("2026-11-15T10:00:00.000Z"),
+      },
+      new AdapterRegistry(),
+      {
+        classifierOutput: {
+          ...classifier,
+          commitment: "review the quarterly report",
+          commitmentDueDate: "2026-11-25T17:00:00.000Z",
+        },
+      },
+    );
+
+    // The same Thought is updated, not duplicated: two live reminders for one
+    // promise is the failure this exists to prevent.
+    expect(second.thoughtId).toBe(first.thoughtId);
+    expect(db.select().from(schema.thoughts).all()).toHaveLength(1);
+
+    const thought = db.select().from(schema.thoughts).get();
+    const commitment = parseCommitment(thought?.commitment ?? null);
+    expect(commitment?.status).toBe("changed");
+    expect(commitment?.dueDate).toBe("2026-11-25T17:00:00.000Z");
+    expect(commitment?.previousStates).toHaveLength(1);
+    expect(commitment?.previousStates[0]?.dueDate).toBe(
+      "2026-11-20T17:00:00.000Z",
+    );
+    expect(
+      db
+        .select()
+        .from(schema.events)
+        .all()
+        .filter((event) => event.kind === "commitment.superseded"),
+    ).toHaveLength(1);
+  });
+
+  it("verifies rather than supersedes when the promise is restated unchanged", async () => {
+    const db = setup("surface");
+    const output = {
+      ...classifier,
+      commitment: "review the quarterly report",
+      commitmentDueDate: "2026-11-20T17:00:00.000Z",
+    };
+
+    const first = await ingest(db, signal, new AdapterRegistry(), {
+      classifierOutput: output,
+    });
+    const second = await ingest(
+      db,
+      {
+        ...signal,
+        externalId: "m-2",
+        body: "Still on for Friday.",
+        receivedAt: new Date("2026-11-15T10:00:00.000Z"),
+      },
+      new AdapterRegistry(),
+      { classifierOutput: output },
+    );
+
+    expect(second.thoughtId).toBe(first.thoughtId);
+    const commitment = parseCommitment(
+      db.select().from(schema.thoughts).get()?.commitment ?? null,
+    );
+    expect(commitment?.status).toBe("proposed");
+    expect(commitment?.previousStates).toHaveLength(0);
+    expect(
+      db
+        .select()
+        .from(schema.events)
+        .all()
+        .filter((event) => event.kind === "commitment.verified"),
+    ).toHaveLength(1);
+  });
+
+  it("marks a waiting thread answered when the other side replies", async () => {
+    const db = setup("surface");
+    const first = await ingest(db, signal, new AdapterRegistry(), overrides());
+    markThreadAwaitingReply(
+      db,
+      signal.threadId,
+      new Date().toISOString(),
+      first.thoughtId,
+    );
+
+    await ingest(
+      db,
+      {
+        ...signal,
+        externalId: "m-2",
+        body: "Thanks — got it.",
+        receivedAt: new Date("2026-11-15T10:00:00.000Z"),
+      },
+      new AdapterRegistry(),
+      overrides(),
+    );
+
+    const rows = db.select().from(schema.signals).all();
+    // Nothing is left waiting, and the signal whose reply went out carries the
+    // timestamp that closed the wait. The inbound reply itself was never
+    // waiting, so it correctly has no awaitingReplyAt.
+    expect(rows.filter((row) => row.awaitingReplyAt && !row.replyReceivedAt)).toHaveLength(0);
+    const original = rows.find((row) => row.externalId === "m-1");
+    expect(original?.replyReceivedAt).not.toBeNull();
+    expect(
+      db
+        .select()
+        .from(schema.events)
+        .all()
+        .filter((event) => event.kind === "reply.received"),
+    ).toHaveLength(1);
+  });
+
+  it("escalates to a disputed Thought when a confident answer is blocked", async () => {
+    const db = setup("absorb");
+    const result = await ingest(db, signal, new AdapterRegistry(), {
+      classifierOutput: {
+        ...classifier,
+        signalKind: "question",
+        answerable: false,
+        answerBlocker: "needs the budget figure I don't have",
+      },
+      draftBody: "Sure, here is the number.",
+    });
+
+    expect(result.disposition).toBe("escalated");
+    expect(result.reason).toBe("needs the budget figure I don't have");
+    const thought = db.select().from(schema.thoughts).get();
+    expect(thought?.state).toBe("disputed");
+    expect(thought?.disputedReason).toBe("needs the budget figure I don't have");
+    // No draft is proposed: a plausible wrong reply is the worse failure.
+    expect(db.select().from(schema.actions).all()).toHaveLength(0);
   });
 });
