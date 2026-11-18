@@ -46,6 +46,7 @@ import { matchSignal } from "./match.js";
 import { classify } from "./classify.js";
 import type { ClassifierOutput } from "./classify.js";
 import { draft } from "./draft.js";
+import { transform } from "./transform.js";
 import { decide } from "./decide.js";
 import { computeEscalateBy } from "./escalation.js";
 import type { AdapterRegistry } from "./adapter-registry.js";
@@ -57,6 +58,8 @@ export interface IngestOverrides {
   classifierOutput?: ClassifierOutput;
   /** Skip the real drafter call and use this body instead (still subject to the same send gates). */
   draftBody?: string | null;
+  /** Skip the real transform call and use this value instead. For tests and demo data. */
+  transformedSummary?: string | null;
 }
 
 export interface IngestResult {
@@ -113,6 +116,19 @@ export async function ingest(
 
   // ── 4b. Compute escalation deadline ──────────────────────────────────────
   const escalateBy = computeEscalateBy(classifierOut, signal.receivedAt);
+
+  // ── 4d. Transform (optional display rewrite, never changes routing) ──────
+  const transformedSummary =
+    overrides?.transformedSummary !== undefined
+      ? overrides.transformedSummary
+      : match?.direction.transformPrompt
+        ? await transform({
+            signalBody: normalizedBody,
+            subject: signal.subject ?? null,
+            sender: signal.sender,
+            transformPrompt: match.direction.transformPrompt,
+          })
+        : null;
 
   const signalId = newId();
 
@@ -279,8 +295,13 @@ export async function ingest(
       threadId: signal.threadId,
       sender: signal.sender,
       recipients: JSON.stringify(signal.recipients),
+      cc: signal.cc && signal.cc.length > 0 ? JSON.stringify(signal.cc) : null,
+      bcc: signal.bcc && signal.bcc.length > 0 ? JSON.stringify(signal.bcc) : null,
       kind: signal.kind,
+      subject: signal.subject ?? null,
       body: normalizedBody,
+      htmlBody: signal.htmlBody ?? null,
+      transformedSummary,
       receivedAt: signal.receivedAt.toISOString(),
       urgencyHint: signal.urgencyHint,
       disposition,

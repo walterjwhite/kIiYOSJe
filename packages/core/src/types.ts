@@ -77,10 +77,16 @@ export interface NewSignal {
   threadId: string | null;
   sender: string;
   recipients: string[];
+  /** Mail only: addresses on the Cc line, if any. Empty array when absent, never undefined, so callers don't need an extra null check. */
+  cc?: string[] | undefined;
+  /** Mail only: addresses on the Bcc line, when visible to this account (rarely, since Bcc is normally stripped before delivery to anyone but the sender). */
+  bcc?: string[] | undefined;
   kind: string;
   /** Mail only: the original subject, used to build "Re:" replies. */
   subject?: string | undefined;
   body: string;
+  /** Mail only: the original HTML body, when the source provides one, for native rendering instead of the plain-text extract. */
+  htmlBody?: string | undefined;
   receivedAt: Date;
   urgencyHint: number | null;
 }
@@ -179,4 +185,12 @@ export interface DirectionConfig {
    * alone still drives drafting, same as before this field existed.
    */
   responsePrompt?: string | undefined;
+  /**
+   * Optional free-text description of how to rewrite a matched signal's
+   * display summary into something shorter/clearer — e.g. "A new sign-in
+   * on..." rewritten to name the platform and account plainly. Never
+   * changes disposition, routing, or the stored body/subject; only what
+   * the extension shows by default, with the original always reachable.
+   */
+  transformPrompt?: string | undefined;
 }

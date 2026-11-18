@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { statusIndicator } from "./status-indicator.js";
 
 function serverUrl(): string {
   return (
@@ -41,20 +42,28 @@ export async function apiFetch<T>(
   urlPath: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const url = `${serverUrl()}${urlPath}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-      "Content-Type": "application/json",
-      ...(options.headers ?? {}),
-    },
-  });
+  statusIndicator.begin();
+  try {
+    const url = `${serverUrl()}${urlPath}`;
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
+        "Content-Type": "application/json",
+        ...(options.headers ?? {}),
+      },
+    });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`mind API ${res.status} ${urlPath}: ${text}`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`mind API ${res.status} ${urlPath}: ${text}`);
+    }
+
+    const result = (await res.json()) as T;
+    statusIndicator.end(true);
+    return result;
+  } catch (err) {
+    statusIndicator.end(false);
+    throw err;
   }
-
-  return res.json() as Promise<T>;
 }

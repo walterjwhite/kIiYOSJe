@@ -107,6 +107,8 @@ export function directionsRouter(db: Db) {
           ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
           ...(body.posture !== undefined ? { posture: body.posture } : {}),
           ...(body.autonomy !== undefined ? { autonomy: body.autonomy } : {}),
+          ...(body.scopeKind !== undefined ? { scopeKind: body.scopeKind } : {}),
+          ...(body.scopeValue !== undefined ? { scopeValue: body.scopeValue } : {}),
           ...(body.confidenceMin !== undefined
             ? { confidenceMin: body.confidenceMin }
             : {}),
@@ -116,6 +118,9 @@ export function directionsRouter(db: Db) {
             : {}),
           ...(body.responsePrompt !== undefined
             ? { responsePrompt: body.responsePrompt }
+            : {}),
+          ...(body.transformPrompt !== undefined
+            ? { transformPrompt: body.transformPrompt }
             : {}),
           version: existing.version + 1,
           updatedAt: now,

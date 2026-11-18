@@ -1,7 +1,7 @@
 {
   "name": "mind-vscode",
   "displayName": "mind",
-  "description": "Local attention manager — Thoughts, Review, Signals, Analytics, Journal, and Devices",
+  "description": "Local attention manager — Queue, Today, Signals, Directions, Learnings, Analytics, Journal, Devices",
   "version": "0.0.1",
   "publisher": "mind-local",
   "license": "BSD-3-Clause",
@@ -15,6 +15,46 @@
   "contributes": {
     "commands": [
       {
+        "command": "mind.queue",
+        "title": "mind: Open Queue"
+      },
+      {
+        "command": "mind.brief",
+        "title": "mind: Open Today Brief"
+      },
+      {
+        "command": "mind.signals",
+        "title": "mind: Open Signals"
+      },
+      {
+        "command": "mind.directions",
+        "title": "mind: Open Directions"
+      },
+      {
+        "command": "mind.learnings",
+        "title": "mind: Open Learnings"
+      },
+      {
+        "command": "mind.analytics",
+        "title": "mind: Open Analytics"
+      },
+      {
+        "command": "mind.journal",
+        "title": "mind: Open Journal"
+      },
+      {
+        "command": "mind.systemEvents",
+        "title": "mind: Open System Events"
+      },
+      {
+        "command": "mind.devices",
+        "title": "mind: Open Devices"
+      },
+      {
+        "command": "mind.settings",
+        "title": "mind: Open Settings"
+      },
+      {
         "command": "mind.capture",
         "title": "mind: Capture Thought"
       },
@@ -27,126 +67,18 @@
         "title": "mind: Resume Sends"
       },
       {
-        "command": "mind.brief",
-        "title": "mind: Open Today Brief"
-      },
-      {
         "command": "mind.direction.edit",
-        "title": "mind: Edit Directions"
+        "title": "mind: Edit Directions (YAML)"
       },
       {
         "command": "mind.ai.configure",
         "title": "mind: Configure AI Provider"
       },
       {
-        "command": "mind.thought.open",
-        "title": "mind: Open Thought"
-      },
-      {
-        "command": "mind.action.send",
-        "title": "mind: Approve & Send"
-      },
-      {
-        "command": "mind.action.discard",
-        "title": "mind: Discard"
-      },
-      {
-        "command": "mind.signals.setRange",
-        "icon": "$(calendar)",
-        "title": "mind: Set Signals Range"
-      },
-      {
-        "command": "mind.signals.refresh",
-        "icon": "$(refresh)",
-        "title": "mind: Refresh Signals"
-      },
-      {
-        "command": "mind.signal.reclassify",
-        "title": "mind: Reclassify Signal"
-      },
-      {
-        "command": "mind.journal.refresh",
-        "icon": "$(refresh)",
-        "title": "mind: Refresh Journal"
-      },
-      {
-        "command": "mind.analytics",
-        "title": "mind: Open Analytics"
-      },
-      {
-        "command": "mind.devices",
-        "title": "mind: Open Devices"
-      },
-      {
         "command": "mind.notifications.configure",
         "title": "mind: Configure Notification Quiet Period"
-      },
-      {
-        "command": "mind.review.focus",
-        "title": "mind: Focus Review"
-      },
-      {
-        "command": "mind.refresh",
-        "icon": "$(refresh)",
-        "title": "mind: Refresh"
       }
     ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "mind.brief",
-          "group": "navigation",
-          "when": "view == mind.thoughts"
-        },
-        {
-          "command": "mind.capture",
-          "group": "navigation",
-          "when": "view == mind.thoughts"
-        },
-        {
-          "command": "mind.refresh",
-          "group": "navigation@3",
-          "when": "view == mind.thoughts && mind.thoughts.error"
-        },
-        {
-          "command": "mind.refresh",
-          "group": "navigation@3",
-          "when": "view == mind.review && mind.review.error"
-        },
-        {
-          "command": "mind.signals.setRange",
-          "when": "view == mind.signals",
-          "group": "navigation@1"
-        },
-        {
-          "command": "mind.signals.refresh",
-          "when": "view == mind.signals",
-          "group": "navigation@2"
-        },
-        {
-          "command": "mind.journal.refresh",
-          "when": "view == mind.journal",
-          "group": "navigation@1"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "mind.action.send",
-          "when": "view == mind.review && viewItem == action",
-          "group": "inline@1"
-        },
-        {
-          "command": "mind.action.discard",
-          "when": "view == mind.review && viewItem == action",
-          "group": "inline@2"
-        },
-        {
-          "command": "mind.signal.reclassify",
-          "when": "view == mind.signals && viewItem == signal",
-          "group": "inline@1"
-        }
-      ]
-    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -159,45 +91,12 @@
     "views": {
       "mind": [
         {
-          "id": "mind.thoughts",
-          "name": "Thoughts",
-          "type": "tree"
-        },
-        {
-          "id": "mind.review",
-          "name": "Review",
-          "type": "tree"
-        },
-        {
-          "id": "mind.signals",
-          "name": "Signals",
-          "type": "tree"
-        },
-        {
-          "id": "mind.journal",
-          "name": "Journal",
+          "id": "mind.nav",
+          "name": "mind",
           "type": "tree"
         }
       ]
     },
-    "viewsWelcome": [
-      {
-        "view": "mind.thoughts",
-        "contents": "Nothing needs your attention right now.\n[Capture a thought](command:mind.capture) [Open Today Brief](command:mind.brief)"
-      },
-      {
-        "view": "mind.review",
-        "contents": "Nothing is awaiting your approval.\n[Open Today Brief](command:mind.brief)"
-      },
-      {
-        "view": "mind.signals",
-        "contents": "No signals have arrived today."
-      },
-      {
-        "view": "mind.journal",
-        "contents": "The journal fills in as signals are ingested.\n[Open Today Brief](command:mind.brief)"
-      }
-    ],
     "configuration": {
       "title": "mind",
       "properties": {

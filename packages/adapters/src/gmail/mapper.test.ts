@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildRawMessage,
   extractBody,
+  extractHtmlBody,
   parseAddresses,
   toSignal,
 } from "./mapper.js";
@@ -23,6 +24,25 @@ describe("extractBody", () => {
 
   it("returns an empty string for an empty payload", () => {
     expect(extractBody(undefined)).toBe("");
+  });
+});
+
+describe("extractHtmlBody", () => {
+  it("finds a nested text/html part", () => {
+    const html = extractHtmlBody({
+      mimeType: "multipart/alternative",
+      parts: [
+        { mimeType: "text/plain", body: { data: encoded("plain text") } },
+        { mimeType: "text/html", body: { data: encoded("<p>html body</p>") } },
+      ],
+    });
+    expect(html).toBe("<p>html body</p>");
+  });
+
+  it("returns undefined when there is no HTML part", () => {
+    expect(
+      extractHtmlBody({ mimeType: "text/plain", body: { data: encoded("plain only") } }),
+    ).toBeUndefined();
   });
 });
 
@@ -63,6 +83,54 @@ describe("toSignal", () => {
     expect(signal.body).toBe("Please review.");
     expect(signal.receivedAt.toISOString()).toBe("2026-11-14T09:00:00.000Z");
     expect(signal.urgencyHint).toBe(1);
+  });
+
+  it("maps Cc, Bcc, and an HTML body when present", () => {
+    const signal = toSignal(
+      {
+        id: "m-3",
+        threadId: "t-3",
+        payload: {
+          mimeType: "multipart/alternative",
+          headers: [
+            { name: "From", value: "Alice <alice@example.com>" },
+            { name: "To", value: "me@example.com" },
+            { name: "Cc", value: "carol@example.com, Dave <dave@example.com>" },
+            { name: "Bcc", value: "eve@example.com" },
+            { name: "Subject", value: "FYI" },
+          ],
+          parts: [
+            { mimeType: "text/plain", body: { data: encoded("plain copy") } },
+            { mimeType: "text/html", body: { data: encoded("<p>html copy</p>") } },
+          ],
+        },
+      },
+      "me@example.com",
+    );
+
+    expect(signal.cc).toEqual(["carol@example.com", "dave@example.com"]);
+    expect(signal.bcc).toEqual(["eve@example.com"]);
+    expect(signal.htmlBody).toBe("<p>html copy</p>");
+  });
+
+  it("omits cc/bcc/htmlBody entirely when absent, rather than empty arrays", () => {
+    const signal = toSignal(
+      {
+        id: "m-4",
+        threadId: "t-4",
+        payload: {
+          headers: [
+            { name: "From", value: "alice@example.com" },
+            { name: "To", value: "me@example.com" },
+          ],
+        },
+      },
+      "me@example.com",
+    );
+
+    expect(signal.cc).toBeUndefined();
+    expect(signal.bcc).toBeUndefined();
+    expect(signal.htmlBody).toBeUndefined();
   });
 
   it("tags the account and dedupes on the Message-ID header", () => {

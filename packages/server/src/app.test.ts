@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as schema from "@mind/core";
-import { notificationsConfigPath } from "@mind/core";
+import { notificationsConfigPath, displaySettingsPath } from "@mind/core";
 import { AdapterRegistry } from "@mind/pipeline";
 import { buildApp } from "./app.js";
 
@@ -92,6 +92,83 @@ describe("/thoughts", () => {
     expect(listRes.status).toBe(200);
     const list = (await listRes.json()) as { id: string }[];
     expect(list.some((t) => t.id === id)).toBe(true);
+  });
+});
+
+describe("/directions", () => {
+  function insertDirection(db: ReturnType<typeof openTestDb>) {
+    db.insert(schema.directions)
+      .values({
+        id: "work/boss",
+        name: "boss-requests",
+        scopeKind: "person",
+        scopeValue: "boss@corp.example",
+        posture: "absorb",
+        standard: "Original guidance.",
+        autonomy: "draft",
+        confidenceMin: 0.7,
+        enabled: true,
+        version: 1,
+      })
+      .run();
+  }
+
+  it("edits scope, posture, and autonomy via PUT", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+    insertDirection(db);
+
+    const res = await app.request("/directions/work%2Fboss", {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        scopeKind: "project",
+        scopeValue: "platform-team",
+        posture: "surface",
+        autonomy: "observe",
+      }),
+    });
+    expect(res.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.directions)
+      .where(eq(schema.directions.id, "work/boss"))
+      .get();
+    expect(updated?.scopeKind).toBe("project");
+    expect(updated?.scopeValue).toBe("platform-team");
+    expect(updated?.posture).toBe("surface");
+    expect(updated?.autonomy).toBe("observe");
+  });
+
+  it("accepts 'guidance' as an alias for 'standard' on PUT", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+    insertDirection(db);
+
+    const res = await app.request("/directions/work%2Fboss", {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ guidance: "Updated guidance via alias." }),
+    });
+    expect(res.status).toBe(200);
+
+    const updated = db
+      .select()
+      .from(schema.directions)
+      .where(eq(schema.directions.id, "work/boss"))
+      .get();
+    expect(updated?.standard).toBe("Updated guidance via alias.");
   });
 });
 
@@ -299,6 +376,101 @@ describe("/signals (list + reclassify)", () => {
     expect(evs.length).toBe(1);
   });
 
+  it("filters by hour-granularity range (1h/4h/12h)", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString();
+    const sixHoursAgo = new Date(Date.now() - 6 * 3_600_000).toISOString();
+
+    db.insert(schema.signals)
+      .values([
+        {
+          id: "sig-recent",
+          adapter: "test",
+          externalId: "e-recent",
+          threadId: null,
+          sender: "a@example.com",
+          recipients: JSON.stringify([]),
+          kind: "message",
+          body: "recent",
+          receivedAt: twoHoursAgo,
+          urgencyHint: null,
+          dedupeKey: "test:e-recent",
+        },
+        {
+          id: "sig-older",
+          adapter: "test",
+          externalId: "e-older",
+          threadId: null,
+          sender: "a@example.com",
+          recipients: JSON.stringify([]),
+          kind: "message",
+          body: "older",
+          receivedAt: sixHoursAgo,
+          urgencyHint: null,
+          dedupeKey: "test:e-older",
+        },
+      ])
+      .run();
+
+    const res4h = await app.request("/signals?range=4h", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const list4h = (await res4h.json()) as { id: string }[];
+    expect(list4h.some((s) => s.id === "sig-recent")).toBe(true);
+    expect(list4h.some((s) => s.id === "sig-older")).toBe(false);
+
+    const res12h = await app.request("/signals?range=12h", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const list12h = (await res12h.json()) as { id: string }[];
+    expect(list12h.some((s) => s.id === "sig-recent")).toBe(true);
+    expect(list12h.some((s) => s.id === "sig-older")).toBe(true);
+  });
+
+  it("filters by an explicit since/until window, overriding range", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    const target = new Date(Date.now() - 10 * 3_600_000);
+    db.insert(schema.signals)
+      .values({
+        id: "sig-window",
+        adapter: "test",
+        externalId: "e-window",
+        threadId: null,
+        sender: "a@example.com",
+        recipients: JSON.stringify([]),
+        kind: "message",
+        body: "windowed",
+        receivedAt: target.toISOString(),
+        urgencyHint: null,
+        dedupeKey: "test:e-window",
+      })
+      .run();
+
+    const since = new Date(target.getTime() - 3_600_000).toISOString();
+    const until = new Date(target.getTime() + 3_600_000).toISOString();
+
+    const res = await app.request(`/signals?since=${since}&until=${until}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const list = (await res.json()) as { id: string }[];
+    expect(list.some((s) => s.id === "sig-window")).toBe(true);
+
+    const missRes = await app.request(
+      `/signals?since=${new Date(target.getTime() + 2 * 3_600_000).toISOString()}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    const missList = (await missRes.json()) as { id: string }[];
+    expect(missList.some((s) => s.id === "sig-window")).toBe(false);
+  });
+
   it("rejects reclassifying to an unknown direction", async () => {
     const db = openTestDb();
     const adapters = new AdapterRegistry();
@@ -333,6 +505,160 @@ describe("/signals (list + reclassify)", () => {
     });
     expect(res.status).toBe(422);
   });
+
+  it("links a signal to an existing thought, then unlinks it", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    db.insert(schema.signals)
+      .values({
+        id: "sig-link-1",
+        adapter: "test",
+        externalId: "e-link-1",
+        threadId: null,
+        sender: "a@example.com",
+        recipients: JSON.stringify([]),
+        kind: "message",
+        body: "hi",
+        receivedAt: new Date().toISOString(),
+        urgencyHint: null,
+        dedupeKey: "test:e-link-1",
+      })
+      .run();
+
+    db.insert(schema.thoughts)
+      .values({ id: "th-1", title: "Existing thought", state: "seedling" })
+      .run();
+
+    const linkRes = await app.request("/signals/sig-link-1/thought", {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ thoughtId: "th-1" }),
+    });
+    expect(linkRes.status).toBe(200);
+    const linked = (await linkRes.json()) as { thoughtId: string; created: boolean };
+    expect(linked.thoughtId).toBe("th-1");
+    expect(linked.created).toBe(false);
+
+    const afterLink = db
+      .select()
+      .from(schema.signals)
+      .where(eq(schema.signals.id, "sig-link-1"))
+      .get();
+    expect(afterLink?.thoughtId).toBe("th-1");
+
+    const unlinkRes = await app.request("/signals/sig-link-1/thought", {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(unlinkRes.status).toBe(200);
+
+    const afterUnlink = db
+      .select()
+      .from(schema.signals)
+      .where(eq(schema.signals.id, "sig-link-1"))
+      .get();
+    expect(afterUnlink?.thoughtId).toBeNull();
+  });
+
+  it("links a signal to a new thought created from a title", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    db.insert(schema.signals)
+      .values({
+        id: "sig-link-2",
+        adapter: "test",
+        externalId: "e-link-2",
+        threadId: null,
+        sender: "a@example.com",
+        recipients: JSON.stringify([]),
+        kind: "message",
+        body: "hi",
+        receivedAt: new Date().toISOString(),
+        urgencyHint: null,
+        dedupeKey: "test:e-link-2",
+      })
+      .run();
+
+    const res = await app.request("/signals/sig-link-2/thought", {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ title: "A brand new thought" }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { thoughtId: string; created: boolean };
+    expect(body.created).toBe(true);
+
+    const thought = db
+      .select()
+      .from(schema.thoughts)
+      .where(eq(schema.thoughts.id, body.thoughtId))
+      .get();
+    expect(thought?.title).toBe("A brand new thought");
+  });
+
+  it("marks a signal reviewed, then clears it", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    db.insert(schema.signals)
+      .values({
+        id: "sig-review-1",
+        adapter: "test",
+        externalId: "e-review-1",
+        threadId: null,
+        sender: "a@example.com",
+        recipients: JSON.stringify([]),
+        kind: "message",
+        body: "FYI only",
+        receivedAt: new Date().toISOString(),
+        urgencyHint: null,
+        disposition: "filed",
+        dedupeKey: "test:e-review-1",
+      })
+      .run();
+
+    const putRes = await app.request("/signals/sig-review-1/reviewed", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(putRes.status).toBe(200);
+    const putBody = (await putRes.json()) as { reviewedAt: string };
+    expect(putBody.reviewedAt).toBeTruthy();
+
+    const afterMark = db
+      .select()
+      .from(schema.signals)
+      .where(eq(schema.signals.id, "sig-review-1"))
+      .get();
+    expect(afterMark?.reviewedAt).toBeTruthy();
+
+    const delRes = await app.request("/signals/sig-review-1/reviewed", {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(delRes.status).toBe(200);
+
+    const afterClear = db
+      .select()
+      .from(schema.signals)
+      .where(eq(schema.signals.id, "sig-review-1"))
+      .get();
+    expect(afterClear?.reviewedAt).toBeNull();
+  });
 });
 
 describe("/events (Journal)", () => {
@@ -355,6 +681,142 @@ describe("/events (Journal)", () => {
     expect(res.status).toBe(200);
     const rows = (await res.json()) as { id: string }[];
     expect(rows.length).toBe(2);
+  });
+
+  it("appends an operator note and makes it retrievable by kind", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    const postRes = await app.request("/events/notes", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text: "Boss mentioned a reorg is coming next quarter." }),
+    });
+    expect(postRes.status).toBe(201);
+    const created = (await postRes.json()) as { id: string; at: string };
+    expect(created.id).toBeTruthy();
+    expect(created.at).toBeTruthy();
+
+    const listRes = await app.request("/events?kind=journal.note", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(listRes.status).toBe(200);
+    const notes = (await listRes.json()) as { id: string; actor: string; payload: string }[];
+    expect(notes.length).toBe(1);
+    expect(notes[0]?.actor).toBe("user");
+    expect(JSON.parse(notes[0]!.payload).text).toBe(
+      "Boss mentioned a reorg is coming next quarter.",
+    );
+  });
+
+  it("rejects an empty note", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    const res = await app.request("/events/notes", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text: "" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("filters by range, same semantics as /signals", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString();
+    const sixHoursAgo = new Date(Date.now() - 6 * 3_600_000).toISOString();
+
+    db.insert(schema.events)
+      .values([
+        { id: "ev-recent", actor: "system", kind: "signal.processed", payload: "{}", at: twoHoursAgo },
+        { id: "ev-older", actor: "system", kind: "signal.processed", payload: "{}", at: sixHoursAgo },
+      ])
+      .run();
+
+    const res4h = await app.request("/events?range=4h", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const list4h = (await res4h.json()) as { id: string }[];
+    expect(list4h.some((e) => e.id === "ev-recent")).toBe(true);
+    expect(list4h.some((e) => e.id === "ev-older")).toBe(false);
+
+    const res12h = await app.request("/events?range=12h", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const list12h = (await res12h.json()) as { id: string }[];
+    expect(list12h.some((e) => e.id === "ev-recent")).toBe(true);
+    expect(list12h.some((e) => e.id === "ev-older")).toBe(true);
+  });
+});
+
+describe("/proposals/insights (stored AI-generated narratives)", () => {
+  it("returns an empty list when no run has produced one", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    const res = await app.request("/proposals/insights", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const rows = (await res.json()) as unknown[];
+    expect(rows).toEqual([]);
+  });
+
+  it("surfaces a stored learning.insight event, newest first", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    db.insert(schema.events)
+      .values([
+        {
+          id: "ev-insight-older",
+          actor: "system",
+          kind: "learning.insight",
+          at: new Date(Date.now() - 60_000).toISOString(),
+          payload: JSON.stringify({
+            at: new Date(Date.now() - 60_000).toISOString(),
+            insight: "Older insight.",
+            proposalCount: 1,
+          }),
+        },
+        {
+          id: "ev-insight-newer",
+          actor: "system",
+          kind: "learning.insight",
+          payload: JSON.stringify({
+            at: new Date().toISOString(),
+            insight: "Override rate rose because the boss direction matched unrelated status pings.",
+            proposalCount: 2,
+          }),
+        },
+      ])
+      .run();
+
+    const res = await app.request("/proposals/insights", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const rows = (await res.json()) as { insight: string; proposalCount: number }[];
+    expect(rows.length).toBe(2);
+    expect(rows[0]?.insight).toContain("Override rate");
   });
 });
 
@@ -439,6 +901,60 @@ describe("/admin/notifications (quiet period)", () => {
     const body = (await getRes.json()) as { startHour: number; startMinute: number };
     expect(body.startHour).toBe(9);
     expect(body.startMinute).toBe(30);
+  });
+});
+
+describe("/admin/display (display settings)", () => {
+  afterEach(() => {
+    try {
+      unlinkSync(displaySettingsPath());
+    } catch {
+      /* already absent */
+    }
+  });
+
+  it("returns defaults when no config has been written", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    const res = await app.request("/admin/display", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { showSubject: boolean; showCc: boolean };
+    expect(body.showSubject).toBe(true);
+    expect(body.showCc).toBe(true);
+  });
+
+  it("persists a custom setting and reflects it back", async () => {
+    const db = openTestDb();
+    const adapters = new AdapterRegistry();
+    const app = buildApp(db, adapters);
+    const token = auth.getToken();
+
+    const putRes = await app.request("/admin/display", {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        showSubject: true,
+        showCc: false,
+        showBcc: false,
+        preferHtmlBody: false,
+      }),
+    });
+    expect(putRes.status).toBe(200);
+
+    const getRes = await app.request("/admin/display", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = (await getRes.json()) as { showCc: boolean; preferHtmlBody: boolean };
+    expect(body.showCc).toBe(false);
+    expect(body.preferHtmlBody).toBe(false);
   });
 });
 

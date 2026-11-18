@@ -1,5 +1,6 @@
 /**
- * Admin routes — pause/resume kill switch, status read, and AI provider config.
+ * Admin routes — pause/resume kill switch, status read, AI provider config,
+ * notification quiet period, and display settings.
  *
  * POST /admin/pause       → activates the paused flag file
  * POST /admin/resume      → removes the paused flag file
@@ -7,6 +8,8 @@
  * GET  /admin/ai-config   → returns the current effective AI config (key masked)
  * PUT  /admin/ai-config   → writes ~/.config/kIiYOSJe/mind/ai.json; takes effect on the next signal,
  *                           no server restart required
+ * GET  /admin/display     → which signal fields/attributes the extension shows by default
+ * PUT  /admin/display     → writes ~/.config/kIiYOSJe/mind/display.json
  */
 
 import { Hono } from "hono";
@@ -26,6 +29,9 @@ import {
   writeQuietPeriodConfig,
   isWithinNotificationWindow,
   QuietPeriodConfigSchema,
+  displaySettings,
+  writeDisplaySettings,
+  DisplaySettingsSchema,
 } from "@mind/core";
 
 const AiConfigRequestSchema = z.object({
@@ -98,6 +104,19 @@ export function adminRouter() {
   app.put("/notifications", zValidator("json", QuietPeriodConfigSchema), (c) => {
     const body = c.req.valid("json");
     writeQuietPeriodConfig(body);
+    return c.json({ ok: true });
+  });
+
+  // GET /admin/display — which signal fields/attributes the extension shows
+  // by default (subject, Cc, Bcc, preferring the HTML body when present).
+  app.get("/display", (c) => {
+    return c.json(displaySettings());
+  });
+
+  // PUT /admin/display — overwrite the display settings.
+  app.put("/display", zValidator("json", DisplaySettingsSchema), (c) => {
+    const body = c.req.valid("json");
+    writeDisplaySettings(body);
     return c.json({ ok: true });
   });
 

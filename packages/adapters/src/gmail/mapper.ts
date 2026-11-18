@@ -39,6 +39,11 @@ export function extractBody(part: GmailPart | undefined): string {
   return findDecoded(part, "text/plain") ?? findDecoded(part) ?? "";
 }
 
+/** The first text/html body in the tree, for native rendering alongside the plain-text extract. */
+export function extractHtmlBody(part: GmailPart | undefined): string | undefined {
+  return findDecoded(part, "text/html");
+}
+
 function findDecoded(
   part: GmailPart | undefined,
   mimeType?: string,
@@ -81,6 +86,9 @@ export function toSignal(
     .trim()
     .replace(/^<|>$/g, "")
     .toLowerCase();
+  const cc = parseAddresses(header(headers, "cc"));
+  const bcc = parseAddresses(header(headers, "bcc"));
+  const htmlBody = extractHtmlBody(message.payload);
 
   return {
     adapter: adapterIdForAccount("gmail", account),
@@ -90,9 +98,12 @@ export function toSignal(
     threadId: message.threadId,
     sender: parseAddresses(from)[0] ?? from,
     recipients: parseAddresses(header(headers, "to")),
+    ...(cc.length > 0 ? { cc } : {}),
+    ...(bcc.length > 0 ? { bcc } : {}),
     kind: "email",
     subject: header(headers, "subject"),
     body: message.body ?? extractBody(message.payload),
+    ...(htmlBody ? { htmlBody } : {}),
     receivedAt,
     urgencyHint: message.labelIds?.includes("IMPORTANT") ? 1 : null,
   };

@@ -1,6 +1,5 @@
-import * as vscode from "vscode";
-import * as crypto from "node:crypto";
 import { apiFetch } from "./api-client.js";
+import { SectionPanel, esc } from "./webview-base.js";
 
 interface Thought {
   id: string;
@@ -37,181 +36,120 @@ interface BriefPayload {
   directions: { active: { id: string; name: string; posture: string }[] };
 }
 
-export class BriefPanel {
+export class BriefPanel extends SectionPanel {
   private static current: BriefPanel | undefined;
-  private readonly panel: vscode.WebviewPanel;
+  private loadError: string | undefined;
 
-  static show(context: vscode.ExtensionContext): void {
+  static show(): void {
     if (BriefPanel.current) {
-      BriefPanel.current.panel.reveal();
+      BriefPanel.current.reveal();
       return;
     }
-    BriefPanel.current = new BriefPanel(context);
+    BriefPanel.current = new BriefPanel();
   }
 
-  private constructor(context: vscode.ExtensionContext) {
-    this.panel = vscode.window.createWebviewPanel(
-      "mind.brief",
-      "Today — mind",
-      vscode.ViewColumn.One,
-      { enableScripts: true },
-    );
-
-    this.panel.onDidDispose(() => {
-      BriefPanel.current = undefined;
-    });
-
-    // Handle messages posted back from the webview script
-    this.panel.webview.onDidReceiveMessage((msg: { command: string }) => {
-      if (msg.command === "refresh") {
-        this.render().catch((err) =>
-          vscode.window.showErrorMessage(String(err)),
-        );
-      }
-    });
-
-    this.render().catch((err) =>
-      vscode.window.showErrorMessage(String(err)),
-    );
+  private constructor() {
+    super("mind.brief", "Today — mind");
+    this.load();
   }
 
-  private async render(): Promise<void> {
+  protected onDispose(): void {
+    BriefPanel.current = undefined;
+  }
+
+  protected onMessage(msg: unknown): void {
+    const m = msg as { command?: string };
+    if (m.command === "refresh") this.load();
+  }
+
+  private async load(): Promise<void> {
     let brief: BriefPayload;
     try {
       brief = await apiFetch<BriefPayload>("/brief");
+      this.loadError = undefined;
     } catch (err) {
-      this.panel.webview.html = `<body><pre>${String(err)}</pre></body>`;
+      this.loadError = String(err);
+      this.render(undefined);
+      return;
+    }
+    this.render(brief);
+  }
+
+  private render(brief: BriefPayload | undefined): void {
+    if (this.loadError || !brief) {
+      this.panel.webview.html = this.shell(
+        "Today",
+        `<p class="danger">Can't reach the mind server.</p>
+         <p class="sub">${esc(this.loadError ?? "")}</p>
+         <button data-action="refresh">↺ Retry</button>`,
+      );
       return;
     }
 
-    // A fresh nonce per render keeps the CSP narrow while allowing inline scripts.
-    const nonce = crypto.randomBytes(16).toString("base64");
-
     const sections: string[] = [];
 
-    sections.push(`<h1>Today — ${esc(brief.date)}</h1>`);
+    sections.push(`<div class="toolbar"><button data-action="refresh">↺ Refresh</button></div>`);
 
-    // Refresh button — posts back to the extension host
     sections.push(
-      `<p><button id="refresh-btn">↺ Refresh</button></p>`,
+      `<h2>Directions in effect (${brief.directions.active.length})</h2>
+       <ul>${brief.directions.active
+         .map((d) => `<li>${esc(d.name)} <span class="badge">${esc(d.posture)}</span></li>`)
+         .join("")}</ul>`,
     );
 
-    // Directions in effect
-    sections.push(
-      `<section>
-        <h2>Directions in effect (${brief.directions.active.length})</h2>
-        <ul>${brief.directions.active
-          .map((d) => `<li>${esc(d.name)} <span class="posture">${esc(d.posture)}</span></li>`)
-          .join("")}</ul>
-      </section>`,
-    );
-
-    // Overdue — response expected (styled with error foreground)
     if (brief.thoughts.overdue.length > 0) {
       sections.push(
-        `<section>
-          <h2 class="overdue">Overdue — response expected (${brief.thoughts.overdue.length})</h2>
-          <ul class="overdue">${brief.thoughts.overdue
-            .map(
-              (t) =>
-                `<li><strong>${esc(t.title)}</strong>${t.escalateBy ? ` <span class="meta">escalate by ${esc(t.escalateBy)}</span>` : ""}</li>`,
-            )
-            .join("")}</ul>
-        </section>`,
+        `<h2 class="danger">Overdue — response expected (${brief.thoughts.overdue.length})</h2>
+         <ul>${brief.thoughts.overdue
+           .map(
+             (t) =>
+               `<li><strong>${esc(t.title)}</strong>${t.escalateBy ? ` <span class="meta">escalate by ${esc(t.escalateBy)}</span>` : ""}</li>`,
+           )
+           .join("")}</ul>`,
       );
     }
 
-    // Active thoughts
     sections.push(
-      `<section>
-        <h2>Active thoughts (${brief.thoughts.active.length})</h2>
-        <ul>${brief.thoughts.active
-          .map((t) => `<li>${esc(t.title)}</li>`)
-          .join("")}</ul>
-      </section>`,
+      `<h2>Active thoughts (${brief.thoughts.active.length})</h2>
+       <ul>${brief.thoughts.active.map((t) => `<li>${esc(t.title)}</li>`).join("") || '<li class="empty">Nothing active.</li>'}</ul>`,
     );
 
-    // New today
     if (brief.thoughts.newToday.length > 0) {
       sections.push(
-        `<section>
-          <h2>New today (${brief.thoughts.newToday.length})</h2>
-          <ul>${brief.thoughts.newToday
-            .map((t) => `<li>${esc(t.title)}</li>`)
-            .join("")}</ul>
-        </section>`,
+        `<h2>New today (${brief.thoughts.newToday.length})</h2>
+         <ul>${brief.thoughts.newToday.map((t) => `<li>${esc(t.title)}</li>`).join("")}</ul>`,
       );
     }
 
-    // Review due
     if (brief.thoughts.reviewDue.length > 0) {
       sections.push(
-        `<section>
-          <h2>Review due (${brief.thoughts.reviewDue.length})</h2>
-          <ul>${brief.thoughts.reviewDue
-            .map(
-              (t) =>
-                `<li>${esc(t.title)}${t.reviewAt ? ` <span class="meta">review by ${esc(t.reviewAt)}</span>` : ""}</li>`,
-            )
-            .join("")}</ul>
-        </section>`,
+        `<h2>Review due (${brief.thoughts.reviewDue.length})</h2>
+         <ul>${brief.thoughts.reviewDue
+           .map(
+             (t) =>
+               `<li>${esc(t.title)}${t.reviewAt ? ` <span class="meta">review by ${esc(t.reviewAt)}</span>` : ""}</li>`,
+           )
+           .join("")}</ul>`,
       );
     }
 
-    // Awaiting approval
     sections.push(
-      `<section>
-        <h2>Awaiting your approval (${brief.actions.proposed.length})</h2>
-        ${
-          brief.actions.proposed.length > 0
-            ? `<p><a href="command:mind.review.focus">open Review panel</a></p>`
-            : "<p>Nothing pending.</p>"
-        }
-      </section>`,
+      `<h2>Awaiting your approval (${brief.actions.proposed.length})</h2>
+       ${
+         brief.actions.proposed.length > 0
+           ? `<p><a href="command:mind.queue">open Queue</a></p>`
+           : '<p class="empty">Nothing pending.</p>'
+       }`,
     );
 
-    // Absorbed today
     sections.push(
-      `<section>
-        <h2>Absorbed today</h2>
-        <p>${brief.absorb.today} signal${brief.absorb.today === 1 ? "" : "s"} handled without reaching you.</p>
-      </section>`,
+      `<h2>Absorbed today</h2>
+       <p>${brief.absorb.today} signal${brief.absorb.today === 1 ? "" : "s"} handled without reaching you.</p>`,
     );
 
-    this.panel.webview.html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline';">
-  <style>
-    body    { font-family: var(--vscode-font-family); padding: 1.5em; max-width: 720px; }
-    h1      { font-size: 1.3em; margin-bottom: 1em; }
-    h2      { font-size: 1em; margin-top: 1.5em; color: var(--vscode-descriptionForeground); }
-    ul      { padding-left: 1.2em; }
-    .overdue        { color: var(--vscode-errorForeground); }
-    .posture        { opacity: 0.7; font-style: italic; font-size: 0.9em; }
-    .meta           { opacity: 0.7; font-size: 0.85em; }
-    button          { cursor: pointer; padding: 4px 10px; }
-  </style>
-</head>
-<body>
-${sections.join("\n")}
-<script nonce="${nonce}">
-  (function() {
-    const vscode = acquireVsCodeApi();
-    document.getElementById('refresh-btn').addEventListener('click', function() {
-      vscode.postMessage({ command: 'refresh' });
-    });
-  })();
-</script>
-</body>
-</html>`;
+    this.panel.webview.html = this.shell(
+      `Today — ${esc(brief.date)}`,
+      sections.join("\n"),
+    );
   }
-}
-
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }

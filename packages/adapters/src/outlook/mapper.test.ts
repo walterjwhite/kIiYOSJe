@@ -41,4 +41,39 @@ describe("fromGraph", () => {
     expect(signal.threadId).toBeNull();
     expect(signal.subject).toBeUndefined();
   });
+
+  it("maps cc/bcc and keeps the original HTML body alongside the stripped text", () => {
+    const signal = toSignal(
+      fromGraph({
+        id: "AAMk3",
+        from: { emailAddress: { address: "alice@example.com" } },
+        toRecipients: [{ emailAddress: { address: "me@example.com" } }],
+        ccRecipients: [
+          { emailAddress: { address: "Carol@Example.com" } },
+          { emailAddress: { address: "dave@example.com" } },
+        ],
+        bccRecipients: [{ emailAddress: { address: "eve@example.com" } }],
+        body: { contentType: "html", content: "<p>html copy</p>" },
+      }),
+    );
+
+    expect(signal.cc).toEqual(["carol@example.com", "dave@example.com"]);
+    expect(signal.bcc).toEqual(["eve@example.com"]);
+    expect(signal.body).toBe("html copy");
+    expect(signal.htmlBody).toBe("<p>html copy</p>");
+  });
+
+  it("omits cc/bcc/htmlBody when absent", () => {
+    const signal = toSignal(
+      fromGraph({
+        id: "AAMk4",
+        from: { emailAddress: { address: "alice@example.com" } },
+        body: { contentType: "text", content: "plain only" },
+      }),
+    );
+
+    expect(signal.cc).toBeUndefined();
+    expect(signal.bcc).toBeUndefined();
+    expect(signal.htmlBody).toBeUndefined();
+  });
 });

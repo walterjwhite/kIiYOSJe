@@ -26,6 +26,12 @@ export const directions = sqliteTable("directions", {
   guards: text("guards"), // JSON blob of DirectionGuards
   matchPrompt: text("match_prompt"),       // how to recognize a match, beyond scope
   responsePrompt: text("response_prompt"), // how to actually respond, alongside standard
+  // How to rewrite a matched signal's display summary into something
+  // shorter/clearer, without changing its disposition or routing — e.g.
+  // "A new sign-in on..." emails rewritten to name the platform and account
+  // plainly. Optional; when unset, nothing is transformed and the original
+  // body/subject are what's shown, same as before this field existed.
+  transformPrompt: text("transform_prompt"),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   version: integer("version").notNull().default(1),
   createdAt: text("created_at")
@@ -49,8 +55,21 @@ export const signals = sqliteTable(
     threadId: text("thread_id"),
     sender: text("sender").notNull(),
     recipients: text("recipients").notNull(), // JSON string[]
+    /** Mail only, JSON string[]: Cc addresses. */
+    cc: text("cc"),
+    /** Mail only, JSON string[]: Bcc addresses, when visible to this account. */
+    bcc: text("bcc"),
     kind: text("kind").notNull(),
+    /** Mail only: the original subject line. */
+    subject: text("subject"),
     body: text("body").notNull(),
+    /** Mail only: the original HTML body, for native rendering alongside the plain-text extract in `body`. */
+    htmlBody: text("html_body"),
+    // AI-rewritten display summary from a direction's transformPrompt, when
+    // one matched and produced one. The original `body`/`subject` are
+    // never overwritten — this is purely what's shown by default; the
+    // original is always one click away.
+    transformedSummary: text("transformed_summary"),
     receivedAt: text("received_at").notNull(),
     urgencyHint: real("urgency_hint"),
     disposition: text("disposition").notNull().default("new"), // SignalDisposition
@@ -63,6 +82,12 @@ export const signals = sqliteTable(
     // cleared by replyReceivedAt when the other side answers.
     awaitingReplyAt: text("awaiting_reply_at"),
     replyReceivedAt: text("reply_received_at"),
+    // Set when the operator marks a no-response-needed signal as reviewed
+    // (acknowledgement/information signals with no action to approve or
+    // discard) — a lightweight "I've seen this" marker, distinct from a
+    // Thought's own state and from an action's status, since there may be
+    // neither for a signal like this.
+    reviewedAt: text("reviewed_at"),
   },
   (t) => [
     uniqueIndex("signals_dedupe_key_idx").on(t.dedupeKey),

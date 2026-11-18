@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { eq } from "drizzle-orm";
 import * as schema from "@mind/core";
 import { directions, parseCommitment } from "@mind/core";
 import type { NewSignal } from "@mind/core";
@@ -299,5 +300,40 @@ describe("ingest", () => {
     expect(thought?.disputedReason).toBe("needs the budget figure I don't have");
     // No draft is proposed: a plausible wrong reply is the worse failure.
     expect(db.select().from(schema.actions).all()).toHaveLength(0);
+  });
+
+  it("leaves transformedSummary null when the matched direction has no transformPrompt", async () => {
+    const db = setup("surface");
+    await ingest(db, signal, new AdapterRegistry(), overrides());
+
+    const row = db.select().from(schema.signals).get();
+    expect(row?.transformedSummary).toBeNull();
+  });
+
+  it("stores the overridden transform result when the matched direction has a transformPrompt", async () => {
+    const db = setup("surface");
+    db.update(directions)
+      .set({ transformPrompt: "Rewrite as: <one-line summary>" })
+      .where(eq(directions.id, "work/alice"))
+      .run();
+
+    await ingest(db, signal, new AdapterRegistry(), {
+      ...overrides(),
+      transformedSummary: "Report review requested by Alice.",
+    });
+
+    const row = db.select().from(schema.signals).get();
+    expect(row?.transformedSummary).toBe("Report review requested by Alice.");
+    // The original body is untouched — the transform is additive, never a replacement.
+    expect(row?.body).toContain("Can you review the quarterly report");
+  });
+
+  it("skips the transform call entirely when the matched direction has no transformPrompt, even without an override", async () => {
+    const db = setup("surface");
+    const result = await ingest(db, signal, new AdapterRegistry(), overrides());
+
+    expect(result.disposition).toBe("promoted");
+    const row = db.select().from(schema.signals).get();
+    expect(row?.transformedSummary).toBeNull();
   });
 });

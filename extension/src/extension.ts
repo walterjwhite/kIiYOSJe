@@ -1,42 +1,85 @@
 import * as vscode from "vscode";
 import * as path from "node:path";
 import * as os from "node:os";
-import * as fs from "node:fs";
-import { ThoughtsProvider, Thought } from "./thoughts-provider.js";
-import { ReviewProvider } from "./review-provider.js";
-import { BriefPanel } from "./brief-panel.js";
 import { apiFetch } from "./api-client.js";
 import { configureAiProvider, refreshAiStatusBarItem, createAiStatusBarItem } from "./ai-config.js";
 import { configureNotificationQuietPeriod } from "./notifications-config.js";
-import { SignalsProvider, reclassifySignal } from "./signals-provider.js";
-import { JournalProvider } from "./journal-provider.js";
+import { NavProvider } from "./nav-provider.js";
+import { QueuePanel } from "./queue-panel.js";
+import { BriefPanel } from "./brief-panel.js";
+import { SignalsPanel } from "./signals-panel.js";
+import { SignalDetailPanel } from "./signal-detail-panel.js";
+import { DirectionsPanel } from "./directions-panel.js";
+import { LearningsPanel } from "./learnings-panel.js";
 import { AnalyticsPanel } from "./analytics-panel.js";
-import { watchForServerRecovery } from "./server-watch.js";
+import { JournalPanel } from "./journal-panel.js";
+import { SystemEventsPanel } from "./system-events-panel.js";
 import { DevicesPanel } from "./devices-panel.js";
+import { SettingsPanel } from "./settings-panel.js";
+import { createStatusIndicatorItem, statusIndicator } from "./status-indicator.js";
 
+/**
+ * The sidebar is one short list of section links (NavProvider) — mirroring
+ * the mockup's single top nav bar — not a set of trees each dumping live
+ * data into view at rest. Every section (Queue, Today, Signals, Directions,
+ * Learnings, Analytics, Journal, Devices) opens as its own webview panel
+ * only once clicked, which is where all the detail the mockup shows lives.
+ * This keeps the sidebar itself calm: a goal of this tool, not an
+ * incidental side effect of how VS Code happens to lay out tree views.
+ */
 export function activate(context: vscode.ExtensionContext): void {
-  const thoughtsProvider = new ThoughtsProvider();
-  const reviewProvider = new ReviewProvider();
-  const signalsProvider = new SignalsProvider();
-  const journalProvider = new JournalProvider();
-  const trees = [
-    thoughtsProvider,
-    reviewProvider,
-    signalsProvider,
-    journalProvider,
-  ];
+  const navTreeView = vscode.window.createTreeView("mind.nav", {
+    treeDataProvider: new NavProvider(),
+  });
+  context.subscriptions.push(navTreeView);
+
+  // Status indicator: blue+spinning while any apiFetch call is in flight,
+  // green briefly on success, red on failure, yellow for a flagged warning.
+  // Mirrored onto the nav tree's badge so it's visible even when the status
+  // bar is crowded or hidden.
+  const statusItem = createStatusIndicatorItem();
+  context.subscriptions.push(statusItem);
+  statusIndicator.mirrorBadge(navTreeView);
+
+  // ── Section panels ───────────────────────────────────────────────────────
 
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider("mind.thoughts", thoughtsProvider),
-    vscode.window.registerTreeDataProvider("mind.review", reviewProvider),
-    vscode.window.registerTreeDataProvider("mind.signals", signalsProvider),
-    vscode.window.registerTreeDataProvider("mind.journal", journalProvider),
-    // The server is a separate process: refresh trees stuck on an error row so
-    // they fill in by themselves once it starts.
-    watchForServerRecovery(trees),
+    vscode.commands.registerCommand("mind.queue", () => QueuePanel.show()),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.brief", () => BriefPanel.show()),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.signals", () => SignalsPanel.show()),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.signal.open", (signalId: string) =>
+      SignalDetailPanel.show(signalId),
+    ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.directions", () => DirectionsPanel.show()),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.learnings", () => LearningsPanel.show()),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.analytics", () => AnalyticsPanel.show()),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.journal", () => JournalPanel.show()),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.systemEvents", () => SystemEventsPanel.show()),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.devices", () => DevicesPanel.show()),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.settings", () => SettingsPanel.show()),
   );
 
-  // ── Commands ───────────────────────────────────────────────────────────────
+  // ── Other commands ───────────────────────────────────────────────────────
 
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.capture", async () => {
@@ -51,50 +94,16 @@ export function activate(context: vscode.ExtensionContext): void {
         placeHolder: "Any context…",
       });
 
-      await apiFetch("/thoughts", {
-        method: "POST",
-        body: JSON.stringify({ title, body: body ?? "", directionId: null }),
-      });
-
-      thoughtsProvider.refresh();
+      try {
+        await apiFetch("/thoughts", {
+          method: "POST",
+          body: JSON.stringify({ title, body: body ?? "", directionId: null }),
+        });
+        vscode.window.showInformationMessage("mind: thought captured.");
+      } catch (err) {
+        vscode.window.showErrorMessage(String(err));
+      }
     }),
-  );
-
-  // Refresh every tree at once (toolbar button and error rows).
-  context.subscriptions.push(
-    vscode.commands.registerCommand("mind.refresh", () => {
-      for (const tree of trees) tree.refresh();
-    }),
-  );
-
-  // Open thought body as a temporary markdown file
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "mind.thought.open",
-      async (thought: Thought) => {
-        const tmpFile = path.join(
-          os.tmpdir(),
-          `mind-thought-${thought.id}.md`,
-        );
-        const content = [
-          `# ${thought.title}`,
-          "",
-          thought.body,
-          "",
-          "---",
-          `**State:** ${thought.state}`,
-          `**Next action:** ${thought.nextAction ?? "—"}`,
-          "",
-        ].join("\n");
-
-        fs.writeFileSync(tmpFile, content, "utf8");
-
-        const doc = await vscode.workspace.openTextDocument(
-          vscode.Uri.file(tmpFile),
-        );
-        await vscode.window.showTextDocument(doc, { preview: true });
-      },
-    ),
   );
 
   // Pause all sends via the server
@@ -123,12 +132,6 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand("mind.brief", () => {
-      BriefPanel.show(context);
-    }),
-  );
-
   // Switch AI provider/model without restarting the server
   const aiStatusBarItem = createAiStatusBarItem();
   context.subscriptions.push(aiStatusBarItem);
@@ -141,7 +144,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  // Edit a direction yaml file via QuickPick
+  // Edit a direction yaml file via QuickPick — new Directions are still
+  // authored as YAML (source of truth); the Directions panel edits an
+  // existing one's live-safe fields.
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.direction.edit", async () => {
       const yamlFiles = await vscode.workspace.findFiles(
@@ -181,78 +186,6 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const doc = await vscode.workspace.openTextDocument(picked.uri);
       await vscode.window.showTextDocument(doc);
-    }),
-  );
-
-  // Approve action from Review tree
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "mind.action.send",
-      async (item: vscode.TreeItem & { actionId?: string }) => {
-        const id = item.actionId;
-        if (!id) return;
-        await apiFetch(`/actions/${id}/send`, { method: "POST" });
-        reviewProvider.refresh();
-        thoughtsProvider.refresh();
-      },
-    ),
-  );
-
-  // Discard action from Review tree
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "mind.action.discard",
-      async (item: vscode.TreeItem & { actionId?: string }) => {
-        const id = item.actionId;
-        if (!id) return;
-        await apiFetch(`/actions/${id}/discard`, { method: "POST" });
-        reviewProvider.refresh();
-        thoughtsProvider.refresh();
-      },
-    ),
-  );
-
-  // Signals: range selector and refresh
-  context.subscriptions.push(
-    vscode.commands.registerCommand("mind.signals.setRange", async () => {
-      await signalsProvider.setRange();
-    }),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("mind.signals.refresh", () => {
-      signalsProvider.refresh();
-    }),
-  );
-
-  // Reclassify a signal — the match itself was wrong, not just the draft
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "mind.signal.reclassify",
-      async (item: vscode.TreeItem & { signalId?: string }) => {
-        await reclassifySignal(item);
-        signalsProvider.refresh();
-      },
-    ),
-  );
-
-  // Journal: refresh
-  context.subscriptions.push(
-    vscode.commands.registerCommand("mind.journal.refresh", () => {
-      journalProvider.refresh();
-    }),
-  );
-
-  // Analytics — interactive drill-down webview
-  context.subscriptions.push(
-    vscode.commands.registerCommand("mind.analytics", () => {
-      AnalyticsPanel.show(context);
-    }),
-  );
-
-  // Devices — placeholder webview; pairing is not implemented yet
-  context.subscriptions.push(
-    vscode.commands.registerCommand("mind.devices", () => {
-      DevicesPanel.show(context);
     }),
   );
 

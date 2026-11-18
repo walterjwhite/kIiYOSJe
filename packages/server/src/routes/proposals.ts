@@ -14,7 +14,7 @@ import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { directions, events, newId } from "@mind/core";
 import type { Db } from "@mind/core";
-import { runLearningLoop } from "@mind/pipeline";
+import { runLearningLoop, generateLearningInsight } from "@mind/pipeline";
 import type { DirectionProposal } from "@mind/pipeline";
 
 interface StoredProposal {
@@ -56,8 +56,42 @@ export function proposalsRouter(db: Db) {
     return c.json(status ? rows.filter((r) => r.status === status) : rows);
   });
 
-  // POST /proposals/run — generate proposals now instead of waiting a week
-  app.post("/run", (c) => c.json({ proposals: runLearningLoop(db) }));
+  // GET /proposals/insights?limit=10 — the AI-generated narratives
+  // (learning.insight events) attached to past runs, newest first.
+  app.get("/insights", (c) => {
+    const limit = Math.min(Number(c.req.query("limit") ?? 10) || 10, 50);
+    const rows = db
+      .select()
+      .from(events)
+      .where(eq(events.kind, "learning.insight"))
+      .all()
+      .sort((a, b) => (a.at < b.at ? 1 : -1))
+      .slice(0, limit)
+      .map((e) => JSON.parse(e.payload) as { at: string; insight: string; proposalCount: number });
+    return c.json(rows);
+  });
+
+  // POST /proposals/run — generate proposals now instead of waiting a week.
+  // Also asks the configured model (Ollama by default) for a plain-language
+  // explanation of the pattern behind this batch — an insight, not a
+  // decision; the rule-based thresholds above are what actually produced
+  // the proposed values. Stored as its own event so it's visible without
+  // re-running the loop, and skipped quietly if no provider is configured.
+  app.post("/run", async (c) => {
+    const proposals = runLearningLoop(db);
+    const insight = await generateLearningInsight(proposals);
+    if (insight) {
+      db.insert(events)
+        .values({
+          id: newId(),
+          actor: "system",
+          kind: "learning.insight",
+          payload: JSON.stringify({ at: new Date().toISOString(), insight, proposalCount: proposals.length }),
+        })
+        .run();
+    }
+    return c.json({ proposals, insight });
+  });
 
   // POST /proposals/:id/accept
   app.post("/:id/accept", (c) => {

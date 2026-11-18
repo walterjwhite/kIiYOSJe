@@ -1,0 +1,13 @@
+1. 'Signals' should allow custom date / time filters. ie. last hour, last 4 hours
+2. clicking on a 'Signal' should bring up a screen / tab with relevant information including possible actions.
+3. is ollama used yet? It should be used to analyze my actions and build learnings.
+4. the ui seems monotone, add a touch of color, ui should be interactive (colors change on hover, alternating rows in tables have different colors and darken / lighten on hover), responsive and follow UI / UX best practices
+
+5. are github signals live? I just approved a PR and am expecting a signal.
+6. when a background job is refreshing, I would like the icon to pulsate blue. when it successfully completes, it can be green, if there is an error, red, warnings, yellow.
+
+7. I should be able to edit fields inline. I should not need an explicit 'Edit' button. Same goes for 'Toggle', instead, make it a toggle button, use the Monaco editor for text areas, support syntax highlighting when possible (prompts are expected to be in Markdown).
+8. the journal should be a place for me to append-only notes with a date / timestamp.
+9. the colors can make text difficult to read - 'Approve & send' white on light green. the 'Discard' button does not look great. are these following UI / UX best practices?
+
+10. would it be a good idea to be able to group multiple signals together?  Perhaps they are related.  The inverse should be true, I should be able to ungroup signals that were either grouped manually or automatically by AI. Will AI group signals? Will this be a part of the dedupe process or where will this fit?

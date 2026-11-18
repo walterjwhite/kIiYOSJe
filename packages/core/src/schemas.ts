@@ -33,41 +33,94 @@ export const DirectionGuardsSchema = z.object({
   escalateOn: z.array(z.string()).optional(),
 });
 
-export const DirectionConfigSchema = z.object({
-  name: z.string().min(1),
-  scope: z.object({
-    kind: ScopeKindSchema,
-    value: z.string().min(1),
+export const DirectionConfigSchema = z.preprocess(
+  (raw) => {
+    // "standard" is the field's internal/DB name, kept for backward
+    // compatibility with every existing directions/*.yaml file. "guidance"
+    // is the clearer name going forward — it's what the field actually is:
+    // guidance for how to recognize and respond, not a formal standard.
+    // Either key works in YAML; "standard" still wins if both are present,
+    // so nothing silently changes for a file that already has one.
+    if (
+      raw &&
+      typeof raw === "object" &&
+      "guidance" in raw &&
+      !("standard" in raw)
+    ) {
+      const { guidance, ...rest } = raw as Record<string, unknown>;
+      return { ...rest, standard: guidance };
+    }
+    return raw;
+  },
+  z.object({
+    name: z.string().min(1),
+    scope: z.object({
+      kind: ScopeKindSchema,
+      value: z.string().min(1),
+    }),
+    posture: DirectionPostureSchema,
+    autonomy: DirectionAutonomySchema,
+    confidenceMin: z.number().min(0).max(1).default(0.7),
+    standard: z.string().min(1),
+    guards: DirectionGuardsSchema.optional(),
+    // How to recognize a match beyond the literal scope value, and how to
+    // actually respond. Both optional for backward compatibility with
+    // existing YAML files that only set scope/standard.
+    matchPrompt: z.string().optional(),
+    responsePrompt: z.string().optional(),
+    // How to rewrite a matched signal's display summary — see
+    // types.ts' DirectionConfig.transformPrompt for the full explanation.
+    transformPrompt: z.string().optional(),
   }),
-  posture: DirectionPostureSchema,
-  autonomy: DirectionAutonomySchema,
-  confidenceMin: z.number().min(0).max(1).default(0.7),
-  standard: z.string().min(1),
-  guards: DirectionGuardsSchema.optional(),
-  // How to recognize a match beyond the literal scope value, and how to
-  // actually respond. Both optional for backward compatibility with
-  // existing YAML files that only set scope/standard.
-  matchPrompt: z.string().optional(),
-  responsePrompt: z.string().optional(),
-});
+);
 
 // PATCH /directions/:id — editable fields, all optional.
-export const UpdateDirectionRequestSchema = z.object({
-  name: z.string().min(1).optional(),
-  enabled: z.boolean().optional(),
-  posture: DirectionPostureSchema.optional(),
-  autonomy: DirectionAutonomySchema.optional(),
-  confidenceMin: z.number().min(0).max(1).optional(),
-  standard: z.string().min(1).optional(),
-  matchPrompt: z.string().nullable().optional(),
-  responsePrompt: z.string().nullable().optional(),
-});
+export const UpdateDirectionRequestSchema = z.preprocess(
+  (raw) => {
+    if (
+      raw &&
+      typeof raw === "object" &&
+      "guidance" in raw &&
+      !("standard" in raw)
+    ) {
+      const { guidance, ...rest } = raw as Record<string, unknown>;
+      return { ...rest, standard: guidance };
+    }
+    return raw;
+  },
+  z.object({
+    name: z.string().min(1).optional(),
+    enabled: z.boolean().optional(),
+    posture: DirectionPostureSchema.optional(),
+    autonomy: DirectionAutonomySchema.optional(),
+    scopeKind: ScopeKindSchema.optional(),
+    // Empty string is a legitimate value here: the system catch-all
+    // direction uses scopeKind "topic" + scopeValue "" to mean "matches
+    // everything" (see pipeline/fallback-direction.ts). Only reject the
+    // field when it's missing, not when it's deliberately blank.
+    scopeValue: z.string().optional(),
+    confidenceMin: z.number().min(0).max(1).optional(),
+    standard: z.string().min(1).optional(),
+    matchPrompt: z.string().nullable().optional(),
+    responsePrompt: z.string().nullable().optional(),
+    transformPrompt: z.string().nullable().optional(),
+  }),
+);
 
 // PATCH /signals/:id — currently only supports reclassification.
 export const ReclassifySignalRequestSchema = z.object({
   directionId: z.string().min(1),
   reason: z.string().optional(),
 });
+
+// PUT /signals/:id/thought — link to an existing thought, or create a new
+// one from a title if none is given. Distinct from reclassify (which
+// corrects a wrong Direction match): this corrects or sets which larger
+// item a signal belongs to.
+export const LinkThoughtRequestSchema = z.union([
+  z.object({ thoughtId: z.string().min(1) }),
+  z.object({ title: z.string().min(1) }),
+]);
 
 // PUT /admin/notifications — the quiet period window (Foundations §6).
 export const QuietPeriodConfigSchema = z.object({
@@ -77,6 +130,14 @@ export const QuietPeriodConfigSchema = z.object({
   startMinute: z.number().int().min(0).max(59),
   endHour: z.number().int().min(0).max(23),
   endMinute: z.number().int().min(0).max(59),
+});
+
+// PUT /admin/display — which signal fields/attributes the extension shows.
+export const DisplaySettingsSchema = z.object({
+  showSubject: z.boolean(),
+  showCc: z.boolean(),
+  showBcc: z.boolean(),
+  preferHtmlBody: z.boolean(),
 });
 
 // LLM classifier structured output schema
@@ -124,7 +185,13 @@ export const UpdateThoughtRequestSchema = z.object({
   reviewAt: z.string().datetime().nullable().optional(),
 });
 
-// POST /directions/preview — dry run a Direction over stored signals.
+// POST /events/notes — an operator-written journal note. Distinct from the
+// system audit log the rest of /events exposes: a note is free text, dated,
+// never tied to a signal/direction/thought, and never generated — just
+// something the operator chose to write down for their own later reading.
+export const CreateJournalNoteRequestSchema = z.object({
+  text: z.string().min(1),
+});
 // No writes to signals, thoughts, or actions: this answers "what would this
 // Direction have caught", which is the question an author actually has.
 //

@@ -21,9 +21,12 @@ export function toSignal(mail: OutlookMail, account = "default"): NewSignal {
     threadId: mail.threadId ?? null,
     sender: mail.from,
     recipients: mail.to,
+    ...(mail.cc && mail.cc.length > 0 ? { cc: mail.cc } : {}),
+    ...(mail.bcc && mail.bcc.length > 0 ? { bcc: mail.bcc } : {}),
     kind: "email",
     ...(mail.subject ? { subject: mail.subject } : {}),
     body: mail.body,
+    ...(mail.htmlBody ? { htmlBody: mail.htmlBody } : {}),
     receivedAt: mail.receivedAt,
     urgencyHint: mail.urgencyHint ?? null,
   };
@@ -31,6 +34,11 @@ export function toSignal(mail: OutlookMail, account = "default"): NewSignal {
 
 /** Microsoft Graph message to the neutral shape. */
 export function fromGraph(message: GraphMessage): OutlookMail {
+  const htmlContent =
+    message.body?.contentType?.trim().toLowerCase() === "html"
+      ? message.body?.content
+      : undefined;
+
   return {
     id: message.id,
     ...(message.conversationId ? { threadId: message.conversationId } : {}),
@@ -47,11 +55,24 @@ export function fromGraph(message: GraphMessage): OutlookMail {
     to: (message.toRecipients ?? [])
       .map((recipient) => address(recipient.emailAddress?.address))
       .filter((value) => value.length > 0),
+    ...(() => {
+      const cc = (message.ccRecipients ?? [])
+        .map((recipient) => address(recipient.emailAddress?.address))
+        .filter((value) => value.length > 0);
+      return cc.length > 0 ? { cc } : {};
+    })(),
+    ...(() => {
+      const bcc = (message.bccRecipients ?? [])
+        .map((recipient) => address(recipient.emailAddress?.address))
+        .filter((value) => value.length > 0);
+      return bcc.length > 0 ? { bcc } : {};
+    })(),
     receivedAt: parseDate(message.receivedDateTime),
     body: bodyText(
       message.body?.contentType,
       message.body?.content ?? message.bodyPreview ?? "",
     ),
+    ...(htmlContent ? { htmlBody: htmlContent } : {}),
     urgencyHint: message.importance === "high" ? 1 : null,
   };
 }

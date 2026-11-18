@@ -74,6 +74,7 @@ function upsertDirection(db: Db, id: string, cfg: DirectionConfig): void {
         guards: guardsJson,
         matchPrompt: cfg.matchPrompt ?? null,
         responsePrompt: cfg.responsePrompt ?? null,
+        transformPrompt: cfg.transformPrompt ?? null,
         enabled: true,
         version: 1,
       })
@@ -91,6 +92,7 @@ function upsertDirection(db: Db, id: string, cfg: DirectionConfig): void {
         guards: guardsJson,
         matchPrompt: cfg.matchPrompt ?? null,
         responsePrompt: cfg.responsePrompt ?? null,
+        transformPrompt: cfg.transformPrompt ?? null,
         version: existing.version + 1,
         updatedAt: now,
       })

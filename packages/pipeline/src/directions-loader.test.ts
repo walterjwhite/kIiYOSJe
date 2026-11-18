@@ -102,4 +102,48 @@ describe("loadDirections", () => {
     const rows = db.select().from(directions).all();
     expect(rows).toHaveLength(2);
   });
+
+  it("accepts 'guidance' as an alias for 'standard'", () => {
+    const db = openTestDb();
+    const root = makeTempDir();
+    const yamlWithGuidance = `
+name: guidance-alias
+scope:
+  kind: person
+  value: bob@example.com
+posture: absorb
+autonomy: draft
+confidenceMin: 0.8
+guidance: Reply within one business day.
+`.trim();
+    writeFileSync(join(root, "bob.yaml"), yamlWithGuidance);
+
+    loadDirections(db, root);
+
+    const rows = db.select().from(directions).all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.standard).toBe("Reply within one business day.");
+  });
+
+  it("prefers 'standard' over 'guidance' when both are present", () => {
+    const db = openTestDb();
+    const root = makeTempDir();
+    const yamlWithBoth = `
+name: both-fields
+scope:
+  kind: person
+  value: carol@example.com
+posture: absorb
+autonomy: draft
+confidenceMin: 0.8
+standard: Use this one.
+guidance: Not this one.
+`.trim();
+    writeFileSync(join(root, "carol.yaml"), yamlWithBoth);
+
+    loadDirections(db, root);
+
+    const rows = db.select().from(directions).all();
+    expect(rows[0]?.standard).toBe("Use this one.");
+  });
 });

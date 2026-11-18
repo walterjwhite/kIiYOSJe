@@ -29,6 +29,7 @@ import {
   newId,
   parseCommitment,
   ReclassifySignalRequestSchema,
+  LinkThoughtRequestSchema,
 } from "@mind/core";
 import type { Db, NewSignal } from "@mind/core";
 
@@ -40,8 +41,12 @@ const NewSignalSchema = z.object({
   threadId: z.string().nullable(),
   sender: z.string().email(),
   recipients: z.array(z.string()),
+  cc: z.array(z.string()).optional(),
+  bcc: z.array(z.string()).optional(),
   kind: z.string(),
+  subject: z.string().optional(),
   body: z.string(),
+  htmlBody: z.string().optional(),
   receivedAt: z.string().datetime(),
   urgencyHint: z.number().nullable(),
 });
@@ -51,6 +56,13 @@ const RANGE_DAYS: Record<string, number | null> = {
   "7d": 7,
   "30d": 30,
   all: null,
+};
+
+/** Hour-granularity ranges, checked before RANGE_DAYS so "today" stays the default. */
+const RANGE_HOURS: Record<string, number> = {
+  "1h": 1,
+  "4h": 4,
+  "12h": 12,
 };
 
 export function signalsRouter(db: Db, adapters: AdapterRegistry) {
@@ -69,27 +81,39 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
     return c.json(result, result.disposition === "duplicate" ? 200 : 201);
   });
 
-  // GET /signals?range=today|7d|30d|all&directionId=&adapter=
+  // GET /signals?range=1h|4h|12h|today|7d|30d|all&directionId=&adapter=&account=
+  // &since=<ISO>&until=<ISO> (since/until override range entirely, for a
+  // fully custom window; range alone covers the common cases).
   app.get("/", (c) => {
     const range = c.req.query("range") ?? "today";
     const directionId = c.req.query("directionId");
     const adapter = c.req.query("adapter");
     const account = c.req.query("account");
+    const sinceParam = c.req.query("since");
+    const untilParam = c.req.query("until");
 
-    const days = RANGE_DAYS[range] ?? 0;
-    const since =
-      days === null
-        ? null
-        : days === 0
-          ? (() => {
-              const d = new Date();
-              d.setHours(0, 0, 0, 0);
-              return d.toISOString();
-            })()
-          : new Date(Date.now() - days * 86_400_000).toISOString();
+    let since: string | null;
+    if (sinceParam) {
+      since = sinceParam;
+    } else if (range in RANGE_HOURS) {
+      since = new Date(Date.now() - RANGE_HOURS[range]! * 3_600_000).toISOString();
+    } else {
+      const days = RANGE_DAYS[range] ?? 0;
+      since =
+        days === null
+          ? null
+          : days === 0
+            ? (() => {
+                const d = new Date();
+                d.setHours(0, 0, 0, 0);
+                return d.toISOString();
+              })()
+            : new Date(Date.now() - days * 86_400_000).toISOString();
+    }
 
     const conditions: ReturnType<typeof sql>[] = [];
     if (since) conditions.push(sql`${signals.receivedAt} >= ${since}`);
+    if (untilParam) conditions.push(sql`${signals.receivedAt} <= ${untilParam}`);
     if (directionId) conditions.push(sql`${signals.directionId} = ${directionId}`);
     if (adapter) conditions.push(sql`${signals.adapter} = ${adapter}`);
     if (account) conditions.push(sql`${signals.account} = ${account}`);
@@ -301,6 +325,148 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
       revertedActions: relatedActions.length,
       thoughtClosed: signal.thoughtId !== null,
     });
+  });
+
+  /**
+   * PUT /signals/:id/thought — link a signal to a thought. Either names an
+   * existing thought id, or a title to create a new seedling thought on
+   * the spot — the same two options the mockup's thought-link picker
+   * offers. Distinct from reclassify: this corrects or sets which larger
+   * item a signal belongs to, not which Direction matched it.
+   */
+  app.put(
+    "/:id/thought",
+    zValidator("json", LinkThoughtRequestSchema),
+    (c) => {
+      const { id } = c.req.param();
+      const body = c.req.valid("json");
+
+      const signal = db.select().from(signals).where(eq(signals.id, id)).get();
+      if (!signal) return c.json({ error: "Not found" }, 404);
+
+      let thoughtId: string;
+      let created = false;
+
+      if ("thoughtId" in body) {
+        const existing = db
+          .select({ id: thoughts.id })
+          .from(thoughts)
+          .where(eq(thoughts.id, body.thoughtId))
+          .get();
+        if (!existing) return c.json({ error: "Unknown thoughtId" }, 422);
+        thoughtId = body.thoughtId;
+      } else {
+        thoughtId = newId();
+        created = true;
+        db.insert(thoughts)
+          .values({
+            id: thoughtId,
+            title: body.title,
+            body: signal.body,
+            state: "seedling",
+            directionId: signal.directionId,
+          })
+          .run();
+      }
+
+      const previousThoughtId = signal.thoughtId;
+
+      db.update(signals)
+        .set({ thoughtId })
+        .where(eq(signals.id, id))
+        .run();
+
+      db.insert(events)
+        .values({
+          id: newId(),
+          actor: "user",
+          kind: "signal.thought_linked",
+          payload: JSON.stringify({
+            signalId: id,
+            thoughtId,
+            previousThoughtId,
+            createdThought: created,
+          }),
+        })
+        .run();
+
+      return c.json({ ok: true, thoughtId, created });
+    },
+  );
+
+  /**
+   * DELETE /signals/:id/thought — unlink without touching the thought
+   * itself (it may still have other signals attached, or be worth keeping
+   * on its own). The reverse of PUT above.
+   */
+  app.delete("/:id/thought", (c) => {
+    const { id } = c.req.param();
+    const signal = db.select().from(signals).where(eq(signals.id, id)).get();
+    if (!signal) return c.json({ error: "Not found" }, 404);
+    if (!signal.thoughtId) return c.json({ error: "Not linked to a thought" }, 409);
+
+    const previousThoughtId = signal.thoughtId;
+
+    db.update(signals)
+      .set({ thoughtId: null })
+      .where(eq(signals.id, id))
+      .run();
+
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "user",
+        kind: "signal.thought_unlinked",
+        payload: JSON.stringify({ signalId: id, previousThoughtId }),
+      })
+      .run();
+
+    return c.json({ ok: true, previousThoughtId });
+  });
+
+  /**
+   * PUT /signals/:id/reviewed — mark a signal reviewed: "I've seen this,
+   * nothing more to do," for signals that never had an action to approve
+   * or discard in the first place (information/acknowledgement signals,
+   * or anything filed/promoted without a draft). DELETE clears it.
+   */
+  app.put("/:id/reviewed", (c) => {
+    const { id } = c.req.param();
+    const signal = db.select().from(signals).where(eq(signals.id, id)).get();
+    if (!signal) return c.json({ error: "Not found" }, 404);
+
+    const at = new Date().toISOString();
+    db.update(signals).set({ reviewedAt: at }).where(eq(signals.id, id)).run();
+
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "user",
+        kind: "signal.reviewed",
+        payload: JSON.stringify({ signalId: id }),
+      })
+      .run();
+
+    return c.json({ ok: true, reviewedAt: at });
+  });
+
+  app.delete("/:id/reviewed", (c) => {
+    const { id } = c.req.param();
+    const signal = db.select().from(signals).where(eq(signals.id, id)).get();
+    if (!signal) return c.json({ error: "Not found" }, 404);
+
+    db.update(signals).set({ reviewedAt: null }).where(eq(signals.id, id)).run();
+
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "user",
+        kind: "signal.review_cleared",
+        payload: JSON.stringify({ signalId: id }),
+      })
+      .run();
+
+    return c.json({ ok: true });
   });
 
   return app;

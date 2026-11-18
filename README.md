@@ -28,7 +28,7 @@ and the order to add them in.
 ## 1. Install and build
 
 ```bash
-sh build-server.sh
+sh scripts/build-server.sh
 ```
 
 ## 2. Start the server
@@ -52,36 +52,41 @@ you approve them. Autonomous sending is off until you explicitly opt in
 ## 3. Install the VS Code extension
 
 ```bash
-bash build-extension.sh
+bash scripts/build-extension.sh
 code --install-extension extension/mind-vscode-0.0.1.vsix
 ```
 
 Reload VS Code. A **mind** icon appears in the Activity Bar (the far-left
-icon rail) — click it to open the sidebar with Review, Thoughts, Signals,
-and Journal. The extension talks to the server at `http://127.0.0.1:8787`
-using the token from `~/.config/kIiYOSJe/mind/token` — no extra setup needed as
-long as the server from step 2 is running.
+icon rail). Its sidebar is deliberately thin — one link per section, no
+live data sitting in view until you open one. The extension talks to the
+server at `http://127.0.0.1:8787` using the token from
+`~/.config/kIiYOSJe/mind/token` — no extra setup needed as long as the
+server from step 2 is running.
 
 ## 4. Use it
 
-Click the **mind** icon in the Activity Bar to open its sidebar:
+Click the **mind** icon in the Activity Bar, then click a section to open
+it as its own panel:
 
-- **Review** — drafted replies awaiting approval; approve or discard each
+- **Queue** — drafted replies awaiting approval; approve or discard each
   one inline. This is the only place a send is authorized.
-- **Thoughts** — things that need a decision.
-- **Signals** — every signal, inbound and outbound; defaults to today
-  (**mind: Set Signals Range** to widen it). Right-click a signal to
-  **Reclassify** it if it matched the wrong Direction.
+- **Today** — the daily brief: what needs you, what's running, what's overdue.
+- **Signals** — every signal, inbound and outbound; defaults to today, with
+  a range control to widen it. Reclassify a signal from here if it matched
+  the wrong Direction.
+- **Directions** — the table of rules mind matches signals against; click
+  a row to edit its standard, match/response prompts, and confidence.
+  New Directions are still authored as YAML (**mind: Edit Directions**).
+- **Learnings** — policy narrow/widen proposals the learning loop generates
+  from override history, plus the reclassification log.
+- **Analytics** — volume, override rate, and time saved; click a row or
+  bar to see the signals behind it.
 - **Journal** — a read-only audit log of everything the system did.
+- **Devices** — placeholder; device pairing isn't built yet.
 
 Commands (Cmd/Ctrl+Shift+P, type `mind:`):
 
-- **mind: Capture Thought** — jot something down.
-- **mind: Open Today Brief** — a daily summary webview.
-- **mind: Open Analytics** — volume and override rates; click a row or
-  bar to see the signals behind it.
-- **mind: Open Devices** — placeholder; device pairing isn't built yet.
-- **mind: Edit Directions** — open a Direction's YAML file.
+- **mind: Capture Thought** — jot something down without opening a panel.
 - **mind: Configure AI Provider** — switch between Ollama, a cloud or
   OpenAI-compatible endpoint, or the Kiro/Copilot CLI over ACP; change models.
 - **mind: Configure Notification Quiet Period** — restrict when the
@@ -134,6 +139,34 @@ Environment overrides: `MIND_AI_PROVIDER`, `MIND_AI_API_KEY`, `MIND_AI_BASE_URL`
 `MIND_SEND_ENABLED`, `MIND_LOG_LEVEL`, `MIND_DIRECTIONS_DIR`, `MIND_DB_PATH`,
 `MIND_CONFIG_DIR`, `MIND_DATA_DIR`, `MIND_TEST_TOKEN`.
 
+## Behind a proxy
+
+If outbound traffic goes through an HTTP/HTTPS proxy (`http_proxy`/
+`https_proxy` set in the environment), two things need to line up:
+
+- **The server** needs `NODE_USE_ENV_PROXY=1` so Node's `fetch` (used by the
+  Gmail/Outlook/GitHub adapters and every cloud AI provider) actually routes
+  through the proxy — Node does not read `http_proxy`/`https_proxy` on its
+  own. Set `no_proxy=localhost,127.0.0.1` alongside it so local-only traffic
+  (Ollama on `127.0.0.1:11434`) bypasses the proxy instead of being tunneled
+  through it, which most proxies refuse for loopback addresses:
+
+  ```bash
+  NODE_USE_ENV_PROXY=1 no_proxy=localhost,127.0.0.1 npm run dev
+  ```
+
+- **VS Code** applies the same proxy to extension traffic by default,
+  including the extension's calls to the server at `127.0.0.1:8787` — which
+  the proxy will also reject. Add a bypass in VS Code's `settings.json`:
+
+  ```json
+  "http.noProxy": ["localhost", "127.0.0.1"]
+  ```
+
+  Without it, the extension reports "Can't reach the mind server" even
+  though the server is running and `curl --noproxy "*" http://127.0.0.1:8787/health`
+  succeeds from a terminal.
+
 ## API
 
 `GET /health`, `GET /brief`, `GET|POST /thoughts`, `PATCH /thoughts/:id`,
@@ -164,7 +197,7 @@ BSD-3-Clause. See [LICENSE](LICENSE).
 ## Trademarks
 
 Product names used here — including Gmail, Google Calendar, Google Messages,
-Microsoft Outlook, Microsoft Teams, GitHub, Jira, Confluence, VS Code, Kiro, and
+Microsoft Outlook, GitHub, Jira, Confluence, VS Code, Kiro, and
 Copilot — are trademarks of their respective owners. They are used only to
 describe interoperability with those products. This project is not affiliated
 with, endorsed by, or sponsored by any of them.

@@ -408,5 +408,56 @@ export function isWithinNotificationWindow(
   return minutesNow >= startMinutes || minutesNow < endMinutes;
 }
 
+// ── Display settings ─────────────────────────────────────────────────────────
+
+/**
+ * Which signal fields/attributes the extension shows by default. A signal
+ * can carry more than what's shown at a glance — subject, Cc, Bcc, an HTML
+ * body alongside the plain-text one — so this is a real on/off choice per
+ * field, not just a display nicety. The Signal Detail panel always has the
+ * data; this controls what's rendered without asking for it explicitly.
+ */
+export interface DisplaySettings {
+  showSubject: boolean;
+  showCc: boolean;
+  showBcc: boolean;
+  /** Render the HTML body natively when present, instead of only the plain-text extract. */
+  preferHtmlBody: boolean;
+}
+
+export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
+  showSubject: true,
+  showCc: true,
+  showBcc: true,
+  preferHtmlBody: true,
+};
+
+export function displaySettingsPath(): string {
+  return join(configDir(), "display.json");
+}
+
+function readDisplaySettingsFile(): Partial<DisplaySettings> {
+  try {
+    const raw = readFileSync(displaySettingsPath(), "utf8");
+    return JSON.parse(raw) as Partial<DisplaySettings>;
+  } catch {
+    return {};
+  }
+}
+
+/** Current effective display settings: file overrides, defaults fill gaps. */
+export function displaySettings(): DisplaySettings {
+  return { ...DEFAULT_DISPLAY_SETTINGS, ...readDisplaySettingsFile() };
+}
+
+/** Writes the display settings file atomically (temp file + rename), mode 600. */
+export function writeDisplaySettings(settings: DisplaySettings): void {
+  ensureDirs();
+  const path = displaySettingsPath();
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, JSON.stringify(settings, null, 2), { mode: 0o600 });
+  renameSync(tmp, path);
+}
+
 export const SERVER_PORT = 8787;
 export const SERVER_HOST = "127.0.0.1";
