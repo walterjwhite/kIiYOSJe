@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/pipeline" },
+    { "path": "./packages/adapters-email" },
+    { "path": "./packages/adapters-teams" },
+    { "path": "./packages/server" },
+    { "path": "./packages/cli" },
+    { "path": "./packages/demo-data" },
+    { "path": "./extension" }
+  ]
+}

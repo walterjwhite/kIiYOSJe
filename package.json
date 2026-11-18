@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "npm run dev --workspace=packages/server",
     "test": "vitest run",
-    "lint": "tsc --build --noEmit",
+    "lint": "tsc --build",
     "migrate": "npm run migrate --workspace=packages/core",
     "demo:seed": "npm run build --workspace=packages/demo-data --if-present && node packages/demo-data/dist/cli.js seed",
     "demo:reset": "node packages/demo-data/dist/cli.js reset",
