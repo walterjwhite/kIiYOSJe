@@ -1,13 +1,14 @@
 /**
  * Draft generator.
  * Produces a reply body given a signal, its Direction standard, and classifier output.
- * Uses the larger model (MIND_DRAFT_MODEL / ai.json draftModel).
+ * Uses the larger model (MIND_DRAFT_MODEL / ai.json draftModel) through the
+ * model transport (AI SDK for HTTP providers, ACP for Kiro/Copilot CLI).
  * Returns null only when no provider is configured at all.
  */
 
-import { generateText } from "ai";
-import { loadApiKey, aiProvider, aiBaseUrl, aiConfigured, draftModel, logger } from "@mind/core";
+import { aiConfigured, aiProvider, logger } from "@mind/core";
 import type { ClassifierOutput } from "./classify.js";
+import { generateReply } from "./model.js";
 
 export interface DraftInput {
   senderBody: string;
@@ -59,29 +60,6 @@ ${input.senderBody}
 Write a reply that satisfies the standard and the task guidance above.`;
 }
 
-async function buildModel() {
-  const provider = aiProvider();
-
-  if (provider === "ollama") {
-    const { createOpenAI } = await import("@ai-sdk/openai");
-    return createOpenAI({ baseURL: aiBaseUrl(), apiKey: "ollama" })(draftModel());
-  }
-
-  const key = loadApiKey();
-  if (!key) throw new Error(`No API key configured for provider '${provider}'`);
-
-  if (provider === "anthropic") {
-    const { createAnthropic } = await import("@ai-sdk/anthropic");
-    return createAnthropic({ apiKey: key })(draftModel());
-  }
-  if (provider === "google") {
-    const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
-    return createGoogleGenerativeAI({ apiKey: key })(draftModel());
-  }
-  const { createOpenAI } = await import("@ai-sdk/openai");
-  return createOpenAI({ apiKey: key })(draftModel());
-}
-
 export async function draft(input: DraftInput): Promise<string | null> {
   if (!aiConfigured()) {
     logger.debug("draft: no provider configured, skipping");
@@ -89,13 +67,11 @@ export async function draft(input: DraftInput): Promise<string | null> {
   }
 
   try {
-    const model = await buildModel();
-    const { text } = await generateText({
-      model,
+    const text = await generateReply({
       system: SYSTEM,
       prompt: buildPrompt(input),
     });
-    return text;
+    return text.length > 0 ? text : null;
   } catch (err) {
     logger.warn({ err, provider: aiProvider() }, "draft: LLM call failed");
     return null;

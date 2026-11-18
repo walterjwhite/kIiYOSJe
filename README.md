@@ -12,8 +12,8 @@ the VS Code extension is the only client right now.
 
 - Node.js ≥ 24
 - [Ollama](https://ollama.com) running locally (default AI provider, free,
-  no API key) — or an OpenAI/Anthropic/Google API key if you'd rather use
-  a cloud provider
+  no API key) — or an OpenAI/Anthropic/Google/Copilot API key, any
+  OpenAI-compatible endpoint, or the Kiro/Copilot CLI over ACP
 
 ## 1. Install and build
 
@@ -72,8 +72,8 @@ Commands (Cmd/Ctrl+Shift+P, type `mind:`):
   bar to see the signals behind it.
 - **mind: Open Devices** — placeholder; device pairing isn't built yet.
 - **mind: Edit Directions** — open a Direction's YAML file.
-- **mind: Configure AI Provider** — switch between Ollama and a cloud
-  provider, or change models.
+- **mind: Configure AI Provider** — switch between Ollama, a cloud or
+  OpenAI-compatible endpoint, or the Kiro/Copilot CLI over ACP; change models.
 - **mind: Configure Notification Quiet Period** — restrict when the
   system may proactively notify you (default Mon–Fri 08:00–15:00). This
   doesn't affect asking it for something right now.

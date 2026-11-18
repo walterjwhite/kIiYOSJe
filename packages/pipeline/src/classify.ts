@@ -1,6 +1,7 @@
 /**
  * Step 4 — Classify.
- * Calls the LLM for structured classification output via the Vercel AI SDK.
+ * Calls the configured model for structured classification output through the
+ * model transport (AI SDK for HTTP providers, ACP for Kiro/Copilot CLI).
  *
  * Uses the cheap/fast model (MIND_CLASSIFY_MODEL / ai.json classifyModel).
  * Falls back to a zero-confidence stub only when no provider is configured
@@ -8,17 +9,14 @@
  * provider, so classify() calls a real model out of the box at zero cost.
  */
 
-import { generateObject } from "ai";
-import { z } from "zod";
 import {
   ClassifierOutputSchema,
-  loadApiKey,
-  aiProvider,
-  aiBaseUrl,
   aiConfigured,
-  classifyModel,
+  aiProvider,
   logger,
 } from "@mind/core";
+import type { z } from "zod";
+import { generateStructured } from "./model.js";
 
 export type ClassifierOutput = z.infer<typeof ClassifierOutputSchema>;
 
@@ -64,32 +62,8 @@ Classify this message and return all required fields.
 For escalateBy: if the message contains an explicit deadline (e.g. "by Friday",
 "EOD", "within 24 hours"), compute the ISO-8601 datetime relative to the current
 date/time given above. Otherwise return null.
-For signalKind: question | task | acknowledgement | information | other.
+For signalKind: question | task | acknowledgement | information | event | other.
 For answerBlocker: if answerable=false, name the single thing that blocks an answer.`;
-}
-
-async function buildModel() {
-  const provider = aiProvider();
-
-  if (provider === "ollama") {
-    const { createOpenAI } = await import("@ai-sdk/openai");
-    // Ollama's OpenAI-compatible endpoint accepts any non-empty apiKey value.
-    return createOpenAI({ baseURL: aiBaseUrl(), apiKey: "ollama" })(classifyModel());
-  }
-
-  const key = loadApiKey();
-  if (!key) throw new Error(`No API key configured for provider '${provider}'`);
-
-  if (provider === "anthropic") {
-    const { createAnthropic } = await import("@ai-sdk/anthropic");
-    return createAnthropic({ apiKey: key })(classifyModel());
-  }
-  if (provider === "google") {
-    const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
-    return createGoogleGenerativeAI({ apiKey: key })(classifyModel());
-  }
-  const { createOpenAI } = await import("@ai-sdk/openai");
-  return createOpenAI({ apiKey: key })(classifyModel());
 }
 
 export async function classify(input: ClassifyInput): Promise<ClassifierOutput> {
@@ -99,14 +73,11 @@ export async function classify(input: ClassifyInput): Promise<ClassifierOutput> 
   }
 
   try {
-    const model = await buildModel();
-    const { object } = await generateObject({
-      model,
-      schema: ClassifierOutputSchema,
+    const object = await generateStructured(ClassifierOutputSchema, {
       system: SYSTEM,
       prompt: buildPrompt(input),
     });
-    return object;
+    return ClassifierOutputSchema.parse(object);
   } catch (err) {
     logger.warn(
       { err, sender: input.sender, provider: aiProvider() },

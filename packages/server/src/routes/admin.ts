@@ -29,7 +29,16 @@ import {
 } from "@mind/core";
 
 const AiConfigRequestSchema = z.object({
-  provider: z.enum(["ollama", "openai", "anthropic", "google"]),
+  provider: z.enum([
+    "ollama",
+    "openai",
+    "anthropic",
+    "google",
+    "openai-compatible",
+    "copilot",
+    "kiro",
+    "copilot-cli",
+  ]),
   classifyModel: z.string().min(1).optional(),
   draftModel: z.string().min(1).optional(),
   baseURL: z.string().url().optional(),

@@ -102,7 +102,8 @@ export function resume(): void {
  * on the next signal.
  *
  *   {
- *     "provider": "ollama" | "openai" | "anthropic" | "google",
+ *     "provider": "ollama" | "openai" | "anthropic" | "google"
+ *               | "openai-compatible" | "copilot" | "kiro" | "copilot-cli",
  *     "classifyModel": "qwen2.5:3b-instruct",
  *     "draftModel": "qwen2.5:3b-instruct",
  *     "baseURL": "http://localhost:11434/v1",   // only meaningful for ollama
@@ -119,8 +120,56 @@ export function resume(): void {
  *   openai     →  OPENAI_API_KEY
  *   anthropic  →  ANTHROPIC_API_KEY
  *   google     →  GOOGLE_GENERATIVE_AI_API_KEY
+ *   copilot    →  GITHUB_COPILOT_TOKEN
+ *
+ * `kiro` and `copilot-cli` are not HTTP providers: the model transport drives
+ * them over ACP (`kiro-cli acp`, `copilot --acp`).
  */
-export type AiProvider = "ollama" | "openai" | "anthropic" | "google";
+export type AiProvider =
+  | "ollama"
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "openai-compatible"
+  | "copilot"
+  | "kiro"
+  | "copilot-cli";
+
+const AI_PROVIDERS: readonly AiProvider[] = [
+  "ollama",
+  "openai",
+  "anthropic",
+  "google",
+  "openai-compatible",
+  "copilot",
+  "kiro",
+  "copilot-cli",
+];
+
+/** Providers reached over ACP (`kiro-cli acp`, `copilot --acp`), not HTTP. */
+const CLI_PROVIDERS: readonly AiProvider[] = ["kiro", "copilot-cli"];
+
+const DEFAULT_BASE_URLS: Record<AiProvider, string> = {
+  ollama: "http://localhost:11434/v1",
+  openai: "https://api.openai.com/v1",
+  anthropic: "https://api.anthropic.com/v1",
+  google: "https://generativelanguage.googleapis.com/v1beta/openai",
+  "openai-compatible": "",
+  copilot: "https://api.githubcopilot.com",
+  kiro: "",
+  "copilot-cli": "",
+};
+
+const API_KEY_ENV: Record<AiProvider, string | null> = {
+  ollama: null,
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  google: "GOOGLE_GENERATIVE_AI_API_KEY",
+  "openai-compatible": null,
+  copilot: "GITHUB_COPILOT_TOKEN",
+  kiro: null,
+  "copilot-cli": null,
+};
 
 export interface AiConfigFile {
   provider?: AiProvider | undefined;
@@ -151,10 +200,22 @@ export function writeAiConfig(config: AiConfigFile): void {
 export function aiProvider(): AiProvider {
   const fromFile = readAiConfigFile().provider;
   const v = fromFile ?? process.env["MIND_AI_PROVIDER"] ?? "ollama";
-  if (v === "ollama" || v === "openai" || v === "anthropic" || v === "google") return v;
-  throw new Error(
-    `AI provider must be ollama | openai | anthropic | google, got: ${v}`,
-  );
+  if (!AI_PROVIDERS.includes(v as AiProvider)) {
+    throw new Error(
+      `AI provider must be ${AI_PROVIDERS.join(" | ")}, got: ${v}`,
+    );
+  }
+  return v as AiProvider;
+}
+
+/** True for providers reached over ACP rather than HTTP. */
+export function isCliProvider(provider: AiProvider = aiProvider()): boolean {
+  return CLI_PROVIDERS.includes(provider);
+}
+
+/** Copilot requires this header on every request (PAT-friendly default). */
+export function copilotIntegrationId(): string {
+  return process.env["MIND_COPILOT_INTEGRATION_ID"] ?? "copilot-developer-cli";
 }
 
 export function classifyModel(): string {
@@ -175,31 +236,45 @@ export function draftModel(): string {
   );
 }
 
-/** Base URL for the ollama provider. Ignored by cloud providers. */
+/** Base URL for the provider; `openai-compatible` has no default. */
 export function aiBaseUrl(): string {
   const fromFile = readAiConfigFile().baseURL;
-  return (
+  const provider = aiProvider();
+  const value =
     fromFile ??
     process.env["MIND_AI_BASE_URL"] ??
-    "http://localhost:11434/v1"
-  );
+    DEFAULT_BASE_URLS[provider];
+  if (!value) {
+    throw new Error(
+      `provider '${provider}' needs a baseURL in ai.json or MIND_AI_BASE_URL`,
+    );
+  }
+  return value.replace(/\/$/, "");
 }
 
 function defaultClassifyModel(p: AiProvider): string {
   switch (p) {
-    case "ollama":    return "qwen2.5:3b-instruct";
-    case "openai":    return "gpt-4o-mini";
-    case "anthropic": return "claude-haiku-4-5";
-    case "google":    return "gemini-2.0-flash";
+    case "ollama":            return "qwen2.5:3b-instruct";
+    case "openai":            return "gpt-4o-mini";
+    case "anthropic":         return "claude-haiku-4-5";
+    case "google":            return "gemini-2.0-flash";
+    case "openai-compatible": return "gpt-4o-mini";
+    case "copilot":           return "gpt-4o-mini";
+    case "kiro":
+    case "copilot-cli":       return "default";
   }
 }
 
 function defaultDraftModel(p: AiProvider): string {
   switch (p) {
-    case "ollama":    return "qwen2.5:3b-instruct";
-    case "openai":    return "gpt-4o";
-    case "anthropic": return "claude-sonnet-4-5";
-    case "google":    return "gemini-2.0-flash";
+    case "ollama":            return "qwen2.5:3b-instruct";
+    case "openai":            return "gpt-4o";
+    case "anthropic":         return "claude-sonnet-4-5";
+    case "google":            return "gemini-2.0-flash";
+    case "openai-compatible": return "gpt-4o";
+    case "copilot":           return "gpt-4o";
+    case "kiro":
+    case "copilot-cli":       return "default";
   }
 }
 
@@ -213,12 +288,9 @@ export function loadApiKey(): string | undefined {
   const fromFile = readAiConfigFile().apiKey;
   if (fromFile) return fromFile;
 
-  switch (aiProvider()) {
-    case "ollama":    return undefined;
-    case "openai":    return process.env["OPENAI_API_KEY"];
-    case "anthropic": return process.env["ANTHROPIC_API_KEY"];
-    case "google":    return process.env["GOOGLE_GENERATIVE_AI_API_KEY"];
-  }
+  const envVar = API_KEY_ENV[aiProvider()];
+  if (!envVar) return process.env["MIND_AI_API_KEY"];
+  return process.env[envVar] ?? process.env["MIND_AI_API_KEY"];
 }
 
 /**
@@ -226,7 +298,19 @@ export function loadApiKey(): string | undefined {
  * ollama (no key needed) and for any cloud provider with a key configured.
  */
 export function aiConfigured(): boolean {
-  return aiProvider() === "ollama" || loadApiKey() !== undefined;
+  const provider = aiProvider();
+  if (provider === "ollama" || isCliProvider(provider)) return true;
+  if (provider === "openai-compatible") return hasBaseUrl();
+  return loadApiKey() !== undefined;
+}
+
+function hasBaseUrl(): boolean {
+  try {
+    aiBaseUrl();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ── Notification quiet period ───────────────────────────────────────────────

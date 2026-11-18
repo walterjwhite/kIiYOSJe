@@ -10,7 +10,15 @@ import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
 
 interface AiConfigResponse {
-  provider: "ollama" | "openai" | "anthropic" | "google";
+  provider:
+    | "ollama"
+    | "openai"
+    | "anthropic"
+    | "google"
+    | "openai-compatible"
+    | "copilot"
+    | "kiro"
+    | "copilot-cli";
   classifyModel: string;
   draftModel: string;
   baseURL: string;
@@ -51,6 +59,34 @@ const PROVIDER_CHOICES: Array<{
     provider: "google",
     needsKey: true,
     defaultModel: "gemini-2.0-flash",
+  },
+  {
+    label: "OpenAI-compatible endpoint",
+    description: "Any OpenAI-compatible server — asks for a base URL",
+    provider: "openai-compatible",
+    needsKey: false,
+    defaultModel: "gpt-4o-mini",
+  },
+  {
+    label: "GitHub Copilot",
+    description: "Cloud — Copilot token in GITHUB_COPILOT_TOKEN",
+    provider: "copilot",
+    needsKey: true,
+    defaultModel: "gpt-4o-mini",
+  },
+  {
+    label: "Kiro CLI (ACP)",
+    description: "Subscription CLI — drives kiro-cli acp, no API key",
+    provider: "kiro",
+    needsKey: false,
+    defaultModel: "default",
+  },
+  {
+    label: "Copilot CLI (ACP)",
+    description: "Subscription CLI — drives copilot --acp, no API key",
+    provider: "copilot-cli",
+    needsKey: false,
+    defaultModel: "default",
   },
 ];
 
@@ -94,13 +130,18 @@ export async function configureAiProvider(): Promise<void> {
   if (draftModel === undefined) return;
 
   let baseURL: string | undefined;
-  if (picked.provider === "ollama") {
+  if (picked.provider === "ollama" || picked.provider === "openai-compatible") {
     baseURL = await vscode.window.showInputBox({
-      title: "Ollama base URL",
+      title:
+        picked.provider === "ollama"
+          ? "Ollama base URL"
+          : "OpenAI-compatible base URL",
       value:
         picked.provider === current.provider
           ? current.baseURL
-          : "http://localhost:11434/v1",
+          : picked.provider === "ollama"
+            ? "http://localhost:11434/v1"
+            : "https://api.example.com/v1",
     });
     if (baseURL === undefined) return;
   }
@@ -108,7 +149,7 @@ export async function configureAiProvider(): Promise<void> {
   let apiKey: string | undefined;
   if (picked.needsKey) {
     apiKey = await vscode.window.showInputBox({
-      title: `${picked.label} API key`,
+      title: `${picked.label} ${picked.provider === "copilot" ? "token" : "API key"}`,
       password: true,
       placeHolder: current.apiKeyConfigured
         ? "Leave blank to keep the existing key"
@@ -156,7 +197,12 @@ export async function refreshAiStatusBarItem(
 ): Promise<void> {
   try {
     const current = await apiFetch<AiConfigResponse>("/admin/ai-config");
-    const icon = current.provider === "ollama" ? "$(device-desktop)" : "$(cloud)";
+    const icon =
+      current.provider === "ollama"
+        ? "$(device-desktop)"
+        : current.provider === "kiro" || current.provider === "copilot-cli"
+          ? "$(terminal)"
+          : "$(cloud)";
     item.text = `${icon} ${current.provider}`;
   } catch {
     item.text = "$(warning) mind: offline";

@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-16. Measured against [PLAN.md](PLAN.md).
 
-**Build:** all packages compile under TypeScript 7 strict. **Tests:** 127 passing across 25 files.
+**Build:** all packages compile under TypeScript 7 strict. **Tests:** 134 passing across 27 files.
 **The LLM paths have now been run for real**, against a local Ollama model (`qwen2.5:3b-instruct`,
 the default provider) — `classify()`, `draft()`, and a full `ingest()` call were verified end to
 end, and all three demo personas were seeded with real model calls (see `packages/demo-data/README.md`).
@@ -138,7 +138,7 @@ gates are untouched, and asking for something right now (`mind.brief`,
 
 ## Open decisions (PLAN §17)
 
-1. **Model provider:** defaults to `ollama` (local, free, `qwen2.5:3b-instruct`). Switch via the VS Code **mind: Configure AI Provider** command, the status-bar item, or `PUT /admin/ai-config`. Cloud providers remain available but unverified this session.
+1. **Model provider:** defaults to `ollama` (local, free, `qwen2.5:3b-instruct`). Switch via the VS Code **mind: Configure AI Provider** command, the status-bar item, or `PUT /admin/ai-config`. HTTP providers (`ollama`, `openai`, `anthropic`, `google`, `openai-compatible`, `copilot`) go through the Vercel AI SDK; `kiro` and `copilot-cli` are driven over ACP (`kiro-cli acp`, `copilot --acp`). Cloud and CLI providers remain unverified against live accounts this session.
 2. **Teams transport:** decided — `teams-api` with token credentials from
    `credentials.yml`.
 3. **Email write capability:** decided — Gmail `messages/send` and Outlook
