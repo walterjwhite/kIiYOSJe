@@ -42,6 +42,12 @@ describe("dedupeKey", () => {
   it("produces adapter:externalId", () => {
     expect(dedupeKey(signal)).toBe("test:abc-123");
   });
+
+  it("prefers a provider-independent dedupeId when present", () => {
+    expect(
+      dedupeKey({ ...signal, dedupeId: "message-id:x@example.com" }),
+    ).toBe("message-id:x@example.com");
+  });
 });
 
 describe("isDuplicate", () => {

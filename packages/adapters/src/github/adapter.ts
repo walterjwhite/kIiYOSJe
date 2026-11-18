@@ -6,11 +6,19 @@
  * is the thing a mail-only tool cannot see — a review request is a decision
  * with a deadline, and a stalled PR is an attention cost nobody bills you for.
  *
+ * One instance per configured token/account: a work and a personal GitHub
+ * login can both be in the ledger without one hiding the other.
+ *
  * Polls three searches per tick. Search needs a literal login, so the adapter
  * resolves `/user` once and substitutes it for @me.
  */
 
-import { credentialString } from "@mind/core";
+import {
+  accountCredential,
+  adapterIdForAccount,
+  credentialAccounts,
+  credentialString,
+} from "@mind/core";
 import { logger } from "@mind/core";
 import type { Adapter, NewSignal } from "@mind/core";
 import { isNotConfigured } from "../errors.js";
@@ -33,25 +41,56 @@ export function githubQueries(
   ];
 }
 
+function configuredToken(): string | undefined {
+  return (
+    credentialString("github", "token", "GITHUB_TOKEN") ??
+    credentialString("github", "token", "MIND_GITHUB_TOKEN")
+  );
+}
+
 export class GitHubAdapter implements Adapter {
-  readonly id = "github";
+  readonly id: string;
+  readonly account: string;
   readonly capabilities = { canSend: false, canStream: false };
+  private readonly token: string | undefined;
+  private readonly pollMs: number;
   private timer: NodeJS.Timeout | undefined;
   private readonly emitted = new Set<string>();
   private login: string | null = null;
 
   constructor(
-    private readonly token:
-      | string
-      | undefined = credentialString("github", "token", "GITHUB_TOKEN") ??
-      credentialString("github", "token", "MIND_GITHUB_TOKEN"),
-    private readonly pollMs = pollInterval(),
-  ) {}
+    token: string | undefined = configuredToken(),
+    pollMs = pollInterval(),
+    account = "default",
+  ) {
+    this.account = account;
+    this.id = adapterIdForAccount("github", account);
+    this.token = token;
+    this.pollMs = pollMs;
+  }
+
+  /** One adapter per configured GitHub account; one idle adapter if none. */
+  static allFromConfig(): GitHubAdapter[] {
+    const accounts = credentialAccounts("github")
+      .map((account) => ({
+        label: account.label,
+        token: accountCredential(account, "token", "GITHUB_TOKEN"),
+      }))
+      .filter((account): account is { label: string; token: string } =>
+        Boolean(account.token),
+      );
+
+    if (accounts.length === 0) return [new GitHubAdapter()];
+    return accounts.map(
+      (account) =>
+        new GitHubAdapter(account.token, pollInterval(), account.label),
+    );
+  }
 
   async start(sink: (signal: NewSignal) => void): Promise<void> {
     if (!this.token) {
       logger.info(
-        { adapter: this.id },
+        { adapter: this.id, account: this.account },
         "github: no token, adapter idle (set github.token in credentials.yml)",
       );
       return;
@@ -71,13 +110,13 @@ export class GitHubAdapter implements Adapter {
             );
             if (this.emitted.has(externalId)) continue;
             this.emitted.add(externalId);
-            sink(toSignal(pr, reason, this.login));
+            sink(toSignal(pr, reason, this.login, this.account));
           }
         }
       } catch (err) {
         if (isNotConfigured(err)) return;
         logger.warn(
-          { adapter: this.id, err: String(err) },
+          { adapter: this.id, account: this.account, err: String(err) },
           "github: poll failed",
         );
       }
@@ -85,7 +124,10 @@ export class GitHubAdapter implements Adapter {
 
     await poll();
     this.timer = setInterval(() => void poll(), this.pollMs);
-    logger.info({ adapter: this.id, login: this.login }, "github adapter started");
+    logger.info(
+      { adapter: this.id, account: this.account, login: this.login },
+      "github adapter started",
+    );
   }
 
   async stop(): Promise<void> {

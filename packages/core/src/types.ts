@@ -65,7 +65,15 @@ export type SignalKind =
 
 export interface NewSignal {
   adapter: string;
+  /** Which account of that adapter produced this signal (`work`, `personal`, `default`). */
+  account?: string | null | undefined;
   externalId: string;
+  /**
+   * Provider-independent identity, when the source has one (mail `Message-ID`).
+   * Two copies of the same message delivered to two mailboxes must collapse to
+   * one signal, so this takes precedence over `adapter:externalId` for dedupe.
+   */
+  dedupeId?: string | undefined;
   threadId: string | null;
   sender: string;
   recipients: string[];
@@ -99,6 +107,8 @@ export interface CalendarEvent {
   /** Source-stable identifier: iCal UID or Google event id. */
   id: string;
   calendarId: string;
+  /** Which configured account this calendar belongs to. */
+  account?: string | undefined;
   title: string;
   description: string;
   startsAt: Date;
@@ -129,7 +139,10 @@ export interface AdapterCapabilities {
 }
 
 export interface Adapter {
+  /** Unique per configured account: `gmail`, `gmail:work`, … */
   readonly id: string;
+  /** Account label this instance reads, when the source is per-account. */
+  readonly account?: string | undefined;
   readonly capabilities: AdapterCapabilities;
   start(sink: (signal: NewSignal) => void): Promise<void>;
   stop(): Promise<void>;

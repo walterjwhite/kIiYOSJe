@@ -9,6 +9,10 @@ import { signals } from "@mind/core";
 import type { NewSignal } from "@mind/core";
 
 export function dedupeKey(signal: NewSignal): string {
+  // A provider-independent id (mail Message-ID) wins: the same message in two
+  // mailboxes has two provider ids but one Message-ID, and one conversation
+  // must not become two items just because two accounts received it.
+  if (signal.dedupeId) return signal.dedupeId;
   return `${signal.adapter}:${signal.externalId}`;
 }
 

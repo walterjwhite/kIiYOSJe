@@ -194,3 +194,34 @@ Still unverified: no live account has been connected, the GitHub adapter has
 never called the real API, the migration has not run against an existing
 `mind.db` with data, and the commit prompt's new `commitmentDueDate` field has
 only been exercised through the schema, not a real model.
+
+## Multiple accounts (this round)
+
+One person, several accounts per source. `credentials.yml` accepts an
+`accounts:` list alongside the flat block; the flat block is still the
+`default` account, and the section's shared keys apply to every account.
+`@mind/core` gained `credentialAccounts()`, `accountCredential()`,
+`adapterIdForAccount()`, and account-aware `operatorAddresses()`.
+
+- **Gmail, Outlook, GitHub, and SMS** run one adapter per account (`gmail`,
+  `gmail:work`, `outlook:work`, `github:work`, `gmessages:second-line`). Each
+  signal stores `signals.account`; each action stores `actions.account`, and
+  `actions.adapter` resolves a send to the mailbox or bridge that received it.
+  Gmail's `From:` is the account's own `address`, no longer
+  `operatorAddresses()[0]`.
+- **Calendar** sources take an optional `account`; `writeTo` accepts
+  `{ account, calendar }`, and a bare id resolves to the account that owns
+  that calendar. A meeting seen on two accounts is still merged by start time
+  and title.
+- **Dedupe** prefers `NewSignal.dedupeId`. Gmail and Outlook set it from the
+  mail `Message-ID`, so one message delivered to two mailboxes is one signal.
+  Calendar signals include the account in their external id and thread.
+- **Token caches** are per account, keyed by the refresh token, so a second
+  account never receives the first account's access token.
+- **Schema** migration `0006` adds `signals.account` and `actions.account`
+  (with an index on the former). The Signals and Review tree items show the
+  account, and `GET /signals?account=` filters by it.
+
+Verified: `npm run lint` and `npm test` — 38 files, 200 tests. Still
+unverified: no live multi-account credentials have been exercised, and the
+migration has not run against a populated existing `mind.db`.

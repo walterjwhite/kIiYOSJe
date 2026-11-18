@@ -8,6 +8,7 @@
  */
 
 import type { NewSignal } from "@mind/core";
+import { adapterIdForAccount } from "@mind/core";
 import type { MatrixEvent, MatrixRoom } from "./protocol.js";
 
 const GHOST_PREFIX = "@gmessages_";
@@ -66,9 +67,11 @@ export function toSignal(
   room: MatrixRoom,
   event: MatrixEvent,
   selfUserId: string,
+  account = "default",
 ): NewSignal {
   return {
-    adapter: "gmessages",
+    adapter: adapterIdForAccount("gmessages", account),
+    account,
     externalId: event.event_id,
     threadId: room.roomId,
     sender: phoneNumber(event.sender) ?? event.sender,

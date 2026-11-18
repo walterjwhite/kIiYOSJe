@@ -7,6 +7,7 @@ export function healthRouter(adapters: AdapterRegistry) {
   app.get("/", (c) => {
     const adapterStatus = adapters.all().map((a) => ({
       id: a.id,
+      account: a.account,
       canSend: a.capabilities.canSend,
       canStream: a.capabilities.canStream,
     }));

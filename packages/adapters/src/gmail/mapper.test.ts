@@ -64,6 +64,28 @@ describe("toSignal", () => {
     expect(signal.receivedAt.toISOString()).toBe("2026-11-14T09:00:00.000Z");
     expect(signal.urgencyHint).toBe(1);
   });
+
+  it("tags the account and dedupes on the Message-ID header", () => {
+    const signal = toSignal(
+      {
+        id: "m-2",
+        threadId: "t-2",
+        payload: {
+          headers: [
+            { name: "From", value: "Alice <alice@example.com>" },
+            { name: "To", value: "me@work.example" },
+            { name: "Message-ID", value: " <ABC@Example.Com> " },
+          ],
+        },
+      },
+      "me@work.example",
+      "work",
+    );
+
+    expect(signal.adapter).toBe("gmail:work");
+    expect(signal.account).toBe("work");
+    expect(signal.dedupeId).toBe("message-id:abc@example.com");
+  });
 });
 
 describe("buildRawMessage", () => {

@@ -34,7 +34,9 @@ import type { Db, NewSignal } from "@mind/core";
 
 const NewSignalSchema = z.object({
   adapter: z.string(),
+  account: z.string().nullable().optional(),
   externalId: z.string(),
+  dedupeId: z.string().optional(),
   threadId: z.string().nullable(),
   sender: z.string().email(),
   recipients: z.array(z.string()),
@@ -72,6 +74,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
     const range = c.req.query("range") ?? "today";
     const directionId = c.req.query("directionId");
     const adapter = c.req.query("adapter");
+    const account = c.req.query("account");
 
     const days = RANGE_DAYS[range] ?? 0;
     const since =
@@ -89,6 +92,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
     if (since) conditions.push(sql`${signals.receivedAt} >= ${since}`);
     if (directionId) conditions.push(sql`${signals.directionId} = ${directionId}`);
     if (adapter) conditions.push(sql`${signals.adapter} = ${adapter}`);
+    if (account) conditions.push(sql`${signals.account} = ${account}`);
 
     const whereClause =
       conditions.length > 0 ? sql.join(conditions, sql` and `) : undefined;

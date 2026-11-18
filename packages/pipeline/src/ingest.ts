@@ -274,6 +274,7 @@ export async function ingest(
     .values({
       id: signalId,
       adapter: signal.adapter,
+      account: signal.account ?? null,
       externalId: signal.externalId,
       threadId: signal.threadId,
       sender: signal.sender,
@@ -356,6 +357,7 @@ export async function ingest(
           payload: JSON.stringify(outbound),
           status: "proposed",
           adapter: signal.adapter,
+          account: signal.account ?? null,
         })
         .run();
 
@@ -425,6 +427,8 @@ export async function ingest(
       kind: "signal.processed",
       payload: JSON.stringify({
         signalId,
+        adapter: signal.adapter,
+        account: signal.account ?? null,
         disposition,
         reason,
         directionId: match?.direction.id ?? null,

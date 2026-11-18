@@ -36,9 +36,12 @@ export * as gmessagesMapping from "./gmessages/mapping.js";
 export * as outlookMapping from "./outlook/mapper.js";
 
 export function registerDefaultAdapters(registry: AdapterRegistry): void {
-  registry.register(new GmailAdapter());
-  registry.register(new GitHubAdapter());
-  registry.register(GmessagesAdapter.fromConfig());
-  registry.register(new CalendarAdapter());
-  registry.register(new OutlookAdapter());
+  // One adapter per configured account, so a send resolves to the mailbox or
+  // bridge that received the signal. Unconfigured sources still register one
+  // idle adapter, which keeps /health and `mind doctor` honest.
+  for (const adapter of GmailAdapter.allFromConfig()) registry.register(adapter);
+  for (const adapter of GitHubAdapter.allFromConfig()) registry.register(adapter);
+  for (const adapter of GmessagesAdapter.allFromConfig()) registry.register(adapter);
+  registry.register(CalendarAdapter.fromConfig());
+  for (const adapter of OutlookAdapter.allFromConfig()) registry.register(adapter);
 }

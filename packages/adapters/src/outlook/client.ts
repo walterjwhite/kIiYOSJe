@@ -13,6 +13,7 @@ import type { GraphMessage } from "./types.js";
 const BASE_URL = "https://graph.microsoft.com/v1.0";
 const SELECT = [
   "id",
+  "internetMessageId",
   "conversationId",
   "subject",
   "from",

@@ -228,10 +228,12 @@ next week's decisions follow the new rule.
 - A demo or replay world with seeded people and history, runnable beside the real one, so
   the product can be shown and tested without touching personal data.
 - Retention, redaction, and backup cover everything new: knowledge base, journal, audio.
-- Exports that a person can read and keep without mind installed.
- 
-## 11. Multiple accounts
- 
+- Exports that a person can read and keep without mind installed.## 11. Multiple accounts (implemented)
+
+**Status:** shipped for Gmail, Google Calendar, Outlook, GitHub, and the Google
+Messages bridge. `LIVE.md` §1 documents the `accounts:` config shape. The rest of
+this section is the design the implementation followed.
+
 One person, several accounts per source: a work and a personal Google account, two
 mailboxes at the same provider. Every connector today reads exactly one account —
 `google:` holds a single refresh token, `googleAccessToken` caches a single token, and

@@ -5,6 +5,8 @@
 
 export interface OutlookMail {
   id: string;
+  /** RFC 5322 Message-ID, shared by copies delivered to more than one mailbox. */
+  internetMessageId?: string;
   threadId?: string;
   subject?: string;
   /** Lowercased sender address. */
@@ -19,6 +21,7 @@ export interface OutlookMail {
 /** Microsoft Graph message payload (subset of the `$select` we request). */
 export interface GraphMessage {
   id: string;
+  internetMessageId?: string;
   conversationId?: string;
   subject?: string;
   from?: { emailAddress?: { address?: string; name?: string } };

@@ -2,8 +2,10 @@
 
 import { existsSync, statSync } from "node:fs";
 import {
+  accountCredential,
   aiConfigured,
   aiProvider,
+  credentialAccounts,
   credentialString,
   dbPath,
   isPaused,
@@ -76,15 +78,24 @@ export async function doctor(): Promise<void> {
     `${provider}${configured ? "" : " — no API key configured"}`,
   );
 
-  const google = credentialString(
-    "google",
-    "refreshToken",
-    "MIND_GOOGLE_REFRESH_TOKEN",
+  const googleAccounts = credentialAccounts("google").filter(
+    (account) =>
+      accountCredential(account, "refreshToken", "MIND_GOOGLE_REFRESH_TOKEN") !==
+      undefined,
   );
+  const googleCount =
+    googleAccounts.length > 0
+      ? googleAccounts.length
+      : credentialString("google", "refreshToken", "MIND_GOOGLE_REFRESH_TOKEN")
+        ? 1
+        : 0;
+  const google = googleCount > 0;
   check(
     "gmail",
-    Boolean(google),
-    google ? "google refresh token present" : "no google.refreshToken — see LIVE.md §2",
+    google,
+    google
+      ? `${googleCount} google account${googleCount === 1 ? "" : "s"}`
+      : "no google.refreshToken or google.accounts — see LIVE.md §2",
   );
 
   const ics = credentialString("calendar", "icsUrl", "MIND_CALENDAR_ICS_URL");
@@ -102,26 +113,44 @@ export async function doctor(): Promise<void> {
     calendarCount > 0
       ? `${calendarCount} calendar source${calendarCount === 1 ? "" : "s"}`
       : google
-        ? "via the same google token"
+        ? `${googleCount} google account${googleCount === 1 ? "" : "s"}`
         : ics
           ? "iCal feed configured"
-          : "needs google.refreshToken or calendar.sources — LIVE.md §3",
+          : "needs google.accounts or calendar.sources — LIVE.md §3",
   );
 
-  const github =
-    credentialString("github", "token", "GITHUB_TOKEN") ??
-    credentialString("github", "token", "MIND_GITHUB_TOKEN");
+  const githubAccounts = credentialAccounts("github").filter(
+    (account) =>
+      accountCredential(account, "token", "GITHUB_TOKEN") !== undefined,
+  );
+  const githubCount =
+    githubAccounts.length > 0
+      ? githubAccounts.length
+      : credentialString("github", "token", "GITHUB_TOKEN") ??
+          credentialString("github", "token", "MIND_GITHUB_TOKEN")
+        ? 1
+        : 0;
   check(
     "github pull requests",
-    Boolean(github),
-    github ? "token present" : "no github.token — see LIVE.md §4",
+    githubCount > 0,
+    githubCount > 0
+      ? `${githubCount} token${githubCount === 1 ? "" : "s"}`
+      : "no github.token or github.accounts — see LIVE.md §4",
   );
 
-  const matrixToken = credentialString(
-    "gmessages",
-    "accessToken",
-    "MIND_GMESSAGES_ACCESS_TOKEN",
+  const smsAccounts = credentialAccounts("gmessages").filter(
+    (account) =>
+      accountCredential(account, "accessToken", "MIND_GMESSAGES_ACCESS_TOKEN") !==
+      undefined,
   );
+  const matrixToken =
+    smsAccounts.length > 0
+      ? "configured"
+      : credentialString(
+          "gmessages",
+          "accessToken",
+          "MIND_GMESSAGES_ACCESS_TOKEN",
+        );
   const homeserver = credentialString(
     "gmessages",
     "homeserverUrl",
@@ -131,7 +160,9 @@ export async function doctor(): Promise<void> {
     "sms (google messages bridge)",
     Boolean(matrixToken),
     matrixToken
-      ? `homeserver ${homeserver ?? "http://localhost:8008"}`
+      ? smsAccounts.length > 0
+        ? `${smsAccounts.length} bridge account${smsAccounts.length === 1 ? "" : "s"}, homeserver ${homeserver ?? "http://localhost:8008"}`
+        : `homeserver ${homeserver ?? "http://localhost:8008"}`
       : "no gmessages.accessToken — see LIVE.md §5",
   );
 

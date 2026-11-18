@@ -41,24 +41,59 @@ next to each section.
 google:                       # Gmail + Google Calendar share one token
   clientId: "..."
   clientSecret: "..."
-  refreshToken: "..."
+  refreshToken: "..."        # the default account
+  accounts:                  # optional: more accounts, same OAuth client
+    - label: work
+      address: you@work.example
+      refreshToken: "..."
+    - label: personal
+      address: you@personal.example
+      refreshToken: "..."
+
+outlook:                     # optional; same account shape
+  tenantId: "..."
+  clientId: "..."
+  clientSecret: "..."
+  accounts:
+    - label: work
+      address: you@work.example
+      refreshToken: "..."
 
 github:
   token: "github_pat_..."     # fine-grained PAT: metadata + pull requests (read)
+  accounts:                  # optional: one adapter per token
+    - label: work
+      token: "github_pat_..."
 
 gmessages:                    # SMS via a self-hosted Matrix bridge
   homeserverUrl: "http://localhost:8008"
   accessToken: "..."
   userId: "@you:localhost"
+  accounts:                  # optional: one bridge login per phone line
+    - label: second-line
+      accessToken: "..."
+      userId: "@you2:localhost"
 
 operator:
-  addresses:                  # what counts as "me" — used by reply tracking
+  addresses:                  # extra "me" addresses; account addresses join this
     - you@example.com
     - "+15551234567"
 ```
 
-Env equivalents: `MIND_GOOGLE_CLIENT_ID`, `MIND_GOOGLE_CLIENT_SECRET`,
-`MIND_GOOGLE_REFRESH_TOKEN`, `GITHUB_TOKEN`, `MIND_GMESSAGES_*`.
+Every source accepts an `accounts:` list. The flat block stays the `default`
+account, and everything outside `accounts` (an OAuth client id/secret, the
+Matrix homeserver, a GitHub API base) is shared by every account. Give each
+account a `label` and, for mail or SMS, the `address` it owns. The label is
+part of the adapter id (`gmail`, `gmail:work`), is recorded on each signal, and
+decides which mailbox a reply is sent from. Account `address` values are added
+to the "me" list automatically.
+
+Mail is deduplicated on the `Message-ID` header, so a message delivered to two
+of your mailboxes is one signal rather than two.
+
+Env equivalents still fill the `default` account only: `MIND_GOOGLE_CLIENT_ID`,
+`MIND_GOOGLE_CLIENT_SECRET`, `MIND_GOOGLE_REFRESH_TOKEN`, `GITHUB_TOKEN`,
+`MIND_GMESSAGES_*`.
 
 `operator.addresses` is not cosmetic. Two-sided reply tracking ignores signals
 from these addresses when deciding whether a wait has been answered; without it
@@ -84,9 +119,9 @@ written and no action exists to approve.
 ## 3. Google Calendar
 
 Same Google token, scope `calendar` — or skip OAuth entirely and use private ICS
-URLs (read-only). List every calendar you actually look at, shared ones
-included: sources are merged, and a meeting that appears on two calendars
-becomes one signal, not two.
+URLs (read-only). List every calendar you actually look at, across every
+account, shared ones included: sources are merged, and a meeting that appears
+on two calendars (even under two accounts) becomes one signal, not two.
 
 ```yaml
 google:
@@ -94,13 +129,19 @@ google:
 
 calendar:
   # Any number of Google calendars (id or email address) and/or ICS feeds.
+  # `account` defaults to the flat google: account.
   sources:
     - primary
-    - you@your-domain.com
+    - account: work
+      google: team@work.example
     - ics: "https://calendar.google.com/calendar/ical/.../basic.ics"
       label: personal
+      account: personal
   # Where a created event goes; defaults to the first Google source.
-  writeTo: primary
+  # The string form uses the default account unless writeToAccount is set.
+  writeTo:
+    account: work
+    calendar: team@work.example
 ```
 
 A source that fails (revoked token, dead feed) is logged and skipped, and the

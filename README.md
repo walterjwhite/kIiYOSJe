@@ -18,9 +18,11 @@ the VS Code extension is the only client right now.
   no API key) — or an OpenAI/Anthropic/Google/Copilot API key, any
   OpenAI-compatible endpoint, or the Kiro/Copilot CLI over ACP
 
-Sources are optional and additive: Gmail, Google Calendar, GitHub pull
+Sources are optional and additive: Gmail, Outlook, Google Calendar, GitHub pull
 requests, and SMS via a self-hosted Google Messages bridge. Each one
-stays idle until its credentials exist. [LIVE.md](LIVE.md) has the setup
+stays idle until its credentials exist, and each can hold several accounts
+belonging to the same person — a signal records which account it came from,
+and a reply leaves from that account. [LIVE.md](LIVE.md) has the setup
 and the order to add them in.
 
 ## 1. Install and build
@@ -118,8 +120,9 @@ directories; `MIND_DB_PATH` relocates the database alone, which is how
 `demo:serve` points the server at `demo.db`.
 
 - `config/ai.json` — provider, models, base URL, API key
-- `config/credentials.yml` — Google, GitHub, Google Messages bridge tokens
-  (mode 600, never committed)
+- `config/credentials.yml` — Google, Outlook, GitHub, and Google Messages
+  bridge credentials, one or more accounts per source (mode 600, never
+  committed)
 - `config/notifications.json` — notification quiet period
 - `config/token` — API bearer token
 - `config/paused` — send kill-switch flag

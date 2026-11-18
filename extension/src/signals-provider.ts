@@ -15,6 +15,7 @@ export type SignalRange = "today" | "7d" | "30d" | "all";
 export interface Signal {
   id: string;
   adapter: string;
+  account: string | null;
   externalId: string;
   threadId: string | null;
   sender: string;
@@ -85,7 +86,9 @@ export class SignalsProvider implements vscode.TreeDataProvider<
       `[${signal.adapter}] ${signal.sender}`,
       vscode.TreeItemCollapsibleState.None,
     );
-    item.description = `${signal.disposition}${signal.directionId ? ` · ${signal.directionId}` : ""}`;
+    item.description = [signal.account, signal.disposition, signal.directionId]
+      .filter(Boolean)
+      .join(" · ");
     item.tooltip = signal.body.slice(0, 300);
     item.contextValue = "signal";
     (item as vscode.TreeItem & { signalId: string; directionId: string | null }).signalId =

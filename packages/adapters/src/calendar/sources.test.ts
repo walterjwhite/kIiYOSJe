@@ -8,6 +8,7 @@ import {
   CalendarAdapter,
   calendarSources,
   defaultWriteCalendarId,
+  defaultWriteTarget,
   parseCalendarSources,
 } from "./adapter.js";
 import type { GoogleCalendarClient } from "./google.js";
@@ -76,18 +77,26 @@ describe("parseCalendarSources", () => {
 
   it("accepts objects, keeping an ics label and dropping junk", () => {
     expect(
-      parseCalendarSources([
-        { google: "team@example.com" },
-        { ics: "https://example.com/a.ics", label: "personal" },
-        { google: "" },
-        { neither: "x" },
-        null,
-        42,
-        "",
-      ]),
+      parseCalendarSources([      { google: "team@example.com", account: "work" },
+      {
+        ics: "https://example.com/a.ics",
+        label: "personal",
+        account: "home",
+      },
+      { google: "" },
+      { neither: "x" },
+      null,
+      42,
+      "",
+    ]),
     ).toEqual([
-      { kind: "google", calendarId: "team@example.com" },
-      { kind: "ics", url: "https://example.com/a.ics", label: "personal" },
+      { kind: "google", calendarId: "team@example.com", account: "work" },
+      {
+        kind: "ics",
+        url: "https://example.com/a.ics",
+        label: "personal",
+        account: "home",
+      },
     ]);
   });
 });
@@ -122,6 +131,41 @@ describe("calendarSources", () => {
       { kind: "google", calendarId: "primary" },
     ]);
   });
+
+  it("gives every Google account a primary calendar", () => {
+    writeCredentials(
+      [
+        "google:",
+        '  clientId: "c"',
+        '  clientSecret: "s"',
+        '  refreshToken: "default-token"',
+        "  accounts:",
+        "    - label: work",
+        '      refreshToken: "work-token"',
+      ].join("\n"),
+    );
+    expect(calendarSources()).toEqual([
+      { kind: "google", calendarId: "primary" },
+      { kind: "google", calendarId: "primary", account: "work" },
+    ]);
+  });
+});
+
+describe("defaultWriteTarget", () => {
+  it("accepts an account and calendar pair", () => {
+    writeCredentials(
+      [
+        "calendar:",
+        "  writeTo:",
+        "    account: work",
+        "    calendar: team@example.com",
+      ].join("\n"),
+    );
+    expect(defaultWriteTarget([])).toEqual({
+      account: "work",
+      calendarId: "team@example.com",
+    });
+  });
 });
 
 describe("defaultWriteCalendarId", () => {
@@ -144,6 +188,26 @@ describe("defaultWriteCalendarId", () => {
 });
 
 describe("CalendarAdapter with several sources", () => {
+  it("tags events from a non-default account", async () => {
+    const google = {
+      listEvents: async (): Promise<CalendarEvent[]> => [
+        calendarEvent({ id: "a", calendarId: "primary" }),
+      ],
+    } as unknown as GoogleCalendarClient;
+
+    const adapter = new CalendarAdapter(
+      google,
+      [{ kind: "google", calendarId: "primary", account: "work" }],
+      "primary",
+      60_000,
+      { work: google },
+      "work",
+    );
+
+    const events = await adapter.listEvents(range);
+    expect(events[0]?.account).toBe("work");
+  });
+
   it("merges calendars and reports a shared meeting once", async () => {
     const called: string[] = [];
     const google = {

@@ -69,6 +69,7 @@ export function updateStatus(db: Db, adapters: AdapterRegistry): void {
       paused: existsSync(pausedFlagPath()),
       adapters: adapters.all().map((a) => ({
         id: a.id,
+        account: a.account,
         canSend: a.capabilities.canSend,
         canStream: a.capabilities.canStream,
       })),

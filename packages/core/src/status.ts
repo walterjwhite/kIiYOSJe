@@ -11,7 +11,12 @@ export interface StatusPayload {
   version: string;
   sendEnabled: boolean;
   paused: boolean;
-  adapters: { id: string; canSend: boolean; canStream: boolean }[];
+  adapters: {
+    id: string;
+    account?: string | undefined;
+    canSend: boolean;
+    canStream: boolean;
+  }[];
   lastSignalAt: string | null;
   signalsToday: number;
   thoughtsOpen: number;

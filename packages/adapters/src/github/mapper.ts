@@ -9,6 +9,7 @@
  */
 
 import type { NewSignal } from "@mind/core";
+import { adapterIdForAccount } from "@mind/core";
 import type { GitHubPullRequest } from "./client.js";
 
 export type PullRequestReason =
@@ -42,6 +43,7 @@ export function toSignal(
   pr: GitHubPullRequest,
   reason: PullRequestReason,
   self: string,
+  account = "default",
 ): NewSignal {
   const repo = repoFromApiUrl(pr.repository_url);
   const labels = pr.labels.map((label) => label.name).filter(Boolean);
@@ -49,7 +51,8 @@ export function toSignal(
   const body = (pr.body ?? "").slice(0, BODY_EXCERPT);
 
   return {
-    adapter: "github",
+    adapter: adapterIdForAccount("github", account),
+    account,
     externalId: externalIdFor(pr, repo, reason),
     threadId: `${repo}#${pr.number}`,
     sender: author,

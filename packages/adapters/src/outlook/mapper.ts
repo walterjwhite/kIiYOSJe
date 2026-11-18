@@ -4,15 +4,20 @@
  */
 
 import type { NewSignal } from "@mind/core";
+import { adapterIdForAccount } from "@mind/core";
 import { stripHtml } from "../html.js";
 import type { GraphMessage, OutlookMail } from "./types.js";
 
 export { stripHtml };
 
-export function toSignal(mail: OutlookMail): NewSignal {
+export function toSignal(mail: OutlookMail, account = "default"): NewSignal {
   return {
-    adapter: "outlook",
+    adapter: adapterIdForAccount("outlook", account),
+    account,
     externalId: mail.id,
+    ...(mail.internetMessageId
+      ? { dedupeId: `message-id:${mail.internetMessageId}` }
+      : {}),
     threadId: mail.threadId ?? null,
     sender: mail.from,
     recipients: mail.to,
@@ -29,6 +34,14 @@ export function fromGraph(message: GraphMessage): OutlookMail {
   return {
     id: message.id,
     ...(message.conversationId ? { threadId: message.conversationId } : {}),
+    ...(message.internetMessageId
+      ? {
+          internetMessageId: message.internetMessageId
+            .trim()
+            .replace(/^<|>$/g, "")
+            .toLowerCase(),
+        }
+      : {}),
     ...(message.subject ? { subject: message.subject } : {}),
     from: address(message.from?.emailAddress?.address) || "unknown",
     to: (message.toRecipients ?? [])

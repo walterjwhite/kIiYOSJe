@@ -5,6 +5,7 @@
  */
 
 import type { NewSignal } from "@mind/core";
+import { adapterIdForAccount } from "@mind/core";
 
 export interface GmailPart {
   mimeType?: string;
@@ -69,16 +70,23 @@ export function parseAddresses(value: string): string[] {
 export function toSignal(
   message: GmailMessage,
   selfAddress: string,
+  account = "default",
 ): NewSignal {
   const headers = message.payload?.headers;
   const from = header(headers, "from");
   const receivedAt = message.internalDate
     ? new Date(Number(message.internalDate))
     : new Date();
+  const messageId = header(headers, "message-id")
+    .trim()
+    .replace(/^<|>$/g, "")
+    .toLowerCase();
 
   return {
-    adapter: "gmail",
+    adapter: adapterIdForAccount("gmail", account),
+    account,
     externalId: message.id,
+    ...(messageId ? { dedupeId: `message-id:${messageId}` } : {}),
     threadId: message.threadId,
     sender: parseAddresses(from)[0] ?? from,
     recipients: parseAddresses(header(headers, "to")),
@@ -99,7 +107,7 @@ export function buildRawMessage(input: {
   inReplyTo?: string | null;
 }): string {
   const lines = [
-    `From: ${input.from}`,
+    ...(input.from ? [`From: ${input.from}`] : []),
     `To: ${input.to.join(", ")}`,
     `Subject: ${input.subject}`,
     "MIME-Version: 1.0",

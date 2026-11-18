@@ -43,6 +43,8 @@ export const signals = sqliteTable(
   {
     id: text("id").primaryKey(),
     adapter: text("adapter").notNull(),
+    /** Which account of the adapter produced this signal (`work`, `default`). */
+    account: text("account"),
     externalId: text("external_id").notNull(),
     threadId: text("thread_id"),
     sender: text("sender").notNull(),
@@ -66,6 +68,7 @@ export const signals = sqliteTable(
     uniqueIndex("signals_dedupe_key_idx").on(t.dedupeKey),
     index("signals_received_at_idx").on(t.receivedAt),
     index("signals_thread_id_idx").on(t.threadId),
+    index("signals_account_idx").on(t.account),
   ],
 );
 
@@ -105,6 +108,8 @@ export const actions = sqliteTable("actions", {
   payload: text("payload").notNull(), // JSON OutboundDraft
   status: text("status").notNull().default("proposed"), // ActionStatus
   adapter: text("adapter").notNull(),
+  /** Account the reply will be sent from; mirrors signals.account. */
+  account: text("account"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),

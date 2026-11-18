@@ -15,6 +15,7 @@ export interface Action {
   kind: string;
   status: string;
   adapter: string;
+  account: string | null;
   payload: string;
   signalId: string | null;
 }
@@ -53,7 +54,7 @@ export class ReviewProvider implements vscode.TreeDataProvider<
       `[${action.adapter}] ${preview || action.kind}`,
       vscode.TreeItemCollapsibleState.None,
     );
-    item.description = action.status;
+    item.description = [action.account, action.status].filter(Boolean).join(" · ");
     item.contextValue = "action";
     // Store id for command handlers
     (item as vscode.TreeItem & { actionId: string }).actionId = action.id;
