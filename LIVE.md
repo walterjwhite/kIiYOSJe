@@ -83,11 +83,37 @@ written and no action exists to approve.
 
 ## 3. Google Calendar
 
-Same Google token, scope `calendar`. If you would rather not use OAuth at all,
-put the private ICS URL instead and only the read path is used:
+Same Google token, scope `calendar` — or skip OAuth entirely and use private ICS
+URLs (read-only). List every calendar you actually look at, shared ones
+included: sources are merged, and a meeting that appears on two calendars
+becomes one signal, not two.
+
+```yaml
+google:
+  refreshToken: "..."
+
+calendar:
+  # Any number of Google calendars (id or email address) and/or ICS feeds.
+  sources:
+    - primary
+    - you@your-domain.com
+    - ics: "https://calendar.google.com/calendar/ical/.../basic.ics"
+      label: personal
+  # Where a created event goes; defaults to the first Google source.
+  writeTo: primary
+```
+
+A source that fails (revoked token, dead feed) is logged and skipped, and the
+rest still arrive; if nothing at all could be read, the poll failure is logged
+rather than swallowed. A meeting present on several calendars is collapsed by
+start time and title, so the brief shows it once.
+
+The older single-calendar keys still work — `calendar.calendarId` plus
+`calendar.icsUrl`, with the feed used as a fallback when Google fails:
 
 ```yaml
 calendar:
+  calendarId: primary
   icsUrl: "https://calendar.google.com/calendar/ical/.../basic.ics"
 ```
 

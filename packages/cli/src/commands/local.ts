@@ -8,6 +8,7 @@ import {
   dbPath,
   isPaused,
   listSnapshots,
+  loadCredentials,
   operatorAddresses,
   pause,
   resume,
@@ -87,14 +88,24 @@ export async function doctor(): Promise<void> {
   );
 
   const ics = credentialString("calendar", "icsUrl", "MIND_CALENDAR_ICS_URL");
+  const listedCalendars = loadCredentials()["calendar"]?.["sources"];
+  const calendarCount = Array.isArray(listedCalendars)
+    ? listedCalendars.filter(
+        (entry) =>
+          typeof entry === "string" ||
+          (entry !== null && typeof entry === "object"),
+      ).length
+    : 0;
   check(
     "calendar",
-    Boolean(google || ics),
-    google
-      ? "via the same google token"
-      : ics
-        ? "iCal feed configured"
-        : "needs google.refreshToken or calendar.icsUrl — LIVE.md §3",
+    Boolean(google || ics || calendarCount > 0),
+    calendarCount > 0
+      ? `${calendarCount} calendar source${calendarCount === 1 ? "" : "s"}`
+      : google
+        ? "via the same google token"
+        : ics
+          ? "iCal feed configured"
+          : "needs google.refreshToken or calendar.sources — LIVE.md §3",
   );
 
   const github =

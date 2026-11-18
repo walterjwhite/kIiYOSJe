@@ -230,12 +230,51 @@ next week's decisions follow the new rule.
 - Retention, redaction, and backup cover everything new: knowledge base, journal, audio.
 - Exports that a person can read and keep without mind installed.
  
+## 11. Multiple accounts
+ 
+One person, several accounts per source: a work and a personal Google account, two
+mailboxes at the same provider. Every connector today reads exactly one account —
+`google:` holds a single refresh token, `googleAccessToken` caches a single token, and
+Gmail calls `/users/me/`, so the mailbox is whoever owns the refresh token.
+ 
+Not to be confused with multi-user (`DIRECTION.md` §2.1): every account here belongs to
+the same person, so the per-operator metric is unaffected.
+ 
+What already works, without any of this:
+ 
+- A second account's calendar, if it is shared with the first (an extra calendar id in
+  `calendar.sources`) or exposed as a private iCal URL (read-only).
+- `operator.addresses` already lists every address I own, across domains.
+ 
+What has to change:
+ 
+- **Credentials.** `google.accounts` as a list of `{ label, refreshToken }`, with the flat
+  `google:` block still meaning one account, labelled `default`. One OAuth client can
+  hold refresh tokens for several accounts.
+- **Token cache.** One slot per account. A single module-level token would silently hand
+  a second account the first account's access token.
+- **Gmail.** One adapter per account, each with its own `From:` address, and each signal
+  tagged with its account so a draft is answered from the mailbox that received it.
+  `selfAddress` is currently `operatorAddresses()[0]`, which is the first address in the
+  list, not the address that was written to.
+- **Calendar.** An optional `account` on every source, and `writeTo` resolving to an
+  *(account, calendar id)* pair rather than a bare calendar id.
+- **Duplicates.** A message delivered to two mailboxes has two provider ids, so one
+  conversation becomes two items. Deduplicate on the `Message-ID` header, which is the
+  same in both copies — the same class of problem as the calendar merge key.
+- **Outlook** takes the same shape, so the contract has to be per source, not per Google.
+ 
+**Done when:** with two accounts configured, each item says which account it came from, a
+reply is sent from the mailbox that received it, a conversation present in both is one
+item, and disconnecting one account leaves the other running.
+ 
 ---
  
 ## Order of work
  
 1. Foundations, plus the demo world — nothing later can be tested without them.
-2. Connectors and the knowledge base (1, 3, 7).
+2. Connectors and the knowledge base (1, 3, 7) — then multiple accounts (11), once one
+   account per source works end to end.
 3. Development workflow (4).
 4. Multi-client access and shared state (5).
 5. Brief in text and audio (6), then the phone app (2).
@@ -255,4 +294,5 @@ next week's decisions follow the new rule.
 ## Out of scope
  
 Multi-tenant or team-wide deployment, autonomous sends without approval, and platforms
-beyond the editor and the phone.
+beyond the editor and the phone. Several accounts belonging to the same person is not
+multi-tenancy — that is section 11.

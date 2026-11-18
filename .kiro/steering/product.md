@@ -28,7 +28,8 @@ design should change, not the prompts.
 - Not a chat assistant that has to be prompted. It runs on ingest and review cadence.
 - Not distributed. One process, one SQLite file, one machine.
 - Not a task manager. Commitments are captured and linked, not worked.
-- Not multi-user. Single operator; no accounts, no sync.
+- Not multi-user yet. One operator per instance for now; multi-user is planned
+  (DIRECTION.md §2.1), a hosted accounts/sync service is not.
 
 ## Safety posture
 
