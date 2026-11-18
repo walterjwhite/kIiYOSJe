@@ -52,10 +52,12 @@
       },
       {
         "command": "mind.signals.setRange",
+        "icon": "$(calendar)",
         "title": "mind: Set Signals Range"
       },
       {
         "command": "mind.signals.refresh",
+        "icon": "$(refresh)",
         "title": "mind: Refresh Signals"
       },
       {
@@ -64,6 +66,7 @@
       },
       {
         "command": "mind.journal.refresh",
+        "icon": "$(refresh)",
         "title": "mind: Refresh Journal"
       },
       {
@@ -90,6 +93,26 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "mind.brief",
+          "group": "navigation",
+          "when": "view == mind.thoughts"
+        },
+        {
+          "command": "mind.capture",
+          "group": "navigation",
+          "when": "view == mind.thoughts"
+        },
+        {
+          "command": "mind.refresh",
+          "group": "navigation@3",
+          "when": "view == mind.thoughts && mind.thoughts.error"
+        },
+        {
+          "command": "mind.refresh",
+          "group": "navigation@3",
+          "when": "view == mind.review && mind.review.error"
+        },
         {
           "command": "mind.signals.setRange",
           "when": "view == mind.signals",
@@ -136,13 +159,13 @@
     "views": {
       "mind": [
         {
-          "id": "mind.review",
-          "name": "Queue",
+          "id": "mind.thoughts",
+          "name": "Thoughts",
           "type": "tree"
         },
         {
-          "id": "mind.thoughts",
-          "name": "Thoughts",
+          "id": "mind.review",
+          "name": "Review",
           "type": "tree"
         },
         {
@@ -157,6 +180,24 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "mind.thoughts",
+        "contents": "Nothing needs your attention right now.\n[Capture a thought](command:mind.capture) [Open Today Brief](command:mind.brief)"
+      },
+      {
+        "view": "mind.review",
+        "contents": "Nothing is awaiting your approval.\n[Open Today Brief](command:mind.brief)"
+      },
+      {
+        "view": "mind.signals",
+        "contents": "No signals have arrived today."
+      },
+      {
+        "view": "mind.journal",
+        "contents": "The journal fills in as signals are ingested.\n[Open Today Brief](command:mind.brief)"
+      }
+    ],
     "configuration": {
       "title": "mind",
       "properties": {

@@ -52,8 +52,10 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
       receivedAt: new Date(raw.receivedAt),
     };
 
-    const disposition = await ingest(db, signal, adapters);
-    return c.json({ disposition }, disposition === "duplicate" ? 200 : 201);
+    // Full result, not just the disposition: callers can follow the ids to
+    // the signal, Thought, and proposed action without a second request.
+    const result = await ingest(db, signal, adapters);
+    return c.json(result, result.disposition === "duplicate" ? 200 : 201);
   });
 
   // GET /signals?range=today|7d|30d|all&directionId=&adapter=

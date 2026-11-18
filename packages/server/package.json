@@ -15,7 +15,8 @@
   "scripts": {
     "build": "tsc --build",
     "dev": "tsc --build && node --watch dist/main.js",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "test": "vitest run --dir src"
   },
   "dependencies": {
     "@hono/node-server": "2.1.9",

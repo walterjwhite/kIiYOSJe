@@ -1,5 +1,10 @@
-import { describe, it, expect } from "vitest";
-import { isWithinNotificationWindow, DEFAULT_QUIET_PERIOD } from "./config.js";
+import { afterEach, describe, it, expect } from "vitest";
+import {
+  configDir,
+  dataDir,
+  isWithinNotificationWindow,
+  DEFAULT_QUIET_PERIOD,
+} from "./config.js";
 import type { QuietPeriodConfig } from "./config.js";
 
 // Nov 2026, local time: the 9th is a Monday, the 14th is a Saturday.
@@ -9,6 +14,28 @@ const SATURDAY_DAY = 14;
 function at(day: number, hour: number, minute = 0): Date {
   return new Date(2026, 10, day, hour, minute, 0, 0); // month is 0-indexed
 }
+
+describe("directory overrides", () => {
+  const previousDataDir = process.env["MIND_DATA_DIR"];
+  const previousConfigDir = process.env["MIND_CONFIG_DIR"];
+
+  afterEach(() => {
+    if (previousDataDir === undefined) delete process.env["MIND_DATA_DIR"];
+    else process.env["MIND_DATA_DIR"] = previousDataDir;
+    if (previousConfigDir === undefined) delete process.env["MIND_CONFIG_DIR"];
+    else process.env["MIND_CONFIG_DIR"] = previousConfigDir;
+  });
+
+  it("honors MIND_DATA_DIR", () => {
+    process.env["MIND_DATA_DIR"] = "/tmp/mind-data-override";
+    expect(dataDir()).toBe("/tmp/mind-data-override");
+  });
+
+  it("honors MIND_CONFIG_DIR", () => {
+    process.env["MIND_CONFIG_DIR"] = "/tmp/mind-config-override";
+    expect(configDir()).toBe("/tmp/mind-config-override");
+  });
+});
 
 describe("isWithinNotificationWindow", () => {
   it("allows a weekday within the default window", () => {

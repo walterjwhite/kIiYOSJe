@@ -1,7 +1,8 @@
 /**
  * Top-level pipeline entry point.
  * Runs all steps for a single NewSignal and persists the result.
- * Returns the disposition for callers that want to log or count.
+ * Returns the full result: disposition plus the ids written, so callers can
+ * act on more than "what happened" without re-querying the database.
  */
 
 import { eq, and, gte, or, sql } from "drizzle-orm";
@@ -24,19 +25,33 @@ export interface IngestOverrides {
   draftBody?: string | null;
 }
 
+export interface IngestResult {
+  disposition: SignalDisposition | "duplicate";
+  signalId: string | null;
+  thoughtId: string | null;
+  actionId: string | null;
+  reason: string;
+}
+
 export async function ingest(
   db: Db,
   signal: NewSignal,
   adapters: AdapterRegistry,
   overrides?: IngestOverrides,
-): Promise<SignalDisposition | "duplicate"> {
+): Promise<IngestResult> {
   const key = dedupeKey(signal);
   const log = logger.child({ component: "pipeline", dedupeKey: key });
 
   // ── 1. Dedupe ────────────────────────────────────────────────────────────
   if (isDuplicate(db, key)) {
     log.debug("duplicate signal, dropping");
-    return "duplicate";
+    return {
+      disposition: "duplicate",
+      signalId: null,
+      thoughtId: null,
+      actionId: null,
+      reason: "already ingested",
+    };
   }
 
   // ── 2. Normalize ─────────────────────────────────────────────────────────
@@ -61,6 +76,7 @@ export async function ingest(
   let disposition: SignalDisposition;
   let createThought = false;
   let shouldSend = false;
+  let reason = match ? "matched" : "no specific direction";
 
   if (!match) {
     // No direction and no fallback — this shouldn't happen once ensureFallbackDirection
@@ -71,6 +87,7 @@ export async function ingest(
     const dir = match.direction;
     const adapter = adapters.get(signal.adapter);
     const guards = evaluateGuards(dir, signal, db);
+    if (guards.triggered) reason = "guard triggered";
 
     const outcome = decide({
       posture: dir.posture as any,
@@ -89,6 +106,7 @@ export async function ingest(
 
   // ── 6. Record ─────────────────────────────────────────────────────────────
   const signalId = newId();
+  let actionId: string | null = null;
 
   db.insert(signals)
     .values({
@@ -147,12 +165,13 @@ export async function ingest(
     // instead of proposing an empty message (same rule as the monorepo).
     if (draftBody === null || draftBody.trim() === "") {
       disposition = "filed";
+      reason = "drafter not configured";
       db.update(signals)
         .set({ disposition })
         .where(eq(signals.id, signalId))
         .run();
     } else {
-      const actionId = newId();
+      actionId = newId();
       const outbound: OutboundDraft = {
         to: [signal.sender],
         body: draftBody,
@@ -253,7 +272,13 @@ export async function ingest(
     },
     "signal processed",
   );
-  return disposition;
+  return {
+    disposition,
+    signalId,
+    thoughtId: thoughtId ?? null,
+    actionId,
+    reason,
+  };
 }
 
 function buildThoughtTitle(classifierOut: ClassifierOutput, sender: string): string {

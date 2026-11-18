@@ -29,7 +29,7 @@ npm run dev
 
 This builds `packages/server` and starts it on `http://127.0.0.1:8787`,
 running a database migration if needed and generating an API token at
-`~/.config/mind/token` on first run. Leave it running in a terminal.
+`~/.config/kIiYOSJe/mind/token` on first run. Leave it running in a terminal.
 
 Directions (the rules it matches signals against) live in `directions/*.yaml`.
 Edit the example at `directions/work/boss.yaml` or add your own — the server
@@ -47,16 +47,16 @@ code --install-extension extension/mind-vscode-0.0.1.vsix
 ```
 
 Reload VS Code. A **mind** icon appears in the Activity Bar (the far-left
-icon rail) — click it to open the sidebar with Queue, Thoughts, Signals,
+icon rail) — click it to open the sidebar with Review, Thoughts, Signals,
 and Journal. The extension talks to the server at `http://127.0.0.1:8787`
-using the token from `~/.config/mind/token` — no extra setup needed as
+using the token from `~/.config/kIiYOSJe/mind/token` — no extra setup needed as
 long as the server from step 2 is running.
 
 ## 4. Use it
 
 Click the **mind** icon in the Activity Bar to open its sidebar:
 
-- **Queue** — drafted replies awaiting approval; approve or discard each
+- **Review** — drafted replies awaiting approval; approve or discard each
   one inline. This is the only place a send is authorized.
 - **Thoughts** — things that need a decision.
 - **Signals** — every signal, inbound and outbound; defaults to today
@@ -92,6 +92,40 @@ npm run demo:reset    # wipes the demo database
 ```
 
 See `packages/demo-data/README.md` for details.
+
+## Configuration
+
+Everything lives under `~/.config/kIiYOSJe/mind` (mode 600) and
+`~/.data/kIiYOSJe/mind`. `MIND_CONFIG_DIR` and `MIND_DATA_DIR` relocate those
+directories; `MIND_DB_PATH` relocates the database alone, which is how
+`demo:serve` points the server at `demo.db`.
+
+- `config/ai.json` — provider, models, base URL, API key
+- `config/notifications.json` — notification quiet period
+- `config/token` — API bearer token
+- `config/paused` — send kill-switch flag
+- `data/mind.db` — database; `data/demo.db` — demo database
+- `data/backups/`, `data/snapshots/` — rotating copies and named archives
+
+Environment overrides: `MIND_AI_PROVIDER`, `MIND_AI_API_KEY`, `MIND_AI_BASE_URL`,
+`MIND_CLASSIFY_MODEL`, `MIND_DRAFT_MODEL`, `MIND_RETENTION_DAYS`,
+`MIND_SEND_ENABLED`, `MIND_LOG_LEVEL`, `MIND_DIRECTIONS_DIR`, `MIND_DB_PATH`,
+`MIND_CONFIG_DIR`, `MIND_DATA_DIR`, `MIND_TEST_TOKEN`.
+
+## API
+
+`GET /health`, `GET /brief`, `GET|POST /thoughts`, `PATCH /thoughts/:id`,
+`GET /directions`, `PUT /directions/:id`, `GET /actions`, `PATCH /actions/:id`,
+`POST /actions/:id/send`, `POST /actions/:id/discard`, `POST /signals`,
+`GET /signals`, `PATCH /signals/:id`, `GET /metrics`, `GET /metrics/signals`,
+`GET /proposals`, `POST /proposals/run`, `POST /admin/pause`,
+`POST /admin/resume`, `GET /admin/status`, `GET /admin/ai-config`,
+`PUT /admin/ai-config`, `GET /admin/notifications`,
+`PUT /admin/notifications`, `GET /events`.
+
+`POST /signals` returns the full ingest result — `disposition`, `signalId`,
+`thoughtId`, `actionId`, and `reason` — so a caller can follow the ids without
+re-querying by adapter and external id.
 
 ## Tests
 

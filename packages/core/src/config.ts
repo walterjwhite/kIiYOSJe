@@ -11,11 +11,17 @@ import { mkdirSync, readFileSync, writeFileSync, unlinkSync, existsSync, renameS
 const REPO_NAME = "kIiYOSJe";
 
 export function dataDir(): string {
-  return join(homedir(), ".data", REPO_NAME, "mind");
+  return (
+    process.env["MIND_DATA_DIR"] ??
+    join(homedir(), ".data", REPO_NAME, "mind")
+  );
 }
 
 export function configDir(): string {
-  return join(homedir(), ".config", REPO_NAME, "mind");
+  return (
+    process.env["MIND_CONFIG_DIR"] ??
+    join(homedir(), ".config", REPO_NAME, "mind")
+  );
 }
 
 export function dbPath(): string {

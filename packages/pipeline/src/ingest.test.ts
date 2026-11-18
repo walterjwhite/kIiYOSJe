@@ -76,7 +76,9 @@ describe("ingest", () => {
     const db = setup("surface");
     const result = await ingest(db, signal, new AdapterRegistry(), overrides());
 
-    expect(result).toBe("promoted");
+    expect(result.disposition).toBe("promoted");
+    expect(result.signalId).not.toBeNull();
+    expect(result.thoughtId).not.toBeNull();
     const row = db.select().from(schema.signals).get();
     expect(row?.body).not.toContain("old quoted text");
     expect(
@@ -98,7 +100,8 @@ describe("ingest", () => {
     await ingest(db, signal, new AdapterRegistry(), overrides());
     const duplicate = await ingest(db, signal, new AdapterRegistry(), overrides());
 
-    expect(duplicate).toBe("duplicate");
+    expect(duplicate.disposition).toBe("duplicate");
+    expect(duplicate.signalId).toBeNull();
     expect(db.select().from(schema.signals).all()).toHaveLength(1);
   });
 
@@ -111,7 +114,7 @@ describe("ingest", () => {
       { ...overrides(), classifierOutput: { ...classifier, confidence: 0.2 } },
     );
 
-    expect(result).toBe("escalated");
+    expect(result.disposition).toBe("escalated");
     expect(db.select().from(schema.thoughts).get()?.state).toBe("active");
   });
 
@@ -119,7 +122,8 @@ describe("ingest", () => {
     const db = setup("absorb");
     const result = await ingest(db, signal, new AdapterRegistry(), overrides(null));
 
-    expect(result).toBe("filed");
+    expect(result.disposition).toBe("filed");
+    expect(result.reason).toBe("drafter not configured");
     expect(db.select().from(schema.actions).all()).toHaveLength(0);
   });
 
@@ -142,6 +146,6 @@ describe("ingest", () => {
       new AdapterRegistry(),
       { classifierOutput: { ...classifier, confidence: 0.3 } },
     );
-    expect(result).toBe("escalated");
+    expect(result.disposition).toBe("escalated");
   });
 });

@@ -8,7 +8,8 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { eq } from "drizzle-orm";
-import { unlinkSync } from "node:fs";
+import { mkdtempSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as schema from "@mind/core";
@@ -28,6 +29,13 @@ const MIGRATIONS_DIR = join(
 
 // Override the token for tests
 process.env["MIND_TEST_TOKEN"] = "test-token";
+// Keep paths and provider choice local to the suite: no shared config files,
+// and a cloud provider with no key so classify()/draft() stay on the stub path.
+process.env["MIND_CONFIG_DIR"] = mkdtempSync(join(tmpdir(), "mind-app-config-"));
+process.env["MIND_DATA_DIR"] = mkdtempSync(join(tmpdir(), "mind-app-data-"));
+process.env["MIND_AI_PROVIDER"] = "openai";
+delete process.env["OPENAI_API_KEY"];
+delete process.env["MIND_AI_API_KEY"];
 
 function openTestDb() {
   const sqlite = new Database(":memory:");
@@ -169,6 +177,43 @@ describe("/metrics/signals (Analytics drill-down)", () => {
 });
 
 describe("/signals (list + reclassify)", () => {
+  it("returns the full ingest result for a new signal", async () => {
+    const db = openTestDb();
+    const app = buildApp(db, new AdapterRegistry());
+    const token = auth.getToken();
+
+    const res = await app.request("/signals", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        adapter: "test",
+        externalId: "ingress-1",
+        threadId: null,
+        sender: "alice@example.com",
+        recipients: ["me@example.com"],
+        kind: "message",
+        body: "Where is the rollout?",
+        receivedAt: new Date().toISOString(),
+        urgencyHint: null,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      disposition: string;
+      signalId: string | null;
+      thoughtId: string | null;
+      actionId: string | null;
+      reason: string;
+    };
+    expect(body.disposition).not.toBe("duplicate");
+    expect(body.signalId).toBeTruthy();
+    expect(body.reason.length).toBeGreaterThan(0);
+  });
+
   it("lists signals and reclassifies one to a different direction", async () => {
     const db = openTestDb();
     const adapters = new AdapterRegistry();

@@ -16,7 +16,8 @@
     "build": "tsc --build",
     "dev": "tsc --build --watch",
     "migrate": "drizzle-kit migrate",
-    "migrate:generate": "drizzle-kit generate"
+    "migrate:generate": "drizzle-kit generate",
+    "test": "vitest run --dir src"
   },
   "dependencies": {
     "better-sqlite3": "13.2.0",
