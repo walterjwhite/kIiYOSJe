@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import type { Db } from "@mind/core";
 import type { AdapterRegistry } from "@mind/pipeline";
 import { bearerAuth } from "./auth.js";
+import { bodyLimit, errorResponse } from "./errors.js";
 import { healthRouter } from "./routes/health.js";
 import { thoughtsRouter } from "./routes/thoughts.js";
 import { directionsRouter } from "./routes/directions.js";
@@ -23,6 +24,8 @@ export function buildApp(db: Db, adapters: AdapterRegistry) {
 
   // All routes require a valid bearer token.
   app.use("/*", bearerAuth);
+  app.use("/*", bodyLimit);
+  app.onError(errorResponse);
 
   app.route("/health", healthRouter(adapters));
   app.route("/brief", briefRouter(db));

@@ -396,3 +396,39 @@ describe("/admin/notifications (quiet period)", () => {
     expect(body.startMinute).toBe(30);
   });
 });
+
+describe("request guards", () => {
+  it("rejects a body larger than 2 MB", async () => {
+    const app = buildApp(openTestDb(), new AdapterRegistry());
+    const payload = JSON.stringify({
+      title: "too big",
+      body: "x".repeat(2 * 1024 * 1024),
+      directionId: null,
+    });
+    const res = await app.request("/thoughts", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${auth.getToken()}`,
+        "Content-Type": "application/json",
+        "content-length": String(Buffer.byteLength(payload)),
+      },
+      body: payload,
+    });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("reports malformed JSON as a 400", async () => {
+    const app = buildApp(openTestDb(), new AdapterRegistry());
+    const res = await app.request("/thoughts", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${auth.getToken()}`,
+        "Content-Type": "application/json",
+      },
+      body: "{",
+    });
+
+    expect(res.status).toBe(400);
+  });
+});

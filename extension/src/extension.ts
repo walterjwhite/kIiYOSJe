@@ -18,6 +18,12 @@ export function activate(context: vscode.ExtensionContext): void {
   const reviewProvider = new ReviewProvider();
   const signalsProvider = new SignalsProvider();
   const journalProvider = new JournalProvider();
+  const trees = [
+    thoughtsProvider,
+    reviewProvider,
+    signalsProvider,
+    journalProvider,
+  ];
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("mind.thoughts", thoughtsProvider),
@@ -47,6 +53,13 @@ export function activate(context: vscode.ExtensionContext): void {
       });
 
       thoughtsProvider.refresh();
+    }),
+  );
+
+  // Refresh every tree at once (toolbar button and error rows).
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.refresh", () => {
+      for (const tree of trees) tree.refresh();
     }),
   );
 

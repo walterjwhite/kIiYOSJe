@@ -15,7 +15,7 @@ function buildLogger() {
   }
 
   return pino(
-    { level: process.env["LOG_LEVEL"] ?? "info" },
+    { level: process.env["MIND_LOG_LEVEL"] ?? process.env["LOG_LEVEL"] ?? "info" },
     pino.destination({ dest: logPath(), sync: false }),
   );
 }

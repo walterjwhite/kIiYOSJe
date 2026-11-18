@@ -43,6 +43,18 @@ export interface ScenarioSignal {
   intent: string;
 }
 
+/** The flat persona shape both trees expose for `mind demo`-style seeding. */
+export interface DemoSignal {
+  adapter: string;
+  externalId: string;
+  sender: string;
+  threadId?: string;
+  kind: string;
+  body: string;
+  /** Age of the signal in minutes, derived from the scenario's `atHour`. */
+  minutesAgo: number;
+}
+
 export interface PersonaScenario {
   id: string;
   displayName: string;

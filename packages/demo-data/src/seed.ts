@@ -16,9 +16,30 @@ import { pmScenario } from "./personas/pm.js";
 import { devsecopsScenario } from "./personas/devsecops.js";
 import { replayPersona } from "./replay.js";
 import type { ReplayResult } from "./replay.js";
-import type { PersonaScenario } from "./types.js";
+import type { DemoSignal, PersonaScenario } from "./types.js";
 
-export const ALL_PERSONAS: PersonaScenario[] = [engineerScenario, pmScenario, devsecopsScenario];
+export const ALL_PERSONAS: PersonaScenario[] = [
+  engineerScenario,
+  pmScenario,
+  devsecopsScenario,
+];
+
+/** Flattens a scenario into the same persona shape the monorepo exposes. */
+export function personaSignals(scenario: PersonaScenario): DemoSignal[] {
+  return scenario.signals.map(({ atHour, signal }) => ({
+    adapter: signal.adapter,
+    externalId: signal.externalId,
+    sender: signal.sender,
+    ...(signal.threadId ? { threadId: signal.threadId } : {}),
+    kind: signal.kind,
+    body: signal.body,
+    minutesAgo: Math.round(atHour * 60),
+  }));
+}
+
+export const demoPersonas: Record<string, DemoSignal[]> = Object.fromEntries(
+  ALL_PERSONAS.map((scenario) => [scenario.id, personaSignals(scenario)]),
+);
 
 export function demoDbPath(): string {
   return join(dataDir(), "demo.db");

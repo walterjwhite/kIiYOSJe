@@ -77,6 +77,15 @@
       {
         "command": "mind.notifications.configure",
         "title": "mind: Configure Notification Quiet Period"
+      },
+      {
+        "command": "mind.review.focus",
+        "title": "mind: Focus Review"
+      },
+      {
+        "command": "mind.refresh",
+        "icon": "$(refresh)",
+        "title": "mind: Refresh"
       }
     ],
     "menus": {

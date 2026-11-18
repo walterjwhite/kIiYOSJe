@@ -4,6 +4,14 @@
 
 import { z } from "zod";
 
+/** A malformed request or config value; the server reports it as 400. */
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ValidationError";
+  }
+}
+
 export const ScopeKindSchema = z.enum(["person", "project", "topic", "thread"]);
 export const DirectionPostureSchema = z.enum([
   "absorb",

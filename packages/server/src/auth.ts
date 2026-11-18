@@ -23,11 +23,16 @@ function loadOrCreateToken(): string {
 
 const TOKEN = loadOrCreateToken();
 
+/** Tests may pin the token with MIND_TEST_TOKEN instead of reading the file. */
+function currentToken(): string {
+  return process.env["MIND_TEST_TOKEN"] ?? TOKEN;
+}
+
 export const bearerAuth = createMiddleware(async (c, next) => {
   const header = c.req.header("Authorization") ?? "";
   const given = header.startsWith("Bearer ") ? header.slice(7) : "";
 
-  if (given !== TOKEN) {
+  if (given !== currentToken()) {
     return c.json({ error: "Unauthorized" }, 401);
   }
   await next();
@@ -35,5 +40,5 @@ export const bearerAuth = createMiddleware(async (c, next) => {
 
 /** Exported for the CLI to print on first run. */
 export function getToken(): string {
-  return TOKEN;
+  return currentToken();
 }

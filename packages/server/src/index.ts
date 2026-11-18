@@ -22,7 +22,10 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 
 function directionsRoot(): string {
-  return join(import.meta.dirname, "..", "..", "..", "directions");
+  return (
+    process.env["MIND_DIRECTIONS_DIR"] ??
+    join(import.meta.dirname, "..", "..", "..", "directions")
+  );
 }
 
 export async function startServer(): Promise<void> {
