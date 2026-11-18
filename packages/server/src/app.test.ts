@@ -314,7 +314,7 @@ describe("/events (Journal)", () => {
 });
 
 describe("/admin/notifications (quiet period)", () => {
-  // These tests read/write the real ~/.config/mind/notifications.json,
+  // These tests read/write the real ~/.config/kIiYOSJe/mind/notifications.json,
   // same as config.ts does everywhere else (no path injection exists for
   // this module). Clean up afterward so the suite has no side effects.
   afterEach(() => {

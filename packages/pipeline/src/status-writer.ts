@@ -1,5 +1,5 @@
 /**
- * Keeps ~/.local/share/mind/status.json up to date.
+ * Keeps ~/.data/kIiYOSJe/mind/status.json up to date.
  *
  * Written on a 30-second interval and after each signal is ingested.
  * The status file is what `mind health` and GET /admin/status read.

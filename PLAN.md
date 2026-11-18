@@ -201,7 +201,7 @@ promised.
 
 ## 9. HTTP API
 
-Bearer token from `~/.config/mind/token`, bound to `127.0.0.1` only. No CORS
+Bearer token from `~/.config/kIiYOSJe/mind/token`, bound to `127.0.0.1` only. No CORS
 needed; the extension is a local client.
 
 | method | path                | purpose                               |
@@ -264,7 +264,7 @@ webviews for the brief, Analytics, and the Devices placeholder.
 
 ### Notification quiet period
 
-A setting, not a send gate: `~/.config/mind/notifications.json` holds a
+A setting, not a send gate: `~/.config/kIiYOSJe/mind/notifications.json` holds a
 day-of-week + time-of-day window (default Mon–Fri 08:00–15:00, local time)
 outside of which mind does not proactively notify me — e.g. a future
 "your brief is ready" ping. `isWithinNotificationWindow()` in `@mind/core`
@@ -316,8 +316,8 @@ to the model provider. That is the one deliberate egress and it must be visible
 in config. A local-model provider can be swapped in without touching the
 pipeline because of the abstraction above.
 
-**Location:** DB at `~/.local/share/mind/mind.db`, mode `600`; token and
-credentials at `~/.config/mind/`, mode `600`; never under version control.
+**Location:** DB at `~/.data/kIiYOSJe/mind/mind.db`, mode `600`; token and
+credentials at `~/.config/kIiYOSJe/mind/`, mode `600`; never under version control.
 
 **Note on `skipLibCheck`:** `drizzle-orm@0.45.4` ships declarations for
 MySQL/SingleStore/Gel drivers that do not type-check under TS 7's stricter

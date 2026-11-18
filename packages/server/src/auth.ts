@@ -1,6 +1,6 @@
 /**
  * Bearer token middleware.
- * Token is read from ~/.config/mind/token (600 permissions).
+ * Token is read from ~/.config/kIiYOSJe/mind/token (600 permissions).
  * If the file does not exist, a token is generated and written on first start.
  */
 

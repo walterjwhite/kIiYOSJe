@@ -3,7 +3,7 @@
  *
  * Full implementation is P3: IMAP polling for read, save-to-Drafts for write.
  * See §5 and open decision §3 in PLAN.md.
- * Credentials come from ~/.config/mind/email.json (not under version control).
+ * Credentials come from ~/.config/kIiYOSJe/mind/email.json (not under version control).
  */
 
 import type { Adapter, NewSignal, OutboundDraft, SendResult } from "@mind/core";

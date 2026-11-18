@@ -4,7 +4,7 @@
  * Uses better-sqlite3's built-in .backup() which produces a consistent
  * hot-backup without locking reads.
  *
- * Backup files: ~/.local/share/mind/backups/mind-YYYY-MM-DD.db
+ * Backup files: ~/.data/kIiYOSJe/mind/backups/mind-YYYY-MM-DD.db
  * Rotation: keeps the 14 most recent files, deletes the rest.
  */
 

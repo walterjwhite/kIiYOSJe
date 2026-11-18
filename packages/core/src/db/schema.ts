@@ -4,6 +4,7 @@
 
 import { sql } from "drizzle-orm";
 import {
+  index,
   integer,
   real,
   sqliteTable,
@@ -29,10 +30,10 @@ export const directions = sqliteTable("directions", {
   version: integer("version").notNull().default(1),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
   updatedAt: text("updated_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
 });
 
 // ── signals ──────────────────────────────────────────────────────────────────
@@ -57,7 +58,10 @@ export const signals = sqliteTable(
     escalateBy: text("escalate_by"),   // ISO-8601, computed at ingest
     dedupeKey: text("dedupe_key").notNull(),
   },
-  (t) => [uniqueIndex("signals_dedupe_key_idx").on(t.dedupeKey)],
+  (t) => [
+    uniqueIndex("signals_dedupe_key_idx").on(t.dedupeKey),
+    index("signals_received_at_idx").on(t.receivedAt),
+  ],
 );
 
 // ── thoughts ─────────────────────────────────────────────────────────────────
@@ -73,10 +77,10 @@ export const thoughts = sqliteTable("thoughts", {
   escalateBy: text("escalate_by"),   // deadline; checker promotes thought when this passes
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
   updatedAt: text("updated_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
 });
 
 // ── actions ──────────────────────────────────────────────────────────────────
@@ -91,9 +95,9 @@ export const actions = sqliteTable("actions", {
   adapter: text("adapter").notNull(),
   createdAt: text("created_at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
   sentAt: text("sent_at"),
-});
+}, (t) => [index("actions_status_idx").on(t.status)]);
 
 // ── events (append-only audit log) ───────────────────────────────────────────
 
@@ -101,7 +105,7 @@ export const events = sqliteTable("events", {
   id: text("id").primaryKey(),
   at: text("at")
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
   actor: text("actor").notNull(), // "system" | "user"
   kind: text("kind").notNull(),
   payload: text("payload").notNull(), // JSON

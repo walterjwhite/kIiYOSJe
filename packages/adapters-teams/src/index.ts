@@ -21,7 +21,7 @@ export class TeamsAdapter implements Adapter {
     );
     // TODO P1: Connect to the Teams web client bridge and call sink() for each
     // inbound message. The bridge URL and credentials come from
-    // ~/.config/mind/teams.json (not under version control).
+    // ~/.config/kIiYOSJe/mind/teams.json (not under version control).
   }
 
   async stop(): Promise<void> {

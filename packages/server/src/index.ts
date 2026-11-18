@@ -71,7 +71,7 @@ export async function startServer(): Promise<void> {
     },
     () => {
       logger.info({ host: SERVER_HOST, port: SERVER_PORT }, "mind server started");
-      logger.debug({ tokenPath: "~/.config/mind/token" }, "API token location");
+      logger.debug({ tokenPath: "~/.config/kIiYOSJe/mind/token" }, "API token location");
       // Write initial status immediately.
       updateStatus(db, adapters);
     },

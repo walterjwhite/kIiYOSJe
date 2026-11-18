@@ -9,7 +9,7 @@ signal is scripted or looked up from a table. The only fake things are the
 signal data itself and the outbound side effect (no email actually leaves
 the machine).
 
-This runs against a dedicated SQLite file at `~/.local/share/mind/demo.db`.
+This runs against a dedicated SQLite file at `~/.data/kIiYOSJe/mind/demo.db`.
 It is never the real `mind.db`, and the demo never reads or writes real
 directions outside `directions/demo/`.
 
@@ -25,7 +25,7 @@ ollama serve                        # if not already running
 ollama pull qwen2.5:3b-instruct      # ~2GB, first time only
 ```
 
-No further configuration needed — `~/.config/mind/ai.json` defaults to
+No further configuration needed — `~/.config/kIiYOSJe/mind/ai.json` defaults to
 `provider: ollama` pointed at `http://localhost:11434/v1`. To use a cloud
 provider instead, run the **mind: Configure AI Provider** command in VS
 Code, or write the file directly (see `packages/core/src/config.ts`).

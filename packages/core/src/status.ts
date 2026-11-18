@@ -1,5 +1,5 @@
 /**
- * Status file — written atomically to ~/.local/share/mind/status.json.
+ * Status file — written atomically to ~/.data/kIiYOSJe/mind/status.json.
  * Mode 600. Atomic write via tmp-then-rename.
  */
 

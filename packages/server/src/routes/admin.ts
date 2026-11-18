@@ -5,7 +5,7 @@
  * POST /admin/resume      → removes the paused flag file
  * GET  /admin/status      → returns the last-written status payload (503 if absent)
  * GET  /admin/ai-config   → returns the current effective AI config (key masked)
- * PUT  /admin/ai-config   → writes ~/.config/mind/ai.json; takes effect on the next signal,
+ * PUT  /admin/ai-config   → writes ~/.config/kIiYOSJe/mind/ai.json; takes effect on the next signal,
  *                           no server restart required
  */
 

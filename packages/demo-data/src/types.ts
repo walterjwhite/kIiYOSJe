@@ -5,7 +5,7 @@
  * fake data — a synthetic sender, body, and timestamp — but nothing about
  * how the system responds to it is scripted. classify() and draft() always
  * call the real, configured model (ollama by default, or whatever provider
- * is set in ~/.config/mind/ai.json). The decision is probabilistic because
+ * is set in ~/.config/kIiYOSJe/mind/ai.json). The decision is probabilistic because
  * the model is probabilistic; that is the entire point of using one instead
  * of a lookup table.
  *

@@ -74,7 +74,7 @@ no Android yet:
 TODO.md Foundations §6 names "notification choices" as a per-person
 setting; this implements the first concrete piece of it. `@mind/core`
 gained `QuietPeriodConfig`, `quietPeriodConfig()`/`writeQuietPeriodConfig()`
-(reads/writes `~/.config/mind/notifications.json`, mode 600, same pattern
+(reads/writes `~/.config/kIiYOSJe/mind/notifications.json`, mode 600, same pattern
 as `ai.json`), and `isWithinNotificationWindow(at?, config?)` — a pure
 function, 9 tests in `config.test.ts` covering the default window, both
 boundary minutes, a weekend block, `enabled: false`, a midnight-crossing
@@ -98,17 +98,17 @@ gates are untouched, and asking for something right now (`mind.brief`,
 
 ## Implemented and tested
 
-- **Core:** five-table Drizzle schema, two migrations, config, pino logger, zod schemas, status file (`~/.local/share/mind/status.json`, atomic, mode 600).
+- **Core:** five-table Drizzle schema, two migrations, config, pino logger, zod schemas, status file (`~/.data/kIiYOSJe/mind/status.json`, atomic, mode 600).
 - **Pipeline:** dedupe, normalize (quote stripping), match (person > thread > project > topic > catch-all), classify, draft, decide, record.
 - **Catch-all direction** (`system/catch-all`): lets the system answer or acknowledge signals no authored Direction covers. Explicit Directions always win.
 - **Escalation deadlines:** `escalateBy` from the classifier's explicit deadline, else urgency (high 2h, medium 24h, low 72h; low-urgency acknowledgements and information get none). A 60s checker promotes overdue seedling Thoughts to `active` and writes an audit event.
 - **Send gates (§7):** adapter capability, `autonomy: send`, `MIND_SEND_ENABLED=true`, no triggered guard, and no pause flag. Autonomous send is re-checked at send time. An empty draft is never auto-sent.
-- **Kill switch:** `mind pause` / `mind resume` and `POST /admin/pause|resume` create or remove `~/.config/mind/paused`. It takes effect immediately and also blocks human-approved sends (HTTP 423).
+- **Kill switch:** `mind pause` / `mind resume` and `POST /admin/pause|resume` create or remove `~/.config/kIiYOSJe/mind/paused`. It takes effect immediately and also blocks human-approved sends (HTTP 423).
 - **Guards:** `escalateOn` topics and `maxPerThreadPerHour`.
 - **Auto-disable:** a Direction is disabled when its override rate exceeds 20% with at least 5 decided actions.
 - **Retention:** signal bodies redacted after 30 days (configurable). **Backup:** startup and daily `.backup()`, 14 files kept.
 - **Learning loop:** proposes narrowing, widening, or a new Direction. Proposals are events. `GET /proposals`, `POST /proposals/run|:id/accept|:id/reject`. Accepting updates the DB row and returns the YAML edit you must make by hand, because YAML is the source of truth and a reload would revert a DB-only change.
-- **Model provider config:** four providers — `ollama` (local, free, default), `openai`, `anthropic`, `google`. The whole config (provider, classify/draft model names, base URL, API key) lives in `~/.config/mind/ai.json`, read fresh on every call — no server restart needed to switch. `GET`/`PUT /admin/ai-config` exposes this over HTTP; the VS Code extension's **mind: Configure AI Provider** command and a status-bar toggle drive it from the editor.
+- **Model provider config:** four providers — `ollama` (local, free, default), `openai`, `anthropic`, `google`. The whole config (provider, classify/draft model names, base URL, API key) lives in `~/.config/kIiYOSJe/mind/ai.json`, read fresh on every call — no server restart needed to switch. `GET`/`PUT /admin/ai-config` exposes this over HTTP; the VS Code extension's **mind: Configure AI Provider** command and a status-bar toggle drive it from the editor.
 - **API:** all routes in PLAN §9, plus `/admin/*` (including `/admin/ai-config`), `/proposals/*`, `PATCH /actions/:id` (edit a draft before approving). `/metrics` returns all six planned metrics plus a per-Direction breakdown. `/directions` includes match stats.
 - **Demo data (`@mind/demo-data`):** three personas (Software Engineer, Project Manager, DevSecOps Engineer) with synthetic signal bodies only — no pre-computed classification or draft. Every signal is replayed through the real `classify()`/`draft()`/`decide()` pipeline against the configured provider. A "historical" era gets a simulated operator reaction (approve/discard, by a general sensitive-topic + pseudo-random heuristic, never a per-signal script) to build believable override history; a "live" era is left exactly as the model decided, for the operator to act on through the extension. `npm run demo:seed` / `demo:serve` / `demo:summary` / `demo:reset`. One full real seed run (30 signals, ~3 minutes on a local 3B model) produced 6 live proposed actions, 2 real learning-loop proposals, and 1 real auto-disabled direction — all confirmed via the HTTP API.
 

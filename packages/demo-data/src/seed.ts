@@ -3,7 +3,7 @@
  *
  * The demo always writes to its own SQLite file, never the real mind.db, so
  * running or resetting the demo can never touch real signals, thoughts, or
- * directions. The file lives at ~/.local/share/mind/demo.db.
+ * directions. The file lives at ~/.data/kIiYOSJe/mind/demo.db.
  */
 
 import { join } from "node:path";

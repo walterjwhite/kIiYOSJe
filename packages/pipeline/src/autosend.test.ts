@@ -82,8 +82,8 @@ describe("autonomous send", () => {
   });
 
   it("does not send when the kill switch file exists", async () => {
-    mkdirSync(join(home, ".config", "mind"), { recursive: true });
-    writeFileSync(join(home, ".config", "mind", "paused"), "");
+    mkdirSync(join(home, ".config", "kIiYOSJe", "mind"), { recursive: true });
+    writeFileSync(join(home, ".config", "kIiYOSJe", "mind", "paused"), "");
     const { db, reg, send } = setup("send");
     await ingest(db, sig(), reg);
     expect(send).not.toHaveBeenCalled();

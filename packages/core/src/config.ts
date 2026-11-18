@@ -7,12 +7,15 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, readFileSync, writeFileSync, unlinkSync, existsSync, renameSync } from "node:fs";
 
+/** Repo name, so each tree's data stays apart in ~/.data/<repo>/mind. */
+const REPO_NAME = "kIiYOSJe";
+
 export function dataDir(): string {
-  return join(homedir(), ".local", "share", "mind");
+  return join(homedir(), ".data", REPO_NAME, "mind");
 }
 
 export function configDir(): string {
-  return join(homedir(), ".config", "mind");
+  return join(homedir(), ".config", REPO_NAME, "mind");
 }
 
 export function dbPath(): string {
@@ -86,7 +89,7 @@ export function resume(): void {
 /**
  * Which provider to use for classification and drafting.
  *
- * Config lives at ~/.config/mind/ai.json (mode 600), read fresh on every
+ * Config lives at ~/.config/kIiYOSJe/mind/ai.json (mode 600), read fresh on every
  * call — no server restart needed to switch providers or models. This file
  * is what the VS Code extension's "mind: Configure AI Provider" command
  * writes to, so toggling providers from the editor takes effect immediately
@@ -196,7 +199,7 @@ function defaultDraftModel(p: AiProvider): string {
 
 /**
  * Loads the API key for the configured provider.
- * Reads ~/.config/mind/ai.json first; falls back to the provider env var.
+ * Reads ~/.config/kIiYOSJe/mind/ai.json first; falls back to the provider env var.
  * ollama needs no key and always returns undefined for it — callers must
  * treat "no key" as valid for ollama, unlike the cloud providers.
  */
@@ -229,7 +232,7 @@ export function aiConfigured(): boolean {
  * and is never held back by this window. Ingestion, matching, and drafting
  * are never gated by this; only the act of telling the person about it.
  *
- * Config lives at ~/.config/mind/notifications.json (mode 600), read fresh
+ * Config lives at ~/.config/kIiYOSJe/mind/notifications.json (mode 600), read fresh
  * on every call, same pattern as ai.json. Defaults to Mon–Fri 08:00–15:00
  * in the server's local time zone if no file exists.
  */

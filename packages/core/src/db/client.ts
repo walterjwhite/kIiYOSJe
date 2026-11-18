@@ -28,6 +28,21 @@ function buildDb(path: string) {
   return drizzle(sqlite, { schema });
 }
 
+/**
+ * SQLite cannot turn foreign_keys off inside a transaction, and the migrator
+ * wraps every migration in one. Rebuilding a table therefore has to flip the
+ * pragma on the connection before BEGIN — the 12-step ALTER procedure.
+ */
+function runMigrations(db: Db): void {
+  const sqlite = getRawDb();
+  sqlite.pragma("foreign_keys = OFF");
+  try {
+    migrate(db, { migrationsFolder: MIGRATIONS_DIR });
+  } finally {
+    sqlite.pragma("foreign_keys = ON");
+  }
+}
+
 let _db: Db | undefined;
 
 export function getDb(): Db {
@@ -41,7 +56,7 @@ export function openDb(path?: string): Db {
   ensureDirs();
   const p = path ?? dbPath();
   _db = buildDb(p);
-  migrate(_db, { migrationsFolder: MIGRATIONS_DIR });
+  runMigrations(_db);
   return _db;
 }
 

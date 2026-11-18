@@ -7,7 +7,7 @@
  *   mind-demo reset               Delete the demo DB
  *   mind-demo summary             Print a per-persona metrics summary from the demo DB
  *
- * The demo DB never touches ~/.local/share/mind/mind.db — see seed.ts.
+ * The demo DB never touches ~/.data/kIiYOSJe/mind/mind.db — see seed.ts.
  */
 
 import { sql } from "drizzle-orm";
@@ -36,7 +36,7 @@ switch (command) {
           "  so no further config is needed once it's running.",
           "",
           "  Cloud: use the 'mind: Configure AI Provider' command in VS Code, or",
-          "  write ~/.config/mind/ai.json directly.",
+          "  write ~/.config/kIiYOSJe/mind/ai.json directly.",
         ].join("\n"),
       );
       process.exit(1);
