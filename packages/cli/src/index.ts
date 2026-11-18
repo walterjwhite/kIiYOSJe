@@ -1,99 +1,94 @@
 #!/usr/bin/env node
 /**
- * mind CLI — commands: start | pause | observe | metrics
+ * mind — local attention manager.
+ *
+ *   mind start                 start the server, adapters, and jobs
+ *   mind health                server + adapter status
+ *   mind metrics [7d]          signals/thoughts ratio and rates
+ *   mind observe               current metrics
+ *   mind proposals [status]    Direction proposals awaiting a decision
+ *   mind capture <title>       create a Thought by hand
+ *   mind demo [persona...]     seed the demo database
+ *   mind snapshot [label]      archive the database before a risky change
+ *   mind snapshots             list archived databases
+ *   mind restore <label>       put an archive back
+ *   mind pause | resume        the send kill switch
  */
 
-import { readFileSync } from "node:fs";
-import { tokenPath, SERVER_HOST, SERVER_PORT } from "@mind/core";
+import { capture, health, metrics, observe, proposals } from "./commands/api.js";
+import { demo } from "./commands/demo.js";
+import {
+  pauseSends,
+  resumeSends,
+  restoreSnapshot,
+  snapshots,
+  takeSnapshot,
+} from "./commands/local.js";
 
 const [, , command, ...args] = process.argv;
 
-async function apiCall(
-  path: string,
-  method = "GET",
-  body?: unknown,
-): Promise<unknown> {
-  let token: string;
-  try {
-    token = readFileSync(tokenPath(), "utf8").trim();
-  } catch {
-    console.error(
-      "No API token found. Run `mind start` first to generate one.",
-    );
-    process.exit(1);
-  }
-
-  const res = await fetch(`http://${SERVER_HOST}:${SERVER_PORT}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    console.error(`API error ${res.status}: ${text}`);
-    process.exit(1);
-  }
-
-  return res.json();
-}
-
-switch (command) {
-  case "start": {
-    const { startServer } = await import("@mind/server");
-    await startServer();
-    break;
-  }
-
-  case "pause": {
-    console.log(JSON.stringify(await apiCall("/admin/pause", "POST"), null, 2));
-    break;
-  }
-
-  case "resume": {
-    console.log(JSON.stringify(await apiCall("/admin/resume", "POST"), null, 2));
-    break;
-  }
-
-  case "observe": {
-    const data = await apiCall("/metrics");
-    console.log(JSON.stringify(data, null, 2));
-    break;
-  }
-
-  case "metrics": {
-    const window = args[0] ?? "7d";
-    const data = await apiCall(`/metrics?window=${window}`);
-    console.log(JSON.stringify(data, null, 2));
-    break;
-  }
-
-  case "health": {
-    const data = await apiCall("/health");
-    console.log(JSON.stringify(data, null, 2));
-    break;
-  }
-
-  default: {
-    console.log(
-      [
-        "mind — local attention manager",
-        "",
-        "Commands:",
-        "  mind start           Start the server and all adapters",
-        "  mind pause           Block all sends immediately (kill switch)",
-        "  mind resume          Clear the kill switch",
-        "  mind observe         Show current metrics",
-        "  mind metrics [7d]    Show metrics for a window (e.g. 7d, 2w)",
-        "  mind health          Show server and adapter status",
-      ].join("\n"),
-    );
-    if (command && command !== "help") {
-      console.error(`\nUnknown command: ${command}`);
-      process.exit(1);
+try {
+  switch (command) {
+    case "start": {
+      const { startServer } = await import("@mind/server");
+      await startServer();
+      break;
     }
+    case "pause":
+      pauseSends();
+      break;
+    case "resume":
+      resumeSends();
+      break;
+    case "health":
+      await health();
+      break;
+    case "metrics":
+      await metrics(args[0] ?? "7d");
+      break;
+    case "observe":
+      await observe();
+      break;
+    case "proposals":
+      await proposals(args[0] ?? "pending");
+      break;
+    case "capture":
+      await capture(args.join(" ").trim());
+      break;
+    case "demo":
+      await demo(args);
+      break;
+    case "snapshot":
+      await takeSnapshot(args[0]);
+      break;
+    case "snapshots":
+      snapshots();
+      break;
+    case "restore":
+      await restoreSnapshot(args[0] ?? "");
+      break;
+    default:
+      console.log(
+        [
+          "mind — local attention manager",
+          "",
+          "  mind start               start the server and all adapters",
+          "  mind health              server and adapter status",
+          "  mind metrics [7d]        signals/thoughts ratio for a window",
+          "  mind observe             current metrics",
+          "  mind proposals [status]  Direction proposals (default: pending)",
+          "  mind capture <title>     record a Thought",
+          "  mind demo [persona...]   seed the demo database",
+          "  mind snapshot [label]    archive the database",
+          "  mind snapshots           list archives",
+          "  mind restore <label>     put an archive back",
+          "  mind pause               stop every send immediately",
+          "  mind resume              re-enable sends",
+        ].join("\n"),
+      );
+      if (command) process.exitCode = 1;
   }
+} catch (err) {
+  console.error(String(err instanceof Error ? err.message : err));
+  process.exitCode = 1;
 }

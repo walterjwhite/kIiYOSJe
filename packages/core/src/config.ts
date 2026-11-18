@@ -34,6 +34,11 @@ export function backupDir(): string {
   return join(dataDir(), "backups");
 }
 
+/** Named development snapshots, kept until deleted (unlike the backups). */
+export function snapshotDir(): string {
+  return join(dataDir(), "snapshots");
+}
+
 export function aiConfigPath(): string {
   return join(configDir(), "ai.json");
 }
@@ -51,6 +56,7 @@ export function ensureDirs(): void {
   mkdirSync(dataDir(), { recursive: true, mode: 0o700 });
   mkdirSync(configDir(), { recursive: true, mode: 0o700 });
   mkdirSync(backupDir(), { recursive: true, mode: 0o700 });
+  mkdirSync(snapshotDir(), { recursive: true, mode: 0o700 });
 }
 
 /** Retention window in days (default 30). */

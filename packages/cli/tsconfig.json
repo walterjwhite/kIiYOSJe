@@ -6,12 +6,14 @@
     "composite": true,
     "paths": {
       "@mind/core": ["../core/src/index.ts"],
-      "@mind/server": ["../server/src/index.ts"]
+      "@mind/server": ["../server/src/index.ts"],
+      "@mind/demo-data": ["../demo-data/src/index.ts"]
     }
   },
   "references": [
     { "path": "../core" },
-    { "path": "../server" }
+    { "path": "../server" },
+    { "path": "../demo-data" }
   ],
   "include": ["src/**/*"]
 }

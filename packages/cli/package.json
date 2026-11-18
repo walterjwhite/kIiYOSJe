@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@mind/core": "*",
-    "@mind/server": "*"
+    "@mind/server": "*",
+    "@mind/demo-data": "*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
