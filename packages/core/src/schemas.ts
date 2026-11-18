@@ -76,6 +76,7 @@ export const SignalKindSchema = z.enum([
   "task",       // sender is assigning or requesting work
   "acknowledgement", // sender confirming receipt or saying thanks
   "information",    // sender providing info, no action expected
+  "event",          // a calendar occurrence, not a message
   "other",
 ]);
 

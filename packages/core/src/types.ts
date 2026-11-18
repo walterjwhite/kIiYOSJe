@@ -56,9 +56,10 @@ export const ScopeKind = {
 } as const;
 export type ScopeKind = (typeof ScopeKind)[keyof typeof ScopeKind];
 
-export type SignalKind = "question" | "task" | "acknowledgement" | "information" | "other";
+export type SignalKind =
+  "question" | "task" | "acknowledgement" | "information" | "event" | "other";
 
-// ── Adapter types ────────────────────────────────────────────────────────────
+// ── Signals and outbound work ────────────────────────────────────────────────
 
 export interface NewSignal {
   adapter: string;
@@ -67,6 +68,8 @@ export interface NewSignal {
   sender: string;
   recipients: string[];
   kind: string;
+  /** Mail only: the original subject, used to build "Re:" replies. */
+  subject?: string | undefined;
   body: string;
   receivedAt: Date;
   urgencyHint: number | null;
@@ -75,6 +78,8 @@ export interface NewSignal {
 export interface OutboundDraft {
   threadId: string | null;
   to: string[];
+  /** Present for mail-shaped sources (Gmail, Outlook); ignored by chat. */
+  subject?: string | undefined;
   body: string;
   replyToExternalId: string | null;
 }
@@ -83,14 +88,52 @@ export interface SendResult {
   externalId: string;
 }
 
-// ── Adapter interface ────────────────────────────────────────────────────────
+export interface TimeRange {
+  from: Date;
+  to: Date;
+}
+
+export interface CalendarEvent {
+  /** Source-stable identifier: iCal UID or Google event id. */
+  id: string;
+  calendarId: string;
+  title: string;
+  description: string;
+  startsAt: Date;
+  endsAt: Date | null;
+  allDay: boolean;
+  location: string | null;
+  organizer: string | null;
+  attendees: string[];
+}
+
+export interface OutboundEvent {
+  calendarId?: string | undefined;
+  title: string;
+  description?: string | undefined;
+  startsAt: Date;
+  endsAt?: Date | undefined;
+  attendees?: string[] | undefined;
+  location?: string | undefined;
+}
+
+// ── Adapter contract ─────────────────────────────────────────────────────────
+
+export interface AdapterCapabilities {
+  canSend: boolean;
+  canStream: boolean;
+  canReadCalendar?: boolean | undefined;
+  canWriteCalendar?: boolean | undefined;
+}
 
 export interface Adapter {
   readonly id: string;
-  readonly capabilities: { canSend: boolean; canStream: boolean };
+  readonly capabilities: AdapterCapabilities;
   start(sink: (signal: NewSignal) => void): Promise<void>;
   stop(): Promise<void>;
   send?(draft: OutboundDraft): Promise<SendResult>;
+  listEvents?(range: TimeRange): Promise<CalendarEvent[]>;
+  createEvent?(event: OutboundEvent): Promise<SendResult>;
 }
 
 // ── Direction config (loaded from YAML) ─────────────────────────────────────

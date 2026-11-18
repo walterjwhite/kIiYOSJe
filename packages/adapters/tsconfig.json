@@ -8,6 +8,6 @@
       "@mind/core": ["../core/src/index.ts"]
     }
   },
-  "references": [{ "path": "../core" }],
+  "references": [{ "path": "../core" }, { "path": "../pipeline" }],
   "include": ["src/**/*"]
 }

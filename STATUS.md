@@ -2,20 +2,21 @@
 
 Last updated: 2026-11-16. Measured against [PLAN.md](PLAN.md).
 
-**Build:** all packages compile under TypeScript 7 strict. **Tests:** 63 passing across 15 files.
+**Build:** all packages compile under TypeScript 7 strict. **Tests:** 127 passing across 25 files.
 **The LLM paths have now been run for real**, against a local Ollama model (`qwen2.5:3b-instruct`,
 the default provider) — `classify()`, `draft()`, and a full `ingest()` call were verified end to
 end, and all three demo personas were seeded with real model calls (see `packages/demo-data/README.md`).
-Teams, email, and VS Code-interactive testing are still not done — see "Not verified" below.
+Adapter traffic has not been verified against live accounts, and VS Code-interactive
+testing is still not done — see "Not verified" below.
 
 ## Phase status
 
 | Phase | Status | Done-when criterion | Met? |
 | ----- | ------ | ------------------- | ---- |
 | P0 Skeleton | Complete | server serves `/health`, migration idempotent, tests pass | Yes. `/health` verified through `npm start` (same `dist/main.js` that `npm run dev` runs, minus `--watch`). The sandbox blocked running `npm run dev` itself. |
-| P1 Teams ingest | Blocked by decision | a day of traffic stored, no duplicates on restart, count matches client | No. Adapter is a stub by request. Dedupe, persistence and `/metrics` work via `POST /signals`. |
+| P1 Teams ingest | Implemented, unverified | a day of traffic stored, no duplicates on restart, count matches client | No. Adapter is implemented against the Teams Chat Service (`teams-api`); not yet run against a live tenant. Dedupe, persistence and `/metrics` work via `POST /signals`. |
 | P2 Directions + draft absorb | Tested with a real model | ≥60% match a Direction, drafts match what I'd write, discards recorded | Partially measured. In one real seed run across 30 synthetic signals, several matched the catch-all instead of an intended Direction because `match()` uses literal substring matching and real phrasing doesn't always contain the exact scope string (known gap, #12 below). Drafts are real model output, not scripted, and are mediocre at 3B-model quality — acceptable for a free local default, worth comparing against a cloud model. Discards are recorded (tested). |
-| P3 Email | Not started | drafts in Drafts folder, Message-ID dedupe | No. Stub by request. |
+| P3 Email | Implemented, unverified | drafts in Drafts folder, Message-ID dedupe | No. Gmail send/reply and Outlook (Graph) draft-then-send are implemented; not yet run against a live mailbox. |
 | P4 Autonomy | Code complete, no end-to-end path | send only for `autonomy: send`, `mind pause` stops all sends, sends reconstructible from `events` | Partly. Gates and pause are tested with a fake adapter. No real adapter can send. |
 | P5 Learning loop | Tested with real override data | first proposal generated from real override data | Yes, partially. In the same real seed run, two personas' deliberately loose directions accumulated real overrides (simulated operator reactions to real model drafts) and the learning loop generated real `narrow` proposals from that data — confirmed via `GET /proposals`. This is probabilistic: it is not guaranteed on every seed run, because the classification outcomes that drive it are real model output, not scripted. |
 | P6 Mobile, FTS5 | Deferred | n/a | n/a |
@@ -66,8 +67,9 @@ no Android yet:
   flow exist.
 - **Deliberately not ported:** the mockup's "recipient is free" scheduling
   option and the split-group-chat-signal model. Both are meaningless
-  without a live chat adapter — Teams is still a stub (P1 blocked by
-  decision, see below) — and would be speculative to build against it.
+  without a live chat adapter — Teams ingest is implemented but unverified
+  against a real tenant, see below — and would be speculative to build
+  against it.
 
 ## Notification quiet period (this round)
 
@@ -137,6 +139,8 @@ gates are untouched, and asking for something right now (`mind.brief`,
 ## Open decisions (PLAN §17)
 
 1. **Model provider:** defaults to `ollama` (local, free, `qwen2.5:3b-instruct`). Switch via the VS Code **mind: Configure AI Provider** command, the status-bar item, or `PUT /admin/ai-config`. Cloud providers remain available but unverified this session.
-2. **Teams transport:** stubbed.
-3. **Email write capability:** stubbed.
+2. **Teams transport:** decided — `teams-api` with token credentials from
+   `credentials.yml`.
+3. **Email write capability:** decided — Gmail `messages/send` and Outlook
+   Graph create-draft-then-send.
 4. **Remote authentication:** deferred to P6.

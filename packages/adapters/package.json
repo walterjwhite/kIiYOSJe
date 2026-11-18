@@ -1,5 +1,5 @@
 {
-  "name": "@mind/adapters-email",
+  "name": "@mind/adapters",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -17,12 +17,11 @@
   },
   "dependencies": {
     "@mind/core": "*",
-    "imapflow": "2.11.0",
-    "nodemailer": "10.5.0"
+    "@mind/pipeline": "*",
+    "teams-api": "1.10.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "@types/nodemailer": "^6.4.17",
     "typescript": "7.0.2",
     "vitest": "5.1.0"
   }

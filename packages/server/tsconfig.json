@@ -6,12 +6,14 @@
     "composite": true,
     "paths": {
       "@mind/core": ["../core/src/index.ts"],
-      "@mind/pipeline": ["../pipeline/src/index.ts"]
+      "@mind/pipeline": ["../pipeline/src/index.ts"],
+      "@mind/adapters": ["../adapters/src/index.ts"]
     }
   },
   "references": [
     { "path": "../core" },
-    { "path": "../pipeline" }
+    { "path": "../pipeline" },
+    { "path": "../adapters" }
   ],
   "include": ["src/**/*"]
 }

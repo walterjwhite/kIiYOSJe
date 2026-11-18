@@ -7,7 +7,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import * as schema from "@mind/core";
-import { directions, actions, events } from "@mind/core";
+import { directions, actions, events, signals } from "@mind/core";
 import type { Adapter, NewSignal } from "@mind/core";
 
 vi.mock("./classify.js", () => ({
@@ -97,11 +97,12 @@ describe("autonomous send", () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it("never sends an empty draft", async () => {
-    draftText = null;
+  it("files the signal instead of sending when the draft is empty", async () => {
+    draftText = "";
     const { db, reg, send } = setup("send");
     await ingest(db, sig(), reg);
     expect(send).not.toHaveBeenCalled();
-    expect(db.select().from(actions).all()[0]?.status).toBe("proposed");
+    expect(db.select().from(actions).all()).toHaveLength(0);
+    expect(db.select().from(signals).all()[0]?.disposition).toBe("filed");
   });
 });

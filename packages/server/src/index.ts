@@ -16,8 +16,7 @@ import {
   updateStatus,
   ingest,
 } from "@mind/pipeline";
-import { TeamsAdapter } from "@mind/adapters-teams";
-import { EmailAdapter } from "@mind/adapters-email";
+import { registerDefaultAdapters } from "@mind/adapters";
 import { buildApp } from "./app.js";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
@@ -44,8 +43,7 @@ export async function startServer(): Promise<void> {
   });
 
   const adapters = new AdapterRegistry();
-  adapters.register(new TeamsAdapter());
-  adapters.register(new EmailAdapter());
+  registerDefaultAdapters(adapters);
 
   for (const adapter of adapters.all()) {
     await adapter.start((signal) => {

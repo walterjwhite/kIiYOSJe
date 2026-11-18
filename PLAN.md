@@ -5,7 +5,8 @@ It ingests events from messaging and mail sources, applies standing
 **Directions** that I author, answers or files what it can, and surfaces only
 the **Thoughts** that genuinely need my judgement.
 
-Status: P0 to P5 implemented in code; Teams and email adapters are stubs. See
+Status: P0 to P5 implemented in code; Gmail, Outlook (Graph), Teams, Google
+Messages, and Calendar adapters are implemented. See
 [STATUS.md](STATUS.md) for what is built, what is verified, and what remains.
 This document is self-contained and assumes nothing
 about where the project lives.
@@ -354,8 +355,7 @@ any path.
 ├── packages/
 │   ├── core/               # types, zod schemas, db, config, clock
 │   ├── pipeline/           # dedupe, normalize, match, classify, decide
-│   ├── adapters-teams/
-│   ├── adapters-email/
+│   ├── adapters/           # gmail, outlook, teams, gmessages, calendar
 │   ├── server/             # hono app, auth, routes
 │   └── cli/                # mind start|pause|observe|metrics
 └── extension/              # VS Code extension
@@ -431,6 +431,6 @@ Recorded from P1 onward, so the thesis is testable rather than asserted:
 ## 17. Open decisions
 
 1. **Model provider** — pinned per task (classify vs draft). Stop and let me choose.
-2. **Teams transport details** — Stub out interface for now. I may be able to re-use an existing teams web client.
-3. **Email write capability** — Stub out interface for now.
+2. **Teams transport details** — Resolved: `teams-api` against the Teams Chat Service.
+3. **Email write capability** — Resolved: Gmail send and Outlook (Graph) draft-then-send.
 4. **Remote authentication** — deferred to P6.

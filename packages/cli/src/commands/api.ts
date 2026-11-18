@@ -16,7 +16,7 @@ export async function observe(): Promise<void> {
 
 /** Proposals come from the learning loop; default to the undecided ones. */
 export async function proposals(status: string): Promise<void> {
-  print(await api(`/proposals?status=${status}`));
+  print(await api(`/proposals?status=${status}&days=30`));
 }
 
 export async function capture(title: string): Promise<void> {

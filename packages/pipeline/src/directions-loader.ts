@@ -9,7 +9,7 @@
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, extname, basename } from "node:path";
-import * as yaml from "js-yaml";
+import { parse as parseYaml } from "yaml";
 import { eq } from "drizzle-orm";
 import type { Db } from "@mind/core";
 import { directions, DirectionConfigSchema, logger } from "@mind/core";
@@ -26,7 +26,7 @@ export function loadDirections(db: Db, dirRoot: string): void {
 
     let raw: unknown;
     try {
-      raw = yaml.load(readFileSync(file, "utf8"));
+      raw = parseYaml(readFileSync(file, "utf8"));
     } catch (err) {
       logger.warn({ file, err }, "direction: failed to parse YAML, skipping");
       skipped++;

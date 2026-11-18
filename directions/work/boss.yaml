@@ -3,9 +3,9 @@
 name: boss-requests
 scope:
   kind: person
-  value: boss@corp.example  # replace with actual sender address
+  value: boss@corp.example # replace with actual sender address
 posture: absorb
-autonomy: draft             # start at draft; promote to send after P4
+autonomy: draft # start at draft; promote to send after P4
 confidenceMin: 0.75
 standard: |
   Acknowledge same day. Restate the ask in one line. State when a plan or

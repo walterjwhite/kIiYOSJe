@@ -99,7 +99,7 @@ export async function ingest(
       sender: signal.sender,
       recipients: JSON.stringify(signal.recipients),
       kind: signal.kind,
-      body: signal.body,
+      body: normalizedBody,
       receivedAt: signal.receivedAt.toISOString(),
       urgencyHint: signal.urgencyHint,
       disposition,
@@ -118,7 +118,7 @@ export async function ingest(
         id: thoughtId,
         title: buildThoughtTitle(classifierOut, signal.sender),
         body: normalizedBody,
-        state: "seedling",
+        state: disposition === "escalated" ? "active" : "seedling",
         directionId: match?.direction.id ?? null,
         nextAction: classifierOut.commitment,
         escalateBy,
@@ -143,62 +143,84 @@ export async function ingest(
           responsePrompt: dir.responsePrompt,
         });
 
-    const actionId = newId();
-    const outbound: OutboundDraft = {
-      to: [signal.sender],
-      body: draftBody ?? "",
-      threadId: signal.threadId,
-      replyToExternalId: signal.externalId,
-    };
+    // A null draft means the drafter is not configured: file the signal
+    // instead of proposing an empty message (same rule as the monorepo).
+    if (draftBody === null || draftBody.trim() === "") {
+      disposition = "filed";
+      db.update(signals)
+        .set({ disposition })
+        .where(eq(signals.id, signalId))
+        .run();
+    } else {
+      const actionId = newId();
+      const outbound: OutboundDraft = {
+        to: [signal.sender],
+        body: draftBody,
+        threadId: signal.threadId,
+        replyToExternalId: signal.externalId,
+      };
 
-    db.insert(actions)
-      .values({
-        id: actionId,
-        thoughtId: thoughtId ?? null,
-        signalId,
-        kind: "reply",
-        payload: JSON.stringify(outbound),
-        status: "proposed",
-        adapter: signal.adapter,
-      })
-      .run();
+      db.insert(actions)
+        .values({
+          id: actionId,
+          thoughtId: thoughtId ?? null,
+          signalId,
+          kind: "reply",
+          payload: JSON.stringify(outbound),
+          status: "proposed",
+          adapter: signal.adapter,
+        })
+        .run();
 
-    // Autonomous send (PLAN §7). The gates were evaluated in decide(); the
-    // kill switch is re-checked here so `mind pause` takes effect even if it
-    // was engaged while the draft was being generated. An empty draft is never
-    // sent: it stays proposed for the operator.
-    const sender = adapters.get(signal.adapter);
-    if (shouldSend && sender?.send && outbound.body.trim() !== "" && globalSendEnabled()) {
-      try {
-        const result = await sender.send(outbound);
-        db.update(actions)
-          .set({ status: "sent", sentAt: new Date().toISOString() })
-          .where(eq(actions.id, actionId))
-          .run();
-        db.insert(events)
-          .values({
-            id: newId(),
-            actor: "system",
-            kind: "action.sent",
-            payload: JSON.stringify({
-              actionId,
-              externalId: result.externalId,
-              autonomous: true,
-              directionId: dir.id,
-            }),
-          })
-          .run();
-      } catch (err) {
-        db.update(actions).set({ status: "failed" }).where(eq(actions.id, actionId)).run();
-        db.insert(events)
-          .values({
-            id: newId(),
-            actor: "system",
-            kind: "action.failed",
-            payload: JSON.stringify({ actionId, autonomous: true, error: String(err) }),
-          })
-          .run();
-        log.error({ err, actionId }, "autonomous send failed");
+      // Autonomous send (PLAN §7). The gates were evaluated in decide(); the
+      // kill switch is re-checked here so `mind pause` takes effect even if it
+      // was engaged while the draft was being generated. An empty draft is
+      // never sent: it stays proposed for the operator.
+      const sender = adapters.get(signal.adapter);
+      if (
+        shouldSend &&
+        sender?.send &&
+        outbound.body.trim() !== "" &&
+        globalSendEnabled()
+      ) {
+        try {
+          const result = await sender.send(outbound);
+          db.update(actions)
+            .set({ status: "sent", sentAt: new Date().toISOString() })
+            .where(eq(actions.id, actionId))
+            .run();
+          db.insert(events)
+            .values({
+              id: newId(),
+              actor: "system",
+              kind: "action.sent",
+              payload: JSON.stringify({
+                actionId,
+                externalId: result.externalId,
+                autonomous: true,
+                directionId: dir.id,
+              }),
+            })
+            .run();
+        } catch (err) {
+          db.update(actions)
+            .set({ status: "failed" })
+            .where(eq(actions.id, actionId))
+            .run();
+          db.insert(events)
+            .values({
+              id: newId(),
+              actor: "system",
+              kind: "action.failed",
+              payload: JSON.stringify({
+                actionId,
+                autonomous: true,
+                error: String(err),
+              }),
+            })
+            .run();
+          log.error({ err, actionId }, "autonomous send failed");
+        }
       }
     }
   }

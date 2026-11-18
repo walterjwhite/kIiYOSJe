@@ -47,18 +47,17 @@ function loadProposals(db: Db): StoredProposal[] {
 export function proposalsRouter(db: Db) {
   const app = new Hono();
 
-  // GET /proposals?status=pending
+  // GET /proposals?status=pending&days=30
   app.get("/", (c) => {
     const status = c.req.query("status");
-    const rows = loadProposals(db);
+    const days = Number(c.req.query("days") ?? 30);
+    const since = new Date(Date.now() - days * 86_400_000).toISOString();
+    const rows = loadProposals(db).filter((row) => row.at >= since);
     return c.json(status ? rows.filter((r) => r.status === status) : rows);
   });
 
   // POST /proposals/run — generate proposals now instead of waiting a week
-  app.post("/run", (c) => {
-    const generated = runLearningLoop(db);
-    return c.json({ generated: generated.length });
-  });
+  app.post("/run", (c) => c.json({ proposals: runLearningLoop(db) }));
 
   // POST /proposals/:id/accept
   app.post("/:id/accept", (c) => {
