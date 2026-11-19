@@ -71,6 +71,10 @@
         "title": "mind: Edit Directions (YAML)"
       },
       {
+        "command": "mind.direction.new",
+        "title": "mind: New Direction"
+      },
+      {
         "command": "mind.ai.configure",
         "title": "mind: Configure AI Provider"
       },

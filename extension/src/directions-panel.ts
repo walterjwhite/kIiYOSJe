@@ -117,6 +117,10 @@ export class DirectionsPanel extends SectionPanel {
       this.pickEnumField(m.id, "scopeKind", SCOPE_KIND_OPTIONS);
     } else if (m.command === "drilldownSignals" && m.id) {
       this.drilldownSignals(m.id);
+    } else if (m.command === "newDirection") {
+      vscode.commands.executeCommand("mind.direction.new");
+    } else if (m.command === "deleteDirection" && m.id) {
+      this.deleteDirection(m.id);
     } else if (m.command === "openSignal" && m.id) {
       vscode.commands.executeCommand("mind.signal.open", m.id);
     }
@@ -132,11 +136,29 @@ export class DirectionsPanel extends SectionPanel {
     this.render();
   }
 
+  private async deleteDirection(id: string): Promise<void> {
+    const dir = this.rows.find((d) => d.id === id);
+    if (!dir) return;
+    const choice = await vscode.window.showWarningMessage(
+      `Delete direction "${dir.name}"? Its YAML file is renamed to .yaml.deleted so it can be restored.`,
+      { modal: true },
+      "Delete",
+    );
+    if (choice !== "Delete") return;
+    try {
+      await apiFetch(`/directions/${encodeURIComponent(id)}`, { method: "DELETE" });
+      this.selected = null;
+    } catch (err) {
+      vscode.window.showErrorMessage(String(err));
+    }
+    this.load();
+  }
+
   private async toggleEnabled(id: string): Promise<void> {
     const dir = this.rows.find((d) => d.id === id);
     if (!dir) return;
     try {
-      await apiFetch(`/directions/${id}`, {
+      await apiFetch(`/directions/${encodeURIComponent(id)}`, {
         method: "PUT",
         body: JSON.stringify({ enabled: !dir.enabled }),
       });
@@ -162,7 +184,7 @@ export class DirectionsPanel extends SectionPanel {
     }
 
     try {
-      await apiFetch(`/directions/${id}`, { method: "PUT", body: JSON.stringify(body) });
+      await apiFetch(`/directions/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) });
     } catch (err) {
       vscode.window.showErrorMessage(String(err));
     }
@@ -186,7 +208,7 @@ export class DirectionsPanel extends SectionPanel {
     if (picked.label === dir[field]) return;
 
     try {
-      await apiFetch(`/directions/${id}`, {
+      await apiFetch(`/directions/${encodeURIComponent(id)}`, {
         method: "PUT",
         body: JSON.stringify({ [field]: picked.label }),
       });
@@ -215,7 +237,7 @@ export class DirectionsPanel extends SectionPanel {
 
     await editAsMarkdown(tabSlug, current, async (newContent) => {
       try {
-        await apiFetch(`/directions/${id}`, {
+        await apiFetch(`/directions/${encodeURIComponent(id)}`, {
           method: "PUT",
           body: JSON.stringify({ [field]: newContent }),
         });
@@ -301,6 +323,7 @@ export class DirectionsPanel extends SectionPanel {
       (<strong>mind: Edit Directions</strong>) — this table edits an existing one's fields directly.</p>
       <div class="toolbar">
         <button data-action="refresh">↺ Refresh</button>
+        <button data-action="newDirection">+ New direction</button>
       </div>
       <table>
         <thead><tr><th>Enabled</th><th>Name</th><th>Posture</th><th>Autonomy</th><th>Confidence</th><th>Signals handled</th></tr></thead>
@@ -322,6 +345,7 @@ export class DirectionsPanel extends SectionPanel {
 
     const body = `
       <button data-action="back">← Back to Directions</button>
+      <button data-action="deleteDirection" data-id="${esc(dir.id)}">Delete direction</button>
       <h2>${esc(dir.name)}</h2>
       <table>
         <tr><th>Id</th><td>${esc(dir.id)}</td></tr>

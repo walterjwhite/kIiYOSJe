@@ -1,6 +1,4 @@
 import * as vscode from "vscode";
-import * as path from "node:path";
-import * as os from "node:os";
 import { apiFetch } from "./api-client.js";
 import { configureAiProvider, refreshAiStatusBarItem, createAiStatusBarItem } from "./ai-config.js";
 import { configureNotificationQuietPeriod } from "./notifications-config.js";
@@ -10,6 +8,7 @@ import { BriefPanel } from "./brief-panel.js";
 import { SignalsPanel } from "./signals-panel.js";
 import { SignalDetailPanel } from "./signal-detail-panel.js";
 import { DirectionsPanel } from "./directions-panel.js";
+import { editDirections, newDirection, reloadDirectionsOnSave } from "./direction-files.js";
 import { LearningsPanel } from "./learnings-panel.js";
 import { AnalyticsPanel } from "./analytics-panel.js";
 import { JournalPanel } from "./journal-panel.js";
@@ -149,45 +148,21 @@ export function activate(context: vscode.ExtensionContext): void {
   // existing one's live-safe fields.
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.direction.edit", async () => {
-      const yamlFiles = await vscode.workspace.findFiles(
-        "directions/**/*.yaml",
-        null,
-        50,
-      );
-
-      if (yamlFiles.length === 0) {
-        vscode.window.showInformationMessage(
-          "No direction yaml files found under directions/.",
-        );
-        const dirPath = path.join(
-          vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? os.homedir(),
-          "directions",
-        );
-        await vscode.commands.executeCommand(
-          "revealInExplorer",
-          vscode.Uri.file(dirPath),
-        );
-        return;
+      try {
+        await editDirections();
+      } catch (err) {
+        vscode.window.showErrorMessage(String(err));
       }
-
-      const workspaceRoot =
-        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
-
-      const items = yamlFiles.map((uri) => ({
-        label: path.relative(workspaceRoot, uri.fsPath),
-        uri,
-      }));
-
-      const picked = await vscode.window.showQuickPick(items, {
-        placeHolder: "Select a direction file to edit",
-      });
-
-      if (!picked) return;
-
-      const doc = await vscode.workspace.openTextDocument(picked.uri);
-      await vscode.window.showTextDocument(doc);
+    }),
+    vscode.commands.registerCommand("mind.direction.new", async () => {
+      try {
+        await newDirection();
+      } catch (err) {
+        vscode.window.showErrorMessage(String(err));
+      }
     }),
   );
+  reloadDirectionsOnSave(context);
 
   // Notification quiet period — when mind may proactively notify, separate
   // from asking for something right now and from the send gates.

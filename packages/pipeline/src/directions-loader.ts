@@ -7,9 +7,17 @@
  * stable ID, e.g. "work/boss" for directions/work/boss.yaml.
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative, extname, basename } from "node:path";
-import { parse as parseYaml } from "yaml";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join, relative } from "node:path";
+import { parse as parseYaml, parseDocument, stringify as stringifyYaml } from "yaml";
 import { eq } from "drizzle-orm";
 import type { Db } from "@mind/core";
 import { directions, DirectionConfigSchema, logger } from "@mind/core";
@@ -113,4 +121,100 @@ function collectYaml(dir: string): string[] {
     }
   }
   return results;
+}
+
+// ── File write-back ─────────────────────────────────────────────────────────
+// The YAML under directions/ is the source of truth: loadDirections() rewrites
+// the database row from it on every start and SIGHUP. Edits and deletions made
+// through the API must therefore reach the file, or they silently revert.
+
+const DIRECTION_ID = /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/;
+
+export function isValidDirectionId(id: string): boolean {
+  return DIRECTION_ID.test(id) && !id.split("/").includes("..");
+}
+
+function existingDirectionFile(dirRoot: string, id: string): string | null {
+  if (!isValidDirectionId(id)) throw new Error(`invalid direction id: ${id}`);
+  for (const ext of [".yaml", ".yml"]) {
+    const file = join(dirRoot, id + ext);
+    if (existsSync(file)) return file;
+  }
+  return null;
+}
+
+/** Creates directions/<id>.yaml. Throws if the file already exists. */
+export function createDirectionFile(
+  dirRoot: string,
+  id: string,
+  cfg: DirectionConfig,
+): void {
+  if (existingDirectionFile(dirRoot, id)) {
+    throw new Error(`direction already exists: ${id}`);
+  }
+  const file = join(dirRoot, id + ".yaml");
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, stringifyYaml(cfg), { flag: "wx" });
+}
+
+/** Fields of an UpdateDirectionRequest that live in the YAML file. */
+export interface DirectionFilePatch {
+  name?: string | undefined;
+  posture?: string | undefined;
+  autonomy?: string | undefined;
+  scopeKind?: string | undefined;
+  scopeValue?: string | undefined;
+  confidenceMin?: number | undefined;
+  standard?: string | undefined;
+  matchPrompt?: string | null | undefined;
+  responsePrompt?: string | null | undefined;
+  transformPrompt?: string | null | undefined;
+}
+
+/**
+ * Applies an edit to the direction's YAML file, keeping comments and other
+ * keys. Returns false when the direction has no file (e.g. system/catch-all).
+ */
+export function patchDirectionFile(
+  dirRoot: string,
+  id: string,
+  patch: DirectionFilePatch,
+): boolean {
+  const file = existingDirectionFile(dirRoot, id);
+  if (!file) return false;
+  const doc = parseDocument(readFileSync(file, "utf8"));
+
+  const setOrDelete = (key: string, value: string | null): void => {
+    if (value === null || value === "") doc.delete(key);
+    else doc.set(key, value);
+  };
+
+  if (patch.name !== undefined) doc.set("name", patch.name);
+  if (patch.posture !== undefined) doc.set("posture", patch.posture);
+  if (patch.autonomy !== undefined) doc.set("autonomy", patch.autonomy);
+  if (patch.scopeKind !== undefined) doc.setIn(["scope", "kind"], patch.scopeKind);
+  if (patch.scopeValue) doc.setIn(["scope", "value"], patch.scopeValue);
+  if (patch.confidenceMin !== undefined) doc.set("confidenceMin", patch.confidenceMin);
+  if (patch.standard !== undefined) {
+    // A file may use the `guidance` alias; keep whichever key it has.
+    const key = doc.has("guidance") && !doc.has("standard") ? "guidance" : "standard";
+    doc.set(key, patch.standard);
+  }
+  if (patch.matchPrompt !== undefined) setOrDelete("matchPrompt", patch.matchPrompt);
+  if (patch.responsePrompt !== undefined) setOrDelete("responsePrompt", patch.responsePrompt);
+  if (patch.transformPrompt !== undefined) setOrDelete("transformPrompt", patch.transformPrompt);
+
+  writeFileSync(file, doc.toString());
+  return true;
+}
+
+/**
+ * Retires a direction's file by renaming it to <name>.deleted, which the loader
+ * ignores. Reversible: rename it back. Returns false when there is no file.
+ */
+export function retireDirectionFile(dirRoot: string, id: string): boolean {
+  const file = existingDirectionFile(dirRoot, id);
+  if (!file) return false;
+  renameSync(file, file + ".deleted");
+  return true;
 }

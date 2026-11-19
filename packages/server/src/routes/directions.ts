@@ -5,16 +5,115 @@ import {
   directions,
   events,
   signals,
+  thoughts,
   actions,
   newId,
+  logger,
+  DirectionConfigSchema,
   UpdateDirectionRequestSchema,
   PreviewDirectionRequestSchema,
 } from "@mind/core";
 import type { Db, NewSignal } from "@mind/core";
-import { classify, evaluateGuards, matchSignal } from "@mind/pipeline";
+import {
+  classify,
+  createDirectionFile,
+  evaluateGuards,
+  isValidDirectionId,
+  loadDirections,
+  matchSignal,
+  patchDirectionFile,
+  retireDirectionFile,
+} from "@mind/pipeline";
+import { existsSync } from "node:fs";
+import { z } from "zod";
+import { directionsRoot } from "../directions-dir.js";
+
+const CATCH_ALL_ID = "system/catch-all";
+
+const CreateDirectionRequestSchema = z.object({
+  id: z.string().min(1),
+  config: z.unknown(),
+});
 
 export function directionsRouter(db: Db) {
   const app = new Hono();
+
+  // GET /directions/source — where the YAML files live. The extension opens
+  // this folder; it is not necessarily the folder VS Code has open.
+  app.get("/source", (c) => {
+    const dir = directionsRoot();
+    return c.json({ dir, exists: existsSync(dir) });
+  });
+
+  // POST /directions/reload — re-read every YAML file (same as SIGHUP).
+  app.post("/reload", (c) => {
+    const dir = directionsRoot();
+    if (!existsSync(dir)) return c.json({ error: "directions dir not found" }, 404);
+    loadDirections(db, dir);
+    return c.json({ ok: true });
+  });
+
+  // POST /directions — create directions/<id>.yaml and load it.
+  app.post("/", zValidator("json", CreateDirectionRequestSchema), (c) => {
+    const { id, config } = c.req.valid("json");
+    if (!isValidDirectionId(id) || id === CATCH_ALL_ID) {
+      return c.json({ error: "invalid direction id" }, 400);
+    }
+    const parsed = DirectionConfigSchema.safeParse(config);
+    if (!parsed.success) {
+      return c.json({ error: "invalid direction", issues: parsed.error.issues }, 400);
+    }
+    const dir = directionsRoot();
+    try {
+      createDirectionFile(dir, id, parsed.data);
+    } catch (err) {
+      return c.json({ error: String(err instanceof Error ? err.message : err) }, 409);
+    }
+    loadDirections(db, dir);
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "user",
+        kind: "direction.created",
+        payload: JSON.stringify({ directionId: id }),
+      })
+      .run();
+    return c.json({ ok: true, id }, 201);
+  });
+
+  // DELETE /directions/:id — remove the row and retire the YAML file
+  // (renamed to .deleted, so it can be restored). Signals and thoughts that
+  // referenced it keep existing with no direction.
+  app.delete("/:id", (c) => {
+    const { id } = c.req.param();
+    if (id === CATCH_ALL_ID) {
+      return c.json({ error: "the catch-all direction cannot be deleted; disable it instead" }, 400);
+    }
+    const existing = db.select().from(directions).where(eq(directions.id, id)).get();
+    if (!existing) return c.json({ error: "Not found" }, 404);
+
+    let fileRetired = false;
+    try {
+      fileRetired = retireDirectionFile(directionsRoot(), id);
+    } catch (err) {
+      logger.warn({ id, err: String(err) }, "direction: could not retire YAML file");
+    }
+
+    db.transaction((tx) => {
+      tx.update(signals).set({ directionId: null }).where(eq(signals.directionId, id)).run();
+      tx.update(thoughts).set({ directionId: null }).where(eq(thoughts.directionId, id)).run();
+      tx.delete(directions).where(eq(directions.id, id)).run();
+      tx.insert(events)
+        .values({
+          id: newId(),
+          actor: "user",
+          kind: "direction.deleted",
+          payload: JSON.stringify({ directionId: id, fileRetired }),
+        })
+        .run();
+    });
+    return c.json({ ok: true, fileRetired });
+  });
 
   // GET /directions — all directions with signal/action counts
   app.get("/", (c) => {
@@ -128,6 +227,15 @@ export function directionsRouter(db: Db) {
         .where(eq(directions.id, id))
         .run();
 
+      // Write the edit back to directions/<id>.yaml, or the next restart or
+      // reload would overwrite it with the old file contents.
+      let fileUpdated = false;
+      try {
+        fileUpdated = patchDirectionFile(directionsRoot(), id, body);
+      } catch (err) {
+        logger.warn({ id, err: String(err) }, "direction: could not update YAML file");
+      }
+
       db.insert(events)
         .values({
           id: newId(),
@@ -137,7 +245,7 @@ export function directionsRouter(db: Db) {
         })
         .run();
 
-      return c.json({ ok: true });
+      return c.json({ ok: true, fileUpdated });
     },
   );
 

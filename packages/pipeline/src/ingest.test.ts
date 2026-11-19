@@ -142,6 +142,19 @@ describe("ingest", () => {
     expect(JSON.parse(action?.payload ?? "{}").body).toBe("On it.");
   });
 
+  it("absorbs a calendar event without drafting a reply or queueing anything", async () => {
+    const db = setup("absorb");
+    const result = await ingest(
+      db,
+      { ...signal, kind: "event", externalId: "cal-1", sender: "alice@example.com" },
+      new AdapterRegistry(),
+      overrides("This draft must never be used."),
+    );
+
+    expect(result.disposition).toBe("absorbed");
+    expect(db.select().from(schema.actions).all()).toHaveLength(0);
+  });
+
   it("uses the catch-all direction when nothing specific matches", async () => {
     const db = setup("surface");
     ensureFallbackDirection(db);

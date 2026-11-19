@@ -18,15 +18,8 @@ import {
 } from "@mind/pipeline";
 import { registerDefaultAdapters } from "@mind/adapters";
 import { buildApp } from "./app.js";
-import { join } from "node:path";
+import { directionsRoot } from "./directions-dir.js";
 import { existsSync } from "node:fs";
-
-function directionsRoot(): string {
-  return (
-    process.env["MIND_DIRECTIONS_DIR"] ??
-    join(import.meta.dirname, "..", "..", "..", "directions")
-  );
-}
 
 export async function startServer(): Promise<void> {
   const db = openDb();

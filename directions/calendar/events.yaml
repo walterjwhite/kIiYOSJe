@@ -1,0 +1,14 @@
+# Calendar events (including invitation responses/acknowledgements) are
+# already on your calendar and were usually answered in another client such
+# as Google Calendar or Thunderbird. Absorb them: record, never draft a reply,
+# never escalate. Every calendar signal body contains a "Calendar:" line.
+# Narrow `scope.value` if you want some events to reach the Queue.
+name: calendar-events
+scope:
+  kind: topic
+  value: "Calendar:"
+posture: absorb
+autonomy: observe
+confidenceMin: 0
+standard: |
+  Calendar events and invitation responses need no reply. Absorb silently.

@@ -339,7 +339,10 @@ export async function ingest(
       .run();
   }
 
-  if (match && disposition === "absorbed") {
+  // A calendar event is not a message: there is no one to reply to, and the
+  // operator has usually already answered the invitation in another client.
+  // Absorbing one records it and stops: no draft, no Queue entry.
+  if (match && disposition === "absorbed" && signal.kind !== "event") {
     const dir = match.direction;
     const draftBody = overrides?.draftBody !== undefined
       ? overrides.draftBody

@@ -8,7 +8,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { eq } from "drizzle-orm";
-import { mkdtempSync, unlinkSync } from "node:fs";
+import { mkdtempSync, unlinkSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,6 +34,8 @@ process.env["MIND_TEST_TOKEN"] = "test-token";
 process.env["MIND_CONFIG_DIR"] = mkdtempSync(join(tmpdir(), "mind-app-config-"));
 process.env["MIND_DATA_DIR"] = mkdtempSync(join(tmpdir(), "mind-app-data-"));
 process.env["MIND_AI_PROVIDER"] = "openai";
+// Direction edits write back to YAML; never let a test touch the repo's files.
+process.env["MIND_DIRECTIONS_DIR"] = mkdtempSync(join(tmpdir(), "mind-app-directions-"));
 delete process.env["OPENAI_API_KEY"];
 delete process.env["MIND_AI_API_KEY"];
 
@@ -169,6 +171,78 @@ describe("/directions", () => {
       .where(eq(schema.directions.id, "work/boss"))
       .get();
     expect(updated?.standard).toBe("Updated guidance via alias.");
+  });
+
+  it("creates, edits, and deletes a direction through its YAML file", async () => {
+    const db = openTestDb();
+    const app = buildApp(db, new AdapterRegistry());
+    const headers = {
+      Authorization: `Bearer ${auth.getToken()}`,
+      "Content-Type": "application/json",
+    };
+    const dir = process.env["MIND_DIRECTIONS_DIR"] as string;
+    const file = join(dir, "mine", "rule.yaml");
+
+    const created = await app.request("/directions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        id: "mine/rule",
+        config: {
+          name: "rule",
+          scope: { kind: "topic", value: "invoice" },
+          posture: "absorb",
+          autonomy: "draft",
+          standard: "Reply politely.",
+        },
+      }),
+    });
+    expect(created.status).toBe(201);
+    expect(existsSync(file)).toBe(true);
+    expect(
+      db.select().from(schema.directions).where(eq(schema.directions.id, "mine/rule")).get()?.name,
+    ).toBe("rule");
+
+    const put = await app.request("/directions/mine%2Frule", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ posture: "surface" }),
+    });
+    expect(put.status).toBe(200);
+    expect(readFileSync(file, "utf8")).toContain("posture: surface");
+
+    const del = await app.request("/directions/mine%2Frule", { method: "DELETE", headers });
+    expect(del.status).toBe(200);
+    expect(existsSync(file)).toBe(false);
+    expect(existsSync(file + ".deleted")).toBe(true);
+    expect(
+      db.select().from(schema.directions).where(eq(schema.directions.id, "mine/rule")).get(),
+    ).toBeUndefined();
+  });
+
+  it("rejects path-traversal ids and deleting the catch-all", async () => {
+    const db = openTestDb();
+    const app = buildApp(db, new AdapterRegistry());
+    const headers = {
+      Authorization: `Bearer ${auth.getToken()}`,
+      "Content-Type": "application/json",
+    };
+    const bad = await app.request("/directions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ id: "../evil", config: {} }),
+    });
+    expect(bad.status).toBe(400);
+    const del = await app.request("/directions/system%2Fcatch-all", { method: "DELETE", headers });
+    expect(del.status).toBe(400);
+  });
+
+  it("reports where direction files live", async () => {
+    const app = buildApp(openTestDb(), new AdapterRegistry());
+    const res = await app.request("/directions/source", {
+      headers: { Authorization: `Bearer ${auth.getToken()}` },
+    });
+    expect(((await res.json()) as { dir: string }).dir).toBe(process.env["MIND_DIRECTIONS_DIR"]);
   });
 });
 
