@@ -67,6 +67,10 @@ function upsertDirection(db: Db, id: string, cfg: DirectionConfig): void {
 
   const now = new Date().toISOString();
   const guardsJson = cfg.guards ? JSON.stringify(cfg.guards) : null;
+  const signalActionsJson =
+    cfg.signalActions && cfg.signalActions.length > 0
+      ? JSON.stringify(cfg.signalActions)
+      : null;
 
   if (!existing) {
     db.insert(directions)
@@ -83,6 +87,7 @@ function upsertDirection(db: Db, id: string, cfg: DirectionConfig): void {
         matchPrompt: cfg.matchPrompt ?? null,
         responsePrompt: cfg.responsePrompt ?? null,
         transformPrompt: cfg.transformPrompt ?? null,
+        signalActions: signalActionsJson,
         enabled: true,
         version: 1,
       })
@@ -101,6 +106,7 @@ function upsertDirection(db: Db, id: string, cfg: DirectionConfig): void {
         matchPrompt: cfg.matchPrompt ?? null,
         responsePrompt: cfg.responsePrompt ?? null,
         transformPrompt: cfg.transformPrompt ?? null,
+        signalActions: signalActionsJson,
         version: existing.version + 1,
         updatedAt: now,
       })

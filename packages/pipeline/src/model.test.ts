@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ClassifierOutputSchema, writeAiConfig } from "@mind/core";
-import { generateReply, generateStructured } from "./model.js";
+import { generateReply, generateStructured, type ModelTrace } from "./model.js";
 
 process.env["MIND_CONFIG_DIR"] = mkdtempSync(
   join(tmpdir(), "mind-transport-"),
@@ -109,5 +109,31 @@ describe("model transport", () => {
     expect(classify?.model).toBe("stub-classify");
     expect(classify?.auth).toBe("Bearer sk-test");
     expect(draft?.model).toBe("stub-draft");
+  });
+
+  it("reports a trace with provider, model, endpoint, timing and no message text", async () => {
+    const traces: ModelTrace[] = [];
+    await generateReply({
+      system: "sys",
+      prompt: "secret-message-body",
+      operation: "transform",
+      onTrace: (t) => traces.push(t),
+    });
+
+    expect(traces).toHaveLength(1);
+    const t = traces[0]!;
+    expect(t).toMatchObject({
+      operation: "transform",
+      provider: "openai",
+      model: "stub-draft",
+      transport: "http",
+      ok: true,
+      promptChars: "sys".length + "secret-message-body".length,
+    });
+    expect(t.endpoint).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1$/);
+    expect(t.durationMs).toBeGreaterThanOrEqual(0);
+    expect(t.inputTokens).toBe(1);
+    expect(t.outputTokens).toBe(1);
+    expect(JSON.stringify(t)).not.toContain("secret-message-body");
   });
 });

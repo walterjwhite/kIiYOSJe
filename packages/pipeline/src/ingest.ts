@@ -24,6 +24,7 @@ import type {
 } from "@mind/core";
 import {
   actions,
+  aiConfigured,
   directions,
   events,
   globalSendEnabled,
@@ -47,6 +48,7 @@ import { classify } from "./classify.js";
 import type { ClassifierOutput } from "./classify.js";
 import { draft } from "./draft.js";
 import { transform } from "./transform.js";
+import type { ModelTrace } from "./model.js";
 import { decide } from "./decide.js";
 import { computeEscalateBy } from "./escalation.js";
 import type { AdapterRegistry } from "./adapter-registry.js";
@@ -77,6 +79,12 @@ export async function ingest(
   overrides?: IngestOverrides,
 ): Promise<IngestResult> {
   const key = dedupeKey(signal);
+  const startedAt = performance.now();
+  // Debug record of every model call this signal caused, and why any step
+  // did not call one. Stored on the signal.processed event; no message text.
+  const aiCalls: ModelTrace[] = [];
+  const aiSkipped: Record<string, string> = {};
+  const aiOn = aiConfigured();
   const log = logger.child({ component: "pipeline", dedupeKey: key });
 
   // ── 1. Dedupe ────────────────────────────────────────────────────────────
@@ -106,18 +114,24 @@ export async function ingest(
   const match = matchSignal(db, signal);
 
   // ── 4. Classify ──────────────────────────────────────────────────────────
+  if (overrides?.classifierOutput) aiSkipped["classify"] = "override supplied";
+  else if (!aiOn) aiSkipped["classify"] = "no AI provider configured";
   const classifierOut = overrides?.classifierOutput ?? await classify({
     signalBody: normalizedBody,
     sender: signal.sender,
     standard: match?.direction.standard ?? null,
     receivedAt: signal.receivedAt,
     matchPrompt: match?.direction.matchPrompt ?? null,
+    onTrace: (t) => aiCalls.push(t),
   });
 
   // ── 4b. Compute escalation deadline ──────────────────────────────────────
   const escalateBy = computeEscalateBy(classifierOut, signal.receivedAt);
 
   // ── 4d. Transform (optional display rewrite, never changes routing) ──────
+  if (overrides?.transformedSummary !== undefined) aiSkipped["transform"] = "override supplied";
+  else if (!match?.direction.transformPrompt) aiSkipped["transform"] = "direction has no transformPrompt";
+  else if (!aiOn) aiSkipped["transform"] = "no AI provider configured";
   const transformedSummary =
     overrides?.transformedSummary !== undefined
       ? overrides.transformedSummary
@@ -127,6 +141,8 @@ export async function ingest(
             subject: signal.subject ?? null,
             sender: signal.sender,
             transformPrompt: match.direction.transformPrompt,
+            recipients: signal.recipients,
+            onTrace: (t) => aiCalls.push(t),
           })
         : null;
 
@@ -352,7 +368,10 @@ export async function ingest(
           standard: dir.standard,
           classifierOutput: classifierOut,
           responsePrompt: dir.responsePrompt,
+          onTrace: (t) => aiCalls.push(t),
         });
+    if (overrides?.draftBody !== undefined) aiSkipped["draft"] = "override supplied";
+    else if (!aiOn) aiSkipped["draft"] = "no AI provider configured";
 
     // A null draft means the drafter is not configured: file the signal
     // instead of proposing an empty message (same rule as the monorepo).
@@ -477,6 +496,13 @@ export async function ingest(
         thoughtId,
         actionId,
         replyReceivedFrom: replyAnsweredThread ? signal.sender : null,
+        ai: {
+          configured: aiOn,
+          calls: aiCalls,
+          skipped: aiSkipped,
+          modelMs: aiCalls.reduce((sum, c) => sum + c.durationMs, 0),
+          totalMs: Math.round(performance.now() - startedAt),
+        },
       }),
     })
     .run();

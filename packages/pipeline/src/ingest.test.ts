@@ -349,4 +349,21 @@ describe("ingest", () => {
     const row = db.select().from(schema.signals).get();
     expect(row?.transformedSummary).toBeNull();
   });
+
+  it("records which AI steps ran or were skipped on the signal.processed event", async () => {
+    const db = setup("surface");
+    await ingest(db, signal, new AdapterRegistry(), overrides());
+
+    const ev = db
+      .select()
+      .from(schema.events)
+      .where(eq(schema.events.kind, "signal.processed"))
+      .get();
+    const ai = JSON.parse(ev!.payload).ai;
+    expect(ai.calls).toEqual([]);
+    expect(ai.skipped.classify).toBe("override supplied");
+    expect(ai.skipped.transform).toBe("direction has no transformPrompt");
+    expect(typeof ai.totalMs).toBe("number");
+    expect(ai.modelMs).toBe(0);
+  });
 });

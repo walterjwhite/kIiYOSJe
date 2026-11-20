@@ -164,6 +164,10 @@ export interface DirectionGuards {
   escalateOn?: string[] | undefined;
 }
 
+export type SignalAction =
+  | { id: string; label: string; kind: "acknowledge" }
+  | { id: string; label: string; kind: "openLink"; linkPrefix: string; confirm?: string | undefined };
+
 export interface DirectionConfig {
   name: string;
   scope: { kind: ScopeKind; value: string };
@@ -193,4 +197,6 @@ export interface DirectionConfig {
    * the extension shows by default, with the original always reachable.
    */
   transformPrompt?: string | undefined;
+  /** Buttons the extension shows on matched signals. Validated by SignalActionSchema. */
+  signalActions?: SignalAction[] | undefined;
 }

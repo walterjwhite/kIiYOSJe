@@ -1,0 +1,68 @@
+# Example transform direction: Google "new sign-in" security notices.
+#
+# Gmail delivers these as, roughly:
+#   "We noticed a new sign-in to your Google Account on a Linux device. ..."
+# The subject ("Security alert") says nothing about which device or account, so
+# the transformPrompt rewrites the *display summary* into one readable line.
+# The original subject and body are never changed and stay one click away in the
+# signal's detail view. The transform affects display only: it does not change
+# how the signal is classified or routed.
+#
+# Setup: copy to your directions directory (any *.yaml under directions/ is
+# loaded). Requires a configured AI provider; without one the signal is still
+# matched and surfaced, just without a rewritten summary.
+name: google-signin-notice
+scope:
+  kind: topic
+  # Matched as a case-insensitive substring of the body. Kept to the stable
+  # part of the sentence so a line wrap before "on a <platform> device" does
+  # not defeat the match.
+  value: "new sign-in to your Google Account"
+# `surface` never drafts a reply (there is nobody to reply to: the sender is a
+# no-reply address) and keeps the notice visible, since an unexpected sign-in
+# is a security event you may want to see. Use `absorb` only if you accept that
+# the drafter will propose a reply to Google.
+posture: surface
+autonomy: observe
+confidenceMin: 0.5
+standard: |
+  A Google security notice about a new sign-in. Informational. Never reply.
+  Do not click any link in it from here; check the account's activity page
+  directly if the sign-in is not recognised.
+transformPrompt: |
+  The message is a Google security notice that begins "We noticed a new sign-in
+  to your Google Account on a <platform> device." where <platform> is an
+  operating system such as Linux, Windows, or Apple (macOS, iOS, iPhone, iPad).
+
+  Rewrite it as exactly this one line, with no other text:
+
+  account sign-in on <platform> - <email-address> - <recovery-email-address>
+
+  Fill in each part from the message:
+  - <platform>: the operating system named in the sentence above, as written
+    in the message.
+  - <email-address>: the Google Account that was signed in to. Use the address
+    the message names as the account; if it names none, use the address in the
+    "To:" line.
+  - <recovery-email-address>: the recovery email the message mentions for that
+    account. If the message does not state one, write "no recovery email".
+
+  If the message does not contain that sentence, or a part is not in the
+  message, do not guess. Write "no recovery email" only for the recovery
+  address, and write "unknown" for any other part you cannot find.
+
+# Buttons shown on matching signals in the signal detail view. `kind` is one of
+# a fixed set; a YAML file cannot run commands or make requests.
+#   acknowledge: mark the signal reviewed and close its linked thought.
+#   openLink:    open a link from the message in your browser, after a confirm
+#                prompt. The button only appears if the message contains a link
+#                that starts with `linkPrefix` (https only, same host and path).
+signalActions:
+  - id: acknowledge
+    label: "✓ Acknowledge"
+    kind: acknowledge
+  - id: disavow
+    label: "Disavow sign-in…"
+    kind: openLink
+    linkPrefix: "https://accounts.google.com/AccountDisavow?adt="
+    confirm: "Open Google's \"I don't recognise this sign-in\" page (accounts.google.com) in your browser?"

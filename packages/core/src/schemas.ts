@@ -33,6 +33,42 @@ export const DirectionGuardsSchema = z.object({
   escalateOn: z.array(z.string()).optional(),
 });
 
+/**
+ * A button the extension shows on signals matched by a direction. The kinds
+ * are a closed set: a YAML file can pick one and configure it, but cannot
+ * run commands or make requests.
+ *   acknowledge: mark the signal reviewed and close its linked thought.
+ *   openLink:    open a link found in the message in the operator's browser.
+ *                `linkPrefix` is the exact https URL the link must start with;
+ *                the button only appears when the message contains one.
+ */
+export const SignalActionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, "use lowercase letters, digits and dashes"),
+    label: z.string().min(1),
+    kind: z.literal("acknowledge"),
+  }),
+  z.object({
+    id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, "use lowercase letters, digits and dashes"),
+    label: z.string().min(1),
+    kind: z.literal("openLink"),
+    linkPrefix: z.string().refine((v) => {
+      try {
+        const u = new URL(v);
+        return (
+          u.protocol === "https:" &&
+          u.username === "" &&
+          u.password === "" &&
+          u.pathname.length > 1
+        );
+      } catch {
+        return false;
+      }
+    }, "must be an https URL with a path, no credentials"),
+    confirm: z.string().min(1).optional(),
+  }),
+]);
+
 export const DirectionConfigSchema = z.preprocess(
   (raw) => {
     // "standard" is the field's internal/DB name, kept for backward
@@ -71,6 +107,11 @@ export const DirectionConfigSchema = z.preprocess(
     // How to rewrite a matched signal's display summary — see
     // types.ts' DirectionConfig.transformPrompt for the full explanation.
     transformPrompt: z.string().optional(),
+    // Buttons shown on matched signals in the extension. See SignalActionSchema.
+    signalActions: z
+      .array(SignalActionSchema)
+      .refine((a) => new Set(a.map((x) => x.id)).size === a.length, "action ids must be unique")
+      .optional(),
   }),
 );
 

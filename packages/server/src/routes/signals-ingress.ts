@@ -30,8 +30,9 @@ import {
   parseCommitment,
   ReclassifySignalRequestSchema,
   LinkThoughtRequestSchema,
+  SignalActionSchema,
 } from "@mind/core";
-import type { Db, NewSignal } from "@mind/core";
+import type { Db, NewSignal, SignalAction } from "@mind/core";
 
 const NewSignalSchema = z.object({
   adapter: z.string(),
@@ -224,6 +225,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
             confidenceMin: direction.confidenceMin,
             enabled: direction.enabled,
             standard: direction.standard,
+            signalActions: parseSignalActions(direction.signalActions),
           }
         : null,
       thought,
@@ -470,4 +472,15 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
   });
 
   return app;
+}
+
+/** Re-validates the stored JSON so a bad row can never reach the extension as an action. */
+function parseSignalActions(json: string | null): SignalAction[] {
+  if (!json) return [];
+  try {
+    const parsed = z.array(SignalActionSchema).safeParse(JSON.parse(json));
+    return parsed.success ? parsed.data : [];
+  } catch {
+    return [];
+  }
 }

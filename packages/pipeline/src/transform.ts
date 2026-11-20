@@ -17,6 +17,7 @@
 
 import { aiConfigured, aiProvider, logger } from "@mind/core";
 import { generateReply } from "./model.js";
+import type { ModelTrace } from "./model.js";
 
 export interface TransformInput {
   signalBody: string;
@@ -24,6 +25,10 @@ export interface TransformInput {
   sender: string;
   /** The matched direction's transformPrompt — required; callers should not call this when it's absent. */
   transformPrompt: string;
+  /** Addresses the message was sent to; lets a prompt name the receiving account. */
+  recipients?: string[];
+  /** Receives a trace of the model call (timing, model, provider). */
+  onTrace?: (trace: ModelTrace) => void;
 }
 
 const SYSTEM = `You rewrite a message into a short, plain-language summary for someone
@@ -36,7 +41,7 @@ function buildPrompt(input: TransformInput): string {
 ${input.transformPrompt}
 
 From: ${input.sender}
-${input.subject ? `Subject: ${input.subject}\n` : ""}
+${input.recipients && input.recipients.length > 0 ? `To: ${input.recipients.join(", ")}\n` : ""}${input.subject ? `Subject: ${input.subject}\n` : ""}
 Message:
 ${input.signalBody}
 
@@ -50,7 +55,12 @@ export async function transform(input: TransformInput): Promise<string | null> {
   }
 
   try {
-    const text = await generateReply({ system: SYSTEM, prompt: buildPrompt(input) });
+    const text = await generateReply({
+      system: SYSTEM,
+      prompt: buildPrompt(input),
+      operation: "transform",
+      ...(input.onTrace ? { onTrace: input.onTrace } : {}),
+    });
     return text.length > 0 ? text : null;
   } catch (err) {
     logger.warn({ err, provider: aiProvider() }, "transform: LLM call failed");

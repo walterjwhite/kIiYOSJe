@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
 import { statusIndicator } from "./status-indicator.js";
+import { extractLink } from "./link-extract.js";
 import { SectionPanel, esc } from "./webview-base.js";
 
 interface Signal {
@@ -34,7 +35,13 @@ interface Direction {
   confidenceMin: number;
   enabled: boolean;
   standard: string;
+  signalActions?: SignalAction[];
 }
+
+/** Mirrors SignalAction in @mind/core; the server validates it before sending. */
+type SignalAction =
+  | { id: string; label: string; kind: "acknowledge" }
+  | { id: string; label: string; kind: "openLink"; linkPrefix: string; confirm?: string };
 
 interface Thought {
   id: string;
@@ -114,10 +121,17 @@ export class SignalDetailPanel extends SectionPanel {
 
   private constructor(private readonly signalId: string) {
     super(`mind.signal.${signalId}`, "Signal — mind");
+    // Flipping mind.debug re-renders open panels from the data already loaded.
+    this.configListener = vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("mind.debug")) this.render();
+    });
     this.load();
   }
 
+  private readonly configListener: vscode.Disposable;
+
   protected onDispose(): void {
+    this.configListener.dispose();
     SignalDetailPanel.open.delete(this.signalId);
   }
 
@@ -132,6 +146,7 @@ export class SignalDetailPanel extends SectionPanel {
     else if (m.command === "unlinkThought") this.unlinkThought();
     else if (m.command === "markReviewed") this.markReviewed();
     else if (m.command === "clearReviewed") this.clearReviewed();
+    else if (m.command === "signalAction" && m.id) this.runSignalAction(m.id);
     else if (m.command === "toggleRawBody") {
       this.showRawBody = !this.showRawBody;
       this.render();
@@ -307,6 +322,60 @@ export class SignalDetailPanel extends SectionPanel {
     this.load();
   }
 
+  /** Runs a button declared in the matched direction's `signalActions`. */
+  private async runSignalAction(actionId: string): Promise<void> {
+    // Look the action up from loaded data rather than trusting the webview
+    // message for anything but the id.
+    const action = this.data?.direction?.signalActions?.find((x) => x.id === actionId);
+    if (!action) return;
+    if (action.kind === "acknowledge") await this.acknowledge();
+    else if (action.kind === "openLink") await this.openLink(action);
+  }
+
+  /**
+   * Acknowledge: "seen, nothing more to do." Marks the signal reviewed and
+   * closes its linked thought so it stops appearing as open work. Both use
+   * existing endpoints; both are recorded as events.
+   */
+  private async acknowledge(): Promise<void> {
+    try {
+      await apiFetch(`/signals/${this.signalId}/reviewed`, { method: "PUT" });
+      const thought = this.data?.thought;
+      if (thought && thought.state !== "closed") {
+        await apiFetch(`/thoughts/${thought.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ state: "closed" }),
+        });
+      }
+    } catch (err) {
+      vscode.window.showErrorMessage(String(err));
+    }
+    this.load();
+  }
+
+  /**
+   * Opens a link from the message in the operator's own browser, where their
+   * signed-in session applies. The server never fetches it, and the URL is
+   * re-validated against the declared prefix immediately before opening.
+   */
+  private async openLink(action: Extract<SignalAction, { kind: "openLink" }>): Promise<void> {
+    const link = this.data
+      ? extractLink(this.data.signal.htmlBody, this.data.signal.body, action.linkPrefix)
+      : undefined;
+    if (!link) {
+      vscode.window.showErrorMessage(`mind: no matching link found for "${action.label}".`);
+      return;
+    }
+    const host = new URL(link).host;
+    const choice = await vscode.window.showWarningMessage(
+      action.confirm ?? `Open a link on ${host} in your browser?`,
+      { modal: true, detail: `${host}${new URL(link).pathname}` },
+      "Open",
+    );
+    if (choice !== "Open") return;
+    await vscode.env.openExternal(vscode.Uri.parse(link, true));
+  }
+
   private async clearReviewed(): Promise<void> {
     try {
       await apiFetch(`/signals/${this.signalId}/reviewed`, { method: "DELETE" });
@@ -338,9 +407,23 @@ export class SignalDetailPanel extends SectionPanel {
       preferHtmlBody: true,
     };
 
+    const debug = vscode.workspace.getConfiguration("mind").get<boolean>("debug") ?? false;
+
     const cc: string[] = signal.cc ? safeParseArray(signal.cc) : [];
     const bcc: string[] = signal.bcc ? safeParseArray(signal.bcc) : [];
     const hasHtml = Boolean(signal.htmlBody);
+    // Declared buttons. An openLink button only appears when its link is
+    // actually in the message; acknowledge hides once the signal is reviewed.
+    const signalActionButtons = (direction?.signalActions ?? [])
+      .filter((a) =>
+        a.kind === "openLink"
+          ? extractLink(signal.htmlBody, signal.body, a.linkPrefix) !== undefined
+          : !signal.reviewedAt,
+      )
+      .map((a) => `<button data-action="signalAction" data-id="${esc(a.id)}">${esc(a.label)}</button>`);
+    if (signal.reviewedAt && (direction?.signalActions ?? []).some((a) => a.kind === "acknowledge")) {
+      signalActionButtons.unshift(`<span class="badge">acknowledged ${esc(signal.reviewedAt)}</span>`);
+    }
     const showingHtml = ds.preferHtmlBody && hasHtml && !this.showRawBody;
 
     const actionRows = actions
@@ -383,6 +466,7 @@ export class SignalDetailPanel extends SectionPanel {
             <span class="meta">${esc(e.at)} · ${esc(e.actor)}</span>
           </div>
           ${renderEventDetail(e.kind, payload)}
+          ${debug ? renderDebugDetail(e, payload) : ""}
         </div>`;
       })
       .join("");
@@ -398,6 +482,8 @@ export class SignalDetailPanel extends SectionPanel {
             : `<button data-action="linkThought">Link to a thought…</button>`
         }
       </div>
+
+      ${signalActionButtons.length > 0 ? `<div class="toolbar">${signalActionButtons.join("")}</div>` : ""}
 
       <table>
         <tr><th>From</th><td>${esc(signal.sender)}</td></tr>
@@ -481,6 +567,7 @@ export class SignalDetailPanel extends SectionPanel {
       }
 
       <h2>How it was processed</h2>
+      ${debug ? '<p class="sub">Debug mode is on (setting <code>mind.debug</code>).</p>' : ""}
       ${eventRows || '<p class="empty">No events recorded.</p>'}
     `;
 
@@ -569,4 +656,85 @@ function renderEventDetail(kind: string, payload: Record<string, unknown>): stri
   // so nothing is hidden — just not specially formatted yet.
   const raw = JSON.stringify(payload);
   return raw === "{}" ? "" : `<div class="meta">${esc(raw.slice(0, 300))}</div>`;
+}
+
+interface AiCallTrace {
+  operation?: string;
+  provider?: string;
+  model?: string;
+  transport?: string;
+  endpoint?: string | null;
+  durationMs?: number;
+  ok?: boolean;
+  error?: string;
+  promptChars?: number;
+  responseChars?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
+interface AiTrace {
+  configured?: boolean;
+  calls?: AiCallTrace[];
+  skipped?: Record<string, string>;
+  modelMs?: number;
+  totalMs?: number;
+}
+
+function fmtMs(ms: number | undefined): string {
+  if (ms === undefined) return "—";
+  return ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${ms} ms`;
+}
+
+/**
+ * Extra detail shown only when mind.debug is on. For signal.processed it
+ * says exactly which model calls were made (provider, model, endpoint,
+ * duration, tokens) or why a step made none, then the raw event payload.
+ * Other event kinds just get their ids and raw payload.
+ */
+function renderDebugDetail(e: JournalEvent, payload: Record<string, unknown>): string {
+  const rows: string[] = [];
+  rows.push(`<tr><th>Event id</th><td><code>${esc(e.id)}</code></td></tr>`);
+
+  if (e.kind === "signal.processed") {
+    const ai = payload["ai"] as AiTrace | undefined;
+    if (!ai) {
+      rows.push(
+        `<tr><th>AI</th><td>No AI trace on this event. It was processed before tracing was added, or by a build without it.</td></tr>`,
+      );
+    } else {
+      const calls = ai.calls ?? [];
+      rows.push(`<tr><th>AI provider configured</th><td>${ai.configured ? "yes" : "no"}</td></tr>`);
+      rows.push(`<tr><th>Total processing time</th><td>${esc(fmtMs(ai.totalMs))}</td></tr>`);
+      rows.push(`<tr><th>Time in model calls</th><td>${esc(fmtMs(ai.modelMs))}</td></tr>`);
+      if (calls.length === 0) {
+        rows.push(`<tr><th>Model calls</th><td><strong>none</strong> — no model was contacted for this signal.</td></tr>`);
+      }
+      calls.forEach((c, i) => {
+        const where =
+          c.transport === "acp"
+            ? `ACP agent (${c.provider ?? "?"})`
+            : `${c.provider ?? "?"} at ${c.endpoint ?? "?"}`;
+        const tokens =
+          c.inputTokens !== undefined || c.outputTokens !== undefined
+            ? ` · tokens in/out: ${c.inputTokens ?? "?"}/${c.outputTokens ?? "?"}`
+            : "";
+        rows.push(
+          `<tr><th>Call ${i + 1}: ${esc(c.operation ?? "?")}</th><td>
+            ${c.ok ? "ok" : '<span class="danger">failed</span>'} · ${esc(fmtMs(c.durationMs))}<br/>
+            model <code>${esc(c.model ?? "?")}</code> via ${esc(where)}<br/>
+            prompt ${esc(String(c.promptChars ?? "?"))} chars → response ${esc(String(c.responseChars ?? "?"))} chars${esc(tokens)}
+            ${c.error ? `<br/><span class="danger">${esc(c.error)}</span>` : ""}
+          </td></tr>`,
+        );
+      });
+      for (const [step, why] of Object.entries(ai.skipped ?? {})) {
+        rows.push(`<tr><th>Skipped: ${esc(step)}</th><td>${esc(why)}</td></tr>`);
+      }
+    }
+  }
+
+  const raw = JSON.stringify(payload, null, 2);
+  return `<table class="debug">${rows.join("")}</table>
+    <details><summary class="meta">Raw event payload</summary><pre>${esc(raw)}</pre></details>`;
 }

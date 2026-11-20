@@ -32,6 +32,9 @@ export const directions = sqliteTable("directions", {
   // plainly. Optional; when unset, nothing is transformed and the original
   // body/subject are what's shown, same as before this field existed.
   transformPrompt: text("transform_prompt"),
+  // JSON array of SignalAction: buttons the extension shows on matched
+  // signals (acknowledge, open a link found in the message). Null for none.
+  signalActions: text("signal_actions"),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   version: integer("version").notNull().default(1),
   createdAt: text("created_at")

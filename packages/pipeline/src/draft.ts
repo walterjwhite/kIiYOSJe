@@ -9,6 +9,7 @@
 import { aiConfigured, aiProvider, logger } from "@mind/core";
 import type { ClassifierOutput } from "./classify.js";
 import { generateReply } from "./model.js";
+import type { ModelTrace } from "./model.js";
 
 export interface DraftInput {
   senderBody: string;
@@ -17,6 +18,8 @@ export interface DraftInput {
   classifierOutput: ClassifierOutput;
   /** Matched direction's responsePrompt, if any — specific handling guidance beyond `standard`. */
   responsePrompt?: string | null;
+  /** Receives a trace of the model call (timing, model, provider). */
+  onTrace?: (trace: ModelTrace) => void;
 }
 
 const SYSTEM = `You are a professional assistant drafting replies on behalf of the message recipient.
@@ -70,6 +73,8 @@ export async function draft(input: DraftInput): Promise<string | null> {
     const text = await generateReply({
       system: SYSTEM,
       prompt: buildPrompt(input),
+      operation: "draft",
+      ...(input.onTrace ? { onTrace: input.onTrace } : {}),
     });
     return text.length > 0 ? text : null;
   } catch (err) {

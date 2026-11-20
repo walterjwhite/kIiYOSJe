@@ -17,6 +17,7 @@ import {
 } from "@mind/core";
 import type { z } from "zod";
 import { generateStructured } from "./model.js";
+import type { ModelTrace } from "./model.js";
 
 export type ClassifierOutput = z.infer<typeof ClassifierOutputSchema>;
 
@@ -28,6 +29,8 @@ export interface ClassifyInput {
   receivedAt: Date;
   /** Matched direction's matchPrompt, if any — how it recognizes a match, for context only. */
   matchPrompt?: string | null;
+  /** Receives a trace of the model call (timing, model, provider). */
+  onTrace?: (trace: ModelTrace) => void;
 }
 
 const SYSTEM = `You are a signal classifier for a local attention-management system.
@@ -82,6 +85,8 @@ export async function classify(input: ClassifyInput): Promise<ClassifierOutput> 
     const object = await generateStructured(ClassifierOutputSchema, {
       system: SYSTEM,
       prompt: buildPrompt(input),
+      operation: "classify",
+      ...(input.onTrace ? { onTrace: input.onTrace } : {}),
     });
     return ClassifierOutputSchema.parse(object);
   } catch (err) {
