@@ -16,6 +16,7 @@ import { SystemEventsPanel } from "./system-events-panel.js";
 import { DevicesPanel } from "./devices-panel.js";
 import { SettingsPanel } from "./settings-panel.js";
 import { createStatusIndicatorItem, statusIndicator } from "./status-indicator.js";
+import { ServerController } from "./server-control.js";
 
 /**
  * The sidebar is one short list of section links (NavProvider) — mirroring
@@ -39,6 +40,16 @@ export function activate(context: vscode.ExtensionContext): void {
   const statusItem = createStatusIndicatorItem();
   context.subscriptions.push(statusItem);
   statusIndicator.mirrorBadge(navTreeView);
+
+  // Server lifecycle: start / stop / restart icons in the sidebar title bar.
+  const server = new ServerController();
+  context.subscriptions.push(
+    server,
+    vscode.commands.registerCommand("mind.server.start", () => server.start()),
+    vscode.commands.registerCommand("mind.server.stop", () => server.stop()),
+    vscode.commands.registerCommand("mind.server.restart", () => server.restart()),
+  );
+  server.watch();
 
   // ── Section panels ───────────────────────────────────────────────────────
 

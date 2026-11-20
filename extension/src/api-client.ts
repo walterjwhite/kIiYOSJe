@@ -9,7 +9,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { statusIndicator } from "./status-indicator.js";
 
-function serverUrl(): string {
+export function serverUrl(): string {
   return (
     vscode.workspace
       .getConfiguration("mind")
@@ -26,6 +26,15 @@ function tokenPath(): string {
   return configDir
     ? path.join(configDir, "token")
     : path.join(os.homedir(), ".config", "kIiYOSJe", "mind", "token");
+}
+
+/** The token, or undefined if the server has never run. */
+export function readToken(): string | undefined {
+  try {
+    return getToken();
+  } catch {
+    return undefined;
+  }
 }
 
 function getToken(): string {

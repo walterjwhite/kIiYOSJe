@@ -81,6 +81,21 @@
       {
         "command": "mind.notifications.configure",
         "title": "mind: Configure Notification Quiet Period"
+      },
+      {
+        "command": "mind.server.start",
+        "title": "mind: Start Server",
+        "icon": "$(play)"
+      },
+      {
+        "command": "mind.server.stop",
+        "title": "mind: Stop Server",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "mind.server.restart",
+        "title": "mind: Restart Server",
+        "icon": "$(debug-restart)"
       }
     ],
     "viewsContainers": {
@@ -118,8 +133,45 @@
           "type": "string",
           "default": "",
           "description": "Path to token file. Leave empty to use default (~/.config/kIiYOSJe/mind/token)."
+        },
+        "mind.serverRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Repo root containing packages/server/dist/main.js, used by Start/Restart Server. Leave empty to use an open workspace folder that contains it."
+        },
+        "mind.nodePath": {
+          "type": "string",
+          "default": "",
+          "description": "Node executable used to run the server. Leave empty for \"node\" on PATH. Must be the Node the server was built and installed with (Node 24+)."
+        },
+        "mind.serverEnv": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra environment variables for a server started from the extension, e.g. {\"NODE_USE_ENV_PROXY\": \"1\", \"no_proxy\": \"localhost,127.0.0.1\"}."
         }
       }
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "mind.server.start",
+          "when": "view == mind.nav && !mind.serverRunning",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mind.server.restart",
+          "when": "view == mind.nav && mind.serverRunning",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mind.server.stop",
+          "when": "view == mind.nav && mind.serverRunning",
+          "group": "navigation@2"
+        }
+      ]
     }
   },
   "scripts": {

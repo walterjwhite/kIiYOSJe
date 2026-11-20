@@ -8,6 +8,8 @@
  * GET  /admin/ai-config   → returns the current effective AI config (key masked)
  * PUT  /admin/ai-config   → writes ~/.config/kIiYOSJe/mind/ai.json; takes effect on the next signal,
  *                           no server restart required
+ * POST /admin/shutdown    → stops the server process (SIGTERM shortly after replying);
+ *                           how the extension's Stop/Restart reaches a server it did not start
  * GET  /admin/display     → which signal fields/attributes the extension shows by default
  * PUT  /admin/display     → writes ~/.config/kIiYOSJe/mind/display.json
  */
@@ -62,6 +64,12 @@ export function adminRouter() {
   app.post("/resume", (c) => {
     resume();
     return c.json({ ok: true, paused: false });
+  });
+
+  app.post("/shutdown", (c) => {
+    // Reply first, then terminate; the delay lets the response flush.
+    setTimeout(() => process.kill(process.pid, "SIGTERM"), 100).unref();
+    return c.json({ ok: true, stopping: true });
   });
 
   app.get("/status", (c) => {

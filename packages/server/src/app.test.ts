@@ -3,7 +3,7 @@
  * Uses an in-memory database — no file I/O, no migration folder dependency.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
@@ -1065,5 +1065,40 @@ describe("request guards", () => {
     });
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /admin/shutdown", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("requires the bearer token and does not terminate without it", async () => {
+    vi.useFakeTimers();
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+    const app = buildApp(openTestDb(), new AdapterRegistry());
+
+    const res = await app.request("/admin/shutdown", { method: "POST" });
+    expect(res.status).toBe(401);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(kill).not.toHaveBeenCalled();
+  });
+
+  it("replies, then sends SIGTERM to its own process", async () => {
+    vi.useFakeTimers();
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+    const app = buildApp(openTestDb(), new AdapterRegistry());
+
+    const res = await app.request("/admin/shutdown", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${auth.getToken()}` },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, stopping: true });
+    expect(kill).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(kill).toHaveBeenCalledWith(process.pid, "SIGTERM");
   });
 });
