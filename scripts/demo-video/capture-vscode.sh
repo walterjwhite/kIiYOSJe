@@ -24,7 +24,7 @@
 #   --workspace DIR  folder to open in VS Code (default: repo root)
 #   --size WxH       window size (default: 1920x1080)
 #   --install        install extension/*.vsix into the throwaway profile
-#   --xvfb           re-exec inside xvfb-run with openbox
+#   --xvfb           start a private Xvfb (first free display from :99) + openbox
 #   --force          overwrite existing frames
 #   --keep-open      leave the VS Code window open when done
 
@@ -91,10 +91,33 @@ if [[ "$XVFB" == "1" ]]; then
       exit 1
     fi
   done
-  export DISPLAY="${MIND_DEMO_DISPLAY:-:99}"
+  # Never reuse a display number that something already holds. A run that was
+  # killed leaves its Xvfb (and its VS Code windows) behind on :99, so starting
+  # Xvfb there fails, and the capture then drives — and screenshots — windows
+  # from the old session, which may vanish mid-sequence (X Error: BadWindow).
+  display_num="${MIND_DEMO_DISPLAY:-:99}"
+  display_num="${display_num#:}"
+  [[ "$display_num" =~ ^[0-9]+$ ]] || { echo "error: MIND_DEMO_DISPLAY must be :N, got $display_num" >&2; exit 2; }
+  for _ in $(seq 1 20); do
+    if [[ ! -e "/tmp/.X${display_num}-lock" && ! -e "/tmp/.X11-unix/X${display_num}" ]]; then
+      break
+    fi
+    display_num=$((display_num + 1))
+  done
+  export DISPLAY=":${display_num}"
   Xvfb "$DISPLAY" -screen 0 "${WIDTH}x${HEIGHT}x24" -nolisten tcp >"$HERE/work/xvfb.log" 2>&1 &
   XVFB_PID=$!
-  sleep 1
+  ready=0
+  for _ in $(seq 1 100); do
+    kill -0 "$XVFB_PID" 2>/dev/null || break
+    if xdotool getdisplaygeometry >/dev/null 2>&1; then ready=1; break; fi
+    sleep 0.1
+  done
+  if [[ "$ready" != "1" ]]; then
+    echo "error: Xvfb did not come up on $DISPLAY (see $HERE/work/xvfb.log)" >&2
+    tail -n 5 "$HERE/work/xvfb.log" >&2 || true
+    exit 1
+  fi
   openbox >/dev/null 2>&1 &
   sleep 0.5
 fi
@@ -156,13 +179,34 @@ code --user-data-dir "$PROFILE" --extensions-dir "$EXTENSIONS" \
   "$WORKSPACE" >"$HERE/work/vscode.log" 2>&1 &
 LAUNCH_PID=$!
 
+# Pick the largest visible VS Code window. The search also returns transient and
+# child windows, and a fresh profile can replace its first window while the
+# workbench loads; the last id in the list is not necessarily the editor.
+find_vscode_window() {
+  local id geometry w h area best="" best_area=0
+  while read -r id; do
+    [[ -n "$id" ]] || continue
+    geometry="$(xdotool getwindowgeometry --shell "$id" 2>/dev/null)" || continue
+    w="$(printf '%s\n' "$geometry" | sed -n 's/^WIDTH=//p')"
+    h="$(printf '%s\n' "$geometry" | sed -n 's/^HEIGHT=//p')"
+    [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]] || continue
+    area=$((w * h))
+    if (( area > best_area )); then
+      best="$id"
+      best_area="$area"
+    fi
+  done < <(
+    { xdotool search --onlyvisible --class '[Cc]ode' 2>/dev/null || true
+      xdotool search --onlyvisible --name 'Visual Studio Code' 2>/dev/null || true
+    } | sort -u
+  )
+  printf '%s' "$best"
+}
+
 WAIT="${MIND_CAPTURE_WAIT:-60}"
 WID=""
 for _ in $(seq 1 "$WAIT"); do
-  WID="$(xdotool search --onlyvisible --class '[Cc]ode' 2>/dev/null | tail -n1 || true)"
-  if [[ -z "$WID" ]]; then
-    WID="$(xdotool search --onlyvisible --name 'Visual Studio Code' 2>/dev/null | tail -n1 || true)"
-  fi
+  WID="$(find_vscode_window)"
   [[ -n "$WID" ]] && break
   sleep 1
 done
@@ -198,17 +242,49 @@ sleep 3
 xdotool key --clearmodifiers Escape 2>/dev/null || true
 sleep 1
 
+window_alive() {
+  xdotool getwindowgeometry "$1" >/dev/null 2>&1
+}
+
+# Re-resolve and retry: the window can disappear between the search and the
+# capture (VS Code replaces it while loading, or it was left by an older run on
+# a reused display), which maim reports as BadWindow.
 capture_window() {
   local output="$1"
   local temporary="${output%.png}.tmp.png"
-  if command -v maim >/dev/null; then
-    maim -i "$WID" "$temporary"
-  else
-    eval "$(xdotool getwindowgeometry --shell "$WID")"
-    ffmpeg -hide_banner -loglevel error -y -f x11grab -video_size "${WIDTH}x${HEIGHT}" \
-      -i "${DISPLAY}+${X},${Y}" -frames:v 1 "$temporary"
-  fi
-  mv "$temporary" "$output"
+  local attempt geometry gx gy
+  for attempt in 1 2 3; do
+    if ! window_alive "$WID"; then
+      WID="$(find_vscode_window)"
+      if [[ -z "$WID" ]]; then
+        sleep 1
+        continue
+      fi
+      echo "warn: VS Code window changed; capturing $WID instead" >&2
+      xdotool windowsize "$WID" "$WIDTH" "$HEIGHT" 2>/dev/null || true
+      xdotool windowmove "$WID" 0 0 2>/dev/null || true
+      xdotool windowactivate --sync "$WID" 2>/dev/null || true
+      sleep "${SETTLE:-1.2}"
+    fi
+    if command -v maim >/dev/null; then
+      if maim -i "$WID" "$temporary" 2>/dev/null; then
+        mv "$temporary" "$output"
+        return 0
+      fi
+    else
+      geometry="$(xdotool getwindowgeometry --shell "$WID" 2>/dev/null || true)"
+      gx="$(printf '%s\n' "$geometry" | sed -n 's/^X=//p')"
+      gy="$(printf '%s\n' "$geometry" | sed -n 's/^Y=//p')"
+      if ffmpeg -hide_banner -loglevel error -y -f x11grab -video_size "${WIDTH}x${HEIGHT}" \
+        -i "${DISPLAY}+${gx:-0},${gy:-0}" -frames:v 1 "$temporary"; then
+        mv "$temporary" "$output"
+        return 0
+      fi
+    fi
+    sleep 1
+  done
+  echo "error: could not capture window ${WID:-?} on $DISPLAY (is VS Code still running?)" >&2
+  return 1
 }
 
 shot() {
