@@ -249,6 +249,10 @@ needed; the extension is a local client.
 | POST   | `/proposals/:id/accept` \| `/reject`            | resolve a proposal                                                                          |
 | GET    | `/admin/notifications`                          | the notification quiet-period window, plus whether a notification sent now would be allowed |
 | PUT    | `/admin/notifications`                          | set the quiet-period window (days, start/end time)                                          |
+| POST   | `/devices/pairing`                              | start pairing: name and scopes in, a six-digit code out                                      |
+| POST   | `/devices/pair`                                 | exchange the code for a device token (the only unauthenticated route)                       |
+| GET    | `/devices`                                      | paired clients, without token hashes                                                        |
+| DELETE | `/devices/:id`                                  | revoke one device; effective on its next request                                            |
 
 Approving an action and discarding it are both events — overrides are the
 training signal for §12. Reclassifying a signal is a separate, explicit
@@ -283,9 +287,10 @@ a count.
 - **Developer** (collapsed group) — **System Events** (the append-only audit log)
   and **Model Trace** (where model calls went). These answer "what did the
   machine do", so they are not on the default path.
-- **Devices** — placeholder only. No pairing exists yet; this previews the
-  planned layout and says so, pending the Android app this is meant for and
-  PLAN.md's own P6 deferral of remote authentication.
+- **Devices** — the paired clients, and pairing a new one. Pick a name and
+  scopes, show a short-lived code, and the phone exchanges it for its own
+  credential. Each request is checked against that device's scopes; revoking
+  takes effect on its next call. The Android client is in `android/`.
 - **Settings** — which signal fields are shown, automatic goal linking, and the
   audio summary's voice and speed.
 - **Commands** — `mind.capture`, `mind.pause` (kill switch),

@@ -3,16 +3,16 @@
  * No side effects on import — call functions when needed.
  */
 
-import { homedir } from "node:os";
-import { join } from "node:path";
 import {
+  existsSync,
   mkdirSync,
   readFileSync,
-  writeFileSync,
-  unlinkSync,
-  existsSync,
   renameSync,
+  unlinkSync,
+  writeFileSync,
 } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 /** Repo name, so each tree's data stays apart in ~/.data/<repo>/mind. */
 const REPO_NAME = "kIiYOSJe";
@@ -203,9 +203,15 @@ export function writeAiConfig(config: AiConfigFile): void {
   const path = aiConfigPath();
   const tmp = `${path}.tmp`;
   // A provider change from the editor does not know about this tuning knob, so keep it.
-  const merged = config.contextTokens === undefined
-    ? { ...config, ...(readAiConfigFile().contextTokens === undefined ? {} : { contextTokens: readAiConfigFile().contextTokens }) }
-    : config;
+  const merged =
+    config.contextTokens === undefined
+      ? {
+          ...config,
+          ...(readAiConfigFile().contextTokens === undefined
+            ? {}
+            : { contextTokens: readAiConfigFile().contextTokens }),
+        }
+      : config;
   writeFileSync(tmp, JSON.stringify(merged, null, 2), { mode: 0o600 });
   renameSync(tmp, path);
 }
@@ -218,7 +224,9 @@ export function writeAiConfig(config: AiConfigFile): void {
  */
 export function contextTokens(): number {
   const fromEnv = Number(process.env["MIND_CONTEXT_TOKENS"]);
-  const configured = readAiConfigFile().contextTokens ?? (Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : undefined);
+  const configured =
+    readAiConfigFile().contextTokens ??
+    (Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : undefined);
   if (configured !== undefined && configured >= 1024) return Math.floor(configured);
   return aiProvider() === "ollama" ? 4096 : 32000;
 }
@@ -480,3 +488,18 @@ export function writeDisplaySettings(settings: DisplaySettings): void {
 
 export const SERVER_PORT = 8787;
 export const SERVER_HOST = "127.0.0.1";
+
+/**
+ * Interface the HTTP server binds to. Loopback by default.
+ *
+ * A phone on the same network can only reach the API if the operator opts in
+ * with MIND_BIND_HOST (for example `0.0.0.0` or the machine's LAN address).
+ * That widens who can attempt a request, not who can succeed: every route still
+ * requires a bearer token or a one-time pairing code, and only the pairing
+ * route is unauthenticated. Prefer a private network or an SSH/VPN tunnel over
+ * exposing this port; see the Android README.
+ */
+export function serverBindHost(): string {
+  const configured = process.env["MIND_BIND_HOST"]?.trim();
+  return configured && configured.length > 0 ? configured : SERVER_HOST;
+}

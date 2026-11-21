@@ -99,7 +99,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     id: "devices",
     label: "Devices",
-    description: "paired clients (preview)",
+    description: "paired clients, and pairing a new one",
     icon: "device-desktop",
     command: "mind.devices",
   },

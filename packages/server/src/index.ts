@@ -2,24 +2,24 @@
  * Server entry point. Called by the CLI's `mind start` command.
  */
 
+import { existsSync } from "node:fs";
 import { serve } from "@hono/node-server";
-import { openDb, SERVER_HOST, SERVER_PORT, logger } from "@mind/core";
+import { registerDefaultAdapters } from "@mind/adapters";
+import { logger, openDb, SERVER_HOST, SERVER_PORT, serverBindHost } from "@mind/core";
 import {
   AdapterRegistry,
-  loadDirections,
   ensureFallbackDirection,
-  startEscalationChecker,
-  startRetentionJob,
-  startBackupJob,
-  startStatusWriter,
-  startLearningLoop,
-  updateStatus,
   ingest,
+  loadDirections,
+  startBackupJob,
+  startEscalationChecker,
+  startLearningLoop,
+  startRetentionJob,
+  startStatusWriter,
+  updateStatus,
 } from "@mind/pipeline";
-import { registerDefaultAdapters } from "@mind/adapters";
 import { buildApp } from "./app.js";
 import { directionsRoot } from "./directions-dir.js";
-import { existsSync } from "node:fs";
 
 export async function startServer(): Promise<void> {
   const db = openDb();
@@ -56,15 +56,22 @@ export async function startServer(): Promise<void> {
   startLearningLoop(db);
 
   const app = buildApp(db, adapters);
+  const host = serverBindHost();
+  if (host !== SERVER_HOST) {
+    logger.warn(
+      { host },
+      "mind server is bound beyond loopback; every route still requires a token, but keep the port off untrusted networks",
+    );
+  }
 
   serve(
     {
       fetch: app.fetch,
-      hostname: SERVER_HOST,
+      hostname: host,
       port: SERVER_PORT,
     },
     () => {
-      logger.info({ host: SERVER_HOST, port: SERVER_PORT }, "mind server started");
+      logger.info({ host, port: SERVER_PORT }, "mind server started");
       logger.debug({ tokenPath: "~/.config/kIiYOSJe/mind/token" }, "API token location");
       // Write initial status immediately.
       updateStatus(db, adapters);

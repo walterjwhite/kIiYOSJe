@@ -197,4 +197,25 @@ A graph of every model call, drawn from the audit log.
 
 ## Devices
 
-A placeholder. Pairing is not built.
+The clients paired to this server, and pairing a new one.
+
+**Paired clients** lists each device's name, kind, when it was paired, when it
+was last seen, and its permissions. **Revoke** locks that device out on its next
+request; every other client keeps working. A revoked row stays in the list so
+the history is visible.
+
+**Show pairing code** picks a name and permissions here, then shows a six-digit
+code for ten minutes. Enter the code in the Android app (or any client that
+speaks `POST /devices/pair`). The device receives its own token exactly once;
+the server stores only a hash. The code works once, accepts five wrong tries,
+and new phones default to `read` + `capture`.
+
+Permissions mean what they say: `read` is every GET, `capture` adds a thought or
+acknowledges a signal, `send` approves or discards a drafted reply, `render` is
+the audio summary, and `settings` changes Directions, admin settings, goal links
+and queue order. Device management itself needs the editor's own token, so a
+lost phone cannot revoke the other clients.
+
+The phone must be able to reach the server: start it with `MIND_BIND_HOST=0.0.0.0`
+on a trusted network (the default binds only to `127.0.0.1`). See
+[`android/README.md`](android/README.md).

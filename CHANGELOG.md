@@ -9,6 +9,21 @@ versions while the project is `0.x`).
 
 ### Added
 
+- Device pairing. **Devices** in the extension is a real registry: choose a
+  name and scopes, show a six-digit code, and the new client exchanges it for
+  its own token. Tokens and codes are stored hashed, codes expire in ten
+  minutes and are single-use, each request checks the device's scopes, and
+  revoking one device takes effect on its next request without touching the
+  others. `POST /devices/pairing`, `POST /devices/pair`, `GET /devices`,
+  `DELETE /devices/:id`. Migration `0014_devices`.
+- An Android client in [`android/`](android/README.md): pair once, then read the
+  Queue, capture a thought, acknowledge a signal, and approve or discard a draft
+  when the device was granted `send`. The last queue is cached and labelled as
+  cached when the server is unreachable. It is not built by this repository's
+  CI.
+- `MIND_BIND_HOST` lets the server bind beyond loopback so a phone on a private
+  network can reach it. The default is still `127.0.0.1`, and every route still
+  requires a token.
 - Analytics opens with the coverage curve: weekly absorb rate against the number
   of Directions in force, explicit Directions only, with the 60% target marked
   and signals absorbed but never answered drawn beside it. Click a week to list

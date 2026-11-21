@@ -104,7 +104,10 @@ themselves carry no instructions.
   (an interactive graph of every model call and where it went). These answer
   "what did the machine do", not "what needs me", so they stay off the
   default path.
-- **Devices** — placeholder; device pairing isn't built yet.
+- **Devices** — the clients paired to this server. Pick a name and permissions
+  (`read`, `capture`, `send`, `render`, `settings`), show a six-digit code, and
+  enter it on the phone. Each device gets its own credential; revoking one takes
+  effect on its next request. The Android client lives in [`android/`](android/).
 - **Settings** — which signal fields are shown, automatic goal linking (on or
   off, and the minimum confidence), and the audio summary's voice, speed,
   tone and Piper command.

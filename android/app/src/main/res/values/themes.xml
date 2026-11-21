@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose draws the UI; this supplies the window background and removes
+         the platform action bar so the app's own top bar is the only one. -->
+    <style name="Theme.Mind" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

@@ -156,6 +156,48 @@ export const queuePlan = sqliteTable("queue_plan", {
   plannedDate: text("planned_date").notNull(),
 });
 
+// ── devices (paired clients, one operator) ───────────────────────────────────
+// Each row is one client paired from the editor: the VS Code extension's own
+// master token lives in a file, not here. `token_hash` is SHA-256, never the
+// token itself; `scopes` is a JSON array validated by DEVICE_SCOPES. Revoking
+// sets `revoked_at` so the audit trail survives and the next request fails.
+
+export const devices = sqliteTable(
+  "devices",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    kind: text("kind").notNull(), // "android" | "editor" | "other"
+    tokenHash: text("token_hash").notNull(),
+    scopes: text("scopes").notNull(), // JSON DeviceScope[]
+    pairedAt: text("paired_at").notNull(),
+    lastSeenAt: text("last_seen_at"),
+    revokedAt: text("revoked_at"),
+  },
+  (t) => [uniqueIndex("devices_token_hash_idx").on(t.tokenHash)],
+);
+
+// ── pairing codes (short-lived, single use) ──────────────────────────────────
+// The code shown in the editor is stored as a hash, with the name, kind and
+// scopes chosen there. Completing pairing marks `used_at`; five wrong tries
+// exhaust the row. Pairing is the only unauthenticated write route.
+
+export const pairingCodes = sqliteTable(
+  "pairing_codes",
+  {
+    id: text("id").primaryKey(),
+    codeHash: text("code_hash").notNull(),
+    name: text("name").notNull(),
+    kind: text("kind").notNull(),
+    scopes: text("scopes").notNull(), // JSON DeviceScope[]
+    createdAt: text("created_at").notNull(),
+    expiresAt: text("expires_at").notNull(),
+    usedAt: text("used_at"),
+    attempts: integer("attempts").notNull().default(0),
+  },
+  (t) => [index("pairing_codes_expires_at_idx").on(t.expiresAt)],
+);
+
 // ── events (append-only audit log) ───────────────────────────────────────────
 
 export const events = sqliteTable("events", {

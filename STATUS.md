@@ -251,6 +251,31 @@ through in VS Code**.
   `product.md` still describe the model provider as the only egress; updating
   them needs a maintainer decision.
 
+## Device pairing and the Android client
+
+- **Pairing is real now.** `devices` and `pairing_codes` (migration `0014`) hold
+  one row per paired client and one per short-lived code. Codes and device
+  tokens are SHA-256 hashes, never the plaintext; a code expires in ten minutes,
+  is single-use, and accepts five wrong tries plus an in-process rate limit.
+- **Per-device scopes** (`read`, `capture`, `send`, `render`, `settings`) are
+  enforced by `deviceAccess()` in `@mind/core` and applied in the auth
+  middleware on every request. Device tokens cannot touch `/devices*`, so a lost
+  phone cannot revoke or re-scope other clients; revoking is immediate because
+  the row is looked up per request.
+- **The Devices panel** is the registry and pairing screen, replacing the old
+  placeholder.
+- **The Android app** is in `android/` (Kotlin, Compose). It pairs, lists the
+  Queue, captures, acknowledges, and approves/discards only with `send`. The
+  token is encrypted with an Android Keystore key; the last queue is cached and
+  labelled stale.
+
+Verified: `npm run lint` and the test suite, including a server suite that pairs
+through the real app, exercises a scoped device, refuses adapter ingress, and
+proves revoking one device leaves another working. **Not verified:** the Android
+app has not been built or run (no Android SDK here), and no phone has paired
+against a real server over a LAN. `MIND_BIND_HOST` has not been exercised on a
+real network interface.
+
 ## Long messages and the Analytics flow
 
 - **Long messages** are condensed and cut to the model's window before each call

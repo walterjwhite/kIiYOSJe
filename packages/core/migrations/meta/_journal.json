@@ -99,6 +99,13 @@
       "when": 1795340000000,
       "tag": "0013_goal_parent",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1795350000000,
+      "tag": "0014_devices",
+      "breakpoints": true
     }
   ]
 }

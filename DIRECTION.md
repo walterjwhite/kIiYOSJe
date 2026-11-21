@@ -132,8 +132,10 @@ updated to match.
 the shape of the metric, so the sooner the per-operator curve exists the less
 retrofitting the reporting needs; call handling adds a channel but not a shape.
 
-**Deferred:** FTS5 retrieval, Android client, remote authentication, second
-model provider verification.
+**Deferred:** FTS5 retrieval, multi-user, call handling, second model provider
+verification. The Android client now exists (`android/`) and device pairing
+covers remote access with per-device credentials, but neither has been verified
+on a real phone over a real network.
 
 ## 7. Risks
 

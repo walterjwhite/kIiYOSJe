@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  mind is a local server, normally reached at a private address over plain HTTP.
+  Android's network security config matches named hosts, not CIDR ranges, so a
+  private-range-only allowlist cannot be expressed here. Cleartext is therefore
+  permitted, and the app's only destination is the server address the operator
+  enters at pairing time. Prefer a VPN tunnel or an HTTPS reverse proxy if the
+  phone is ever off the LAN, and never enter a public HTTP address; see
+  android/README.md.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
