@@ -36,21 +36,23 @@ forgets the token locally — revoke on the server too.
 
 ## Building
 
-Open `android/` in Android Studio (Ladybug or newer), or with a JDK 17 and a
-Gradle 8.9+ install:
+Open `android/` in Android Studio (Ladybug or newer), or with JDK 17+ and
+Gradle 8.9+:
 
 ```bash
 cd android
-gradle wrapper --gradle-version 8.9   # once, if you want ./gradlew
-./gradlew assembleDebug
+gradle wrapper --gradle-version 8.11.1   # once, if you want ./gradlew
+./gradlew assembleDebug                  # or: gradle assembleDebug
 ```
 
 The APK lands in `app/build/outputs/apk/debug/`. Minimum SDK 26, target 35.
 The Gradle and Compose versions are pinned in `build.gradle.kts`; update them
 together when the toolchain moves.
 
-**This project has not been built or run in this repository's CI**: there is no
-Android SDK in it. Treat the first `assembleDebug` as the build verification.
+CI builds the debug APK on every pull request and main push: the `android` job
+in `.github/workflows/ci.yml` uses JDK 21, Gradle 8.11.1 and SDK 35, and uploads
+the APK as the `android-debug-apk` artifact. It is a compile check, not a run on
+a device or emulator.
 
 ## Network security
 

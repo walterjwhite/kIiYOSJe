@@ -103,11 +103,39 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  android:
+    name: Build Android client
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "tools platform-tools platforms;android-35 build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Assemble debug APK
+        working-directory: android
+        run: gradle :app:assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
   # Single required status check for branch protection.
   ci-pass:
     name: ci-pass
     if: always()
-    needs: [verify, build]
+    needs: [verify, build, android]
     runs-on: ubuntu-latest
     steps:
       - name: All required jobs succeeded

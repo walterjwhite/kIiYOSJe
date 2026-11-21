@@ -7,6 +7,7 @@ plugins {
 android {
     namespace = "dev.mind.android"
     compileSdk = 35
+    buildToolsVersion = "35.0.0"
 
     defaultConfig {
         applicationId = "dev.mind.android"
