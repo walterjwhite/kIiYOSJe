@@ -78,8 +78,9 @@ scripts/demo-video/shell.nix`. Then:
 ./scripts/demo-video/make-demo-video.sh
 ```
 
-It seeds `demo.db` if missing, starts the demo server itself, builds the
-extension and cards, captures VS Code (and Android when a device is attached),
+It seeds `demo.db` if missing, starts the demo server itself, rebuilds the
+extension only when its `.vsix` is older than the sources behind it, renders the
+cards, captures VS Code (and Android when a device is attached),
 mask + PII gate, then both passes. It **refuses** if something already listens
 on 8787, because that may be the real database; stop it, or pass
 `--use-running-server` after checking the Queue. Missing manual beats become

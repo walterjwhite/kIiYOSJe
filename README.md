@@ -172,7 +172,10 @@ See `packages/demo-data/README.md` for details.
 Everything lives under `~/.config/kIiYOSJe/mind` (mode 600) and
 `~/.data/kIiYOSJe/mind`. `MIND_CONFIG_DIR` and `MIND_DATA_DIR` relocate those
 directories; `MIND_DB_PATH` relocates the database alone, which is how
-`demo:serve` points the server at `demo.db`.
+`demo:serve` points the server at `demo.db`. `MIND_ADAPTERS=none` registers no
+live source, which is how `demo:serve` keeps real mail and calendar events out
+of the demo database; the server applies the same lock whenever `MIND_DB_PATH`
+names `demo.db`.
 
 - `config/ai.json` — provider, models, base URL, API key, and optionally `contextTokens` (see [Long messages](#long-messages))
 - `config/credentials.yml` — Google, Outlook, GitHub, and Google Messages
@@ -192,6 +195,7 @@ directories; `MIND_DB_PATH` relocates the database alone, which is how
 Environment overrides: `MIND_AI_PROVIDER`, `MIND_AI_API_KEY`, `MIND_AI_BASE_URL`,
 `MIND_CLASSIFY_MODEL`, `MIND_DRAFT_MODEL`, `MIND_CONTEXT_TOKENS`, `MIND_RETENTION_DAYS`,
 `MIND_SEND_ENABLED`, `MIND_LOG_LEVEL`, `MIND_DIRECTIONS_DIR`, `MIND_DB_PATH`,
+`MIND_ADAPTERS` (set it to `none` to start no live source),
 `MIND_CONFIG_DIR`, `MIND_DATA_DIR`, `MIND_TEST_TOKEN`.
 
 ## Long messages

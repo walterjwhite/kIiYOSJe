@@ -24,7 +24,7 @@
     "demo:seed": "npm run build --workspace=packages/demo-data --if-present && node packages/demo-data/dist/cli.js seed",
     "demo:reset": "node packages/demo-data/dist/cli.js reset",
     "demo:summary": "node packages/demo-data/dist/cli.js summary",
-    "demo:serve": "node -e \"process.env.MIND_DB_PATH=require('os').homedir()+'/.data/kIiYOSJe/mind/demo.db'; process.env.MIND_RETENTION_DAYS='36500'; require('child_process').spawn('npm',['run','dev','--workspace=packages/server'],{stdio:'inherit',env:process.env})\""
+    "demo:serve": "node -e \"process.env.MIND_DB_PATH=require('os').homedir()+'/.data/kIiYOSJe/mind/demo.db'; process.env.MIND_RETENTION_DAYS='36500'; process.env.MIND_ADAPTERS='none'; require('child_process').spawn('npm',['run','dev','--workspace=packages/server'],{stdio:'inherit',env:process.env})\""
   },
   "engines": {
     "node": ">=24"

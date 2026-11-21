@@ -79,9 +79,11 @@ npm run demo:serve
 `MIND_RETENTION_DAYS` before starting the server, because the historical
 era's simulated dates are weeks in the past relative to real wall-clock
 time and the real retention job would otherwise redact those signal bodies
-on first run. If you start the server manually against `demo.db` (for
-example `mind start` with `MIND_DB_PATH` set by hand), set
-`MIND_RETENTION_DAYS` yourself first.
+on first run. It also sets `MIND_ADAPTERS=none`, so the server registers no
+live Gmail, Calendar, GitHub, Outlook or Google Messages source and cannot pull
+real mail or events into the demo database. The server applies the same lock
+whenever `MIND_DB_PATH` names `demo.db`, so a manual `mind start` against it is
+safe too — but set `MIND_RETENTION_DAYS` yourself first.
 
 Once running, point the VS Code extension's `mind.serverUrl` setting at
 `http://127.0.0.1:8787` — Thoughts, Review, and the Today brief read the

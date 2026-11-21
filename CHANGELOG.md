@@ -47,6 +47,10 @@ versions while the project is `0.x`).
 
 ### Fixed
 
+- The demo server could poll configured mail and calendar accounts into
+  `demo.db`, mixing real messages with the synthetic personas. `npm run
+  demo:serve` now sets `MIND_ADAPTERS=none`, and the server registers no live
+  adapter whenever `MIND_DB_PATH` names `demo.db`.
 - `GET /signals?range=all` returned only today's signals, so **All** on the
   Signals screen showed the same as **Today**.
 - Devices: the permission checkboxes in the pairing form are now the same toggle

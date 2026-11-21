@@ -83,6 +83,20 @@ done
 
 cd "$ROOT"
 
+# The .vsix embeds the compiled packages and the extension, so it stays usable
+# only while no source behind it is newer. Rebuilding costs about a minute;
+# trusting a stale .vsix would put the previous code in the video.
+extension_sources_newer_than_vsix() {
+  local newer
+  newer="$(find "$ROOT/extension/src" "$ROOT/extension/media" \
+    "$ROOT/extension/package.json" "$ROOT/extension/tsconfig.json" \
+    "$ROOT/packages" "$ROOT/scripts/build-extension.sh" \
+    -type f -newer "$1" \
+    -not -path '*/node_modules/*' -not -path '*/dist/*' \
+    -not -name 'tsconfig.tsbuildinfo' -print -quit 2>/dev/null || true)"
+  [[ -n "$newer" ]]
+}
+
 if [[ "$SEED" == "1" && "$SKIP_SEED" == "1" ]]; then
   echo "error: --seed and --skip-seed conflict" >&2
   exit 2
@@ -96,13 +110,23 @@ if [[ "$DRY" == "1" ]]; then
   echo "plan:"
   echo "  1. seed $DEMO_DB if missing (or --seed to force)"
   echo "  2. start npm run demo:serve on $SERVER_URL; refuse if it is already serving"
-  echo "  3. build the extension and render the cards"
+  echo "  3. build the extension if its .vsix is stale, and render the cards"
   echo "  4. capture VS Code$( [[ "$SKIP_VSCODE" == 1 ]] && echo ' (skipped)' )"
   echo "  5. capture Android if adb shows a device$( [[ "$SKIP_ANDROID" == 1 ]] && echo ' (skipped)' )"
   echo "  6. mask + PII gate"
   echo "  7. pass 1 (silent)$( [[ "$STRICT" == 1 ]] && echo ', strict' || echo ', slates allowed' )"
   echo "  8. pass 2 (audio)$( [[ "$NO_AUDIO" == 1 ]] && echo ' (skipped)' )"
   echo "  output: $OUT/demo.mp4"
+  vsix="$(ls -t "$ROOT"/extension/*.vsix 2>/dev/null | head -n1 || true)"
+  if [[ "$SKIP_BUILD" == "1" ]]; then
+    echo "  build: skipped (--skip-build); needs $(basename "${vsix:-a .vsix}")"
+  elif [[ -z "$vsix" ]]; then
+    echo "  build: no .vsix yet, so the extension will be built"
+  elif extension_sources_newer_than_vsix "$vsix"; then
+    echo "  build: the extension sources are newer than $(basename "$vsix"); it will be rebuilt"
+  else
+    echo "  build: $(basename "$vsix") is current; the rebuild will be skipped"
+  fi
   exit 0
 fi
 
@@ -210,11 +234,16 @@ fi
 
 [[ -f "$TOKEN_FILE" ]] || { echo "error: no operator token at $TOKEN_FILE" >&2; exit 1; }
 
+vsix="$(ls -t "$ROOT"/extension/*.vsix 2>/dev/null | head -n1 || true)"
 if [[ "$SKIP_BUILD" == "0" ]]; then
-  echo "==> building the extension"
-  bash scripts/build-extension.sh
+  if [[ -n "$vsix" ]] && ! extension_sources_newer_than_vsix "$vsix"; then
+    echo "==> $(basename "$vsix") is newer than the extension sources; keeping it"
+  else
+    echo "==> building the extension"
+    bash scripts/build-extension.sh
+  fi
 else
-  ls "$ROOT"/extension/*.vsix >/dev/null 2>&1 || {
+  [[ -n "$vsix" ]] || {
     echo "error: --skip-build but no .vsix exists" >&2
     exit 1
   }

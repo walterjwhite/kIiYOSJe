@@ -21,6 +21,17 @@ import {
 import { buildApp } from "./app.js";
 import { directionsRoot } from "./directions-dir.js";
 
+/**
+ * Live sources must never poll real accounts into the demo database. The demo
+ * server sets MIND_ADAPTERS=none; the database-name check is a second lock, so
+ * a manual `mind start` pointed at demo.db cannot ingest real signals either.
+ */
+export function liveAdaptersAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  if ((env["MIND_ADAPTERS"] ?? "").trim().toLowerCase() === "none") return false;
+  const dbPath = env["MIND_DB_PATH"] ?? "";
+  return !/(^|[\\/])demo\.db$/.test(dbPath);
+}
+
 export async function startServer(): Promise<void> {
   const db = openDb();
 
@@ -39,14 +50,18 @@ export async function startServer(): Promise<void> {
   });
 
   const adapters = new AdapterRegistry();
-  registerDefaultAdapters(adapters);
+  if (liveAdaptersAllowed()) {
+    registerDefaultAdapters(adapters);
 
-  for (const adapter of adapters.all()) {
-    await adapter.start((signal) => {
-      ingest(db, signal, adapters)
-        .then(() => updateStatus(db, adapters))
-        .catch((err) => logger.error({ err }, "Pipeline error"));
-    });
+    for (const adapter of adapters.all()) {
+      await adapter.start((signal) => {
+        ingest(db, signal, adapters)
+          .then(() => updateStatus(db, adapters))
+          .catch((err) => logger.error({ err }, "Pipeline error"));
+      });
+    }
+  } else {
+    logger.info("live adapters disabled: demo database, or MIND_ADAPTERS=none");
   }
 
   startEscalationChecker(db);
