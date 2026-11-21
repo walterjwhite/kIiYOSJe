@@ -48,6 +48,10 @@ jobs:
     outputs:
       has_changes: ${{ steps.patch.outputs.has_changes }}
     steps:
+      - name: Validate the issue number
+        run: |
+          case "$ISSUE_NUMBER" in ''|*[!0-9]*) echo "::error::issue_number must be digits"; exit 1 ;; esac
+
       - name: Check the Gemini API key is configured
         env:
           HAS_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
@@ -85,19 +89,23 @@ jobs:
             const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: number });
 
             const names = issue.labels.map((l) => (typeof l === "string" ? l : l.name));
-            if (issue.state !== "open") core.setFailed("Issue is not open.");
-            if (issue.pull_request) core.setFailed("That number is a pull request.");
-            if (!names.includes("ai-ready")) core.setFailed("Issue is not labelled ai-ready.");
+            const problems = [];
+            if (issue.state !== "open") problems.push("Issue is not open.");
+            if (issue.pull_request) problems.push("That number is a pull request.");
+            if (!names.includes("ai-ready")) problems.push("Issue is not labelled ai-ready.");
             for (const bad of ["security", "needs-human-decision"]) {
-              if (names.includes(bad)) core.setFailed(`Issue is labelled ${bad}; not eligible.`);
+              if (names.includes(bad)) problems.push(`Issue is labelled ${bad}; not eligible.`);
             }
             const body = issue.body ?? "";
             const sha = crypto.createHash("sha256").update(body).digest("hex");
             const expected = process.env.EXPECTED_SHA;
             if (expected && expected !== sha) {
-              core.setFailed("The issue body changed after it was approved. Review it and re-apply ai-ready.");
+              problems.push("The issue body changed after it was approved. Review it and re-apply ai-ready.");
             }
-            if (core.isFailed?.()) return;
+            if (problems.length) {
+              core.setFailed(problems.join(" "));
+              return;
+            }
 
             fs.mkdirSync(".gemini", { recursive: true });
             fs.writeFileSync(
@@ -198,6 +206,10 @@ jobs:
       contents: read
       issues: write
     steps:
+      - name: Validate the issue number
+        run: |
+          case "$ISSUE_NUMBER" in ''|*[!0-9]*) echo "::error::issue_number must be digits"; exit 1 ;; esac
+
       # A PR opened with the default GITHUB_TOKEN does not trigger CI, so a separate
       # identity is required. Preferred: a GitHub App (the PR is then not authored
       # by you, so you can approve it). Fallback: a fine-grained PAT.
@@ -241,6 +253,7 @@ jobs:
         id: apply
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           BASE: ${{ github.event.repository.default_branch }}
           OUT: ${{ runner.temp }}/out
         run: |
@@ -255,6 +268,11 @@ jobs:
           printf '%s' "$branch" > "$RUNNER_TEMP/branch"
           printf '%s' "$title" > "$RUNNER_TEMP/title"
 
+          # Guard scripts come from the base branch, copied before the patch is applied,
+          # so a patch cannot weaken the checks that judge it.
+          cp -r scripts "$RUNNER_TEMP/guard"
+          export MIND_REPO_ROOT="$GITHUB_WORKSPACE"
+
           git switch -c "$branch"
           git apply --index --whitespace=nowarn "$OUT/agent.patch"
 
@@ -268,9 +286,9 @@ jobs:
 
           # Protected paths need the maintainer's explicit label on the issue.
           if printf '%s\n' "$labels" | grep -qx 'human-approved-scope'; then
-            node scripts/check-pr-scope.mjs "origin/$BASE" --allow-protected
+            node "$RUNNER_TEMP/guard/check-pr-scope.mjs" "origin/$BASE" --allow-protected
           else
-            node scripts/check-pr-scope.mjs "origin/$BASE"
+            node "$RUNNER_TEMP/guard/check-pr-scope.mjs" "origin/$BASE"
           fi
           # Dependency changes need deps-approved.
           if git diff --name-only "origin/$BASE...HEAD" | grep -qE '(^|/)package(-lock)?\.json$'; then
@@ -278,11 +296,12 @@ jobs:
               echo "::error::Manifest or lockfile changed but the issue lacks deps-approved."; exit 1; }
           fi
           # Secrets never leave the runner.
-          node scripts/check-secrets.mjs --base "origin/$BASE"
+          node "$RUNNER_TEMP/guard/check-secrets.mjs" --base "origin/$BASE"
 
       - name: Push branch and open a draft PR
         env:
           GH_TOKEN: ${{ steps.app.outputs.token || secrets.AGENT_GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           ISSUE_TOKEN: ${{ github.token }}
           BASE: ${{ github.event.repository.default_branch }}
           OUT: ${{ runner.temp }}/out
@@ -301,7 +320,9 @@ jobs:
             echo
             echo "### Agent summary (unverified, written by the model)"
             echo
-            cat "$OUT/summary.md"
+            # Model text is untrusted: defang mentions and issue references so it cannot
+            # ping people or close other issues, and quote it.
+            sed -E 's/@/@\xe2\x80\x8b/g; s/#([0-9])/#\xe2\x80\x8b\1/g; s/^/> /' "$OUT/summary.md"
             echo
             echo "### Files changed"
             echo
@@ -320,7 +341,6 @@ jobs:
             url="$(gh pr create --draft --base "$BASE" --head "$branch" \
               --title "chore: $title" --body-file "$RUNNER_TEMP/body.md" --label ai-generated)"
           fi
-          echo "pr_url=$url" >> "$GITHUB_ENV"
           GH_TOKEN="$ISSUE_TOKEN" gh issue comment "$ISSUE_NUMBER" \
             --body "Gemini agent opened a draft PR: $url"
 

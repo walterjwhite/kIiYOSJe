@@ -21,10 +21,11 @@ git switch -c agent/<n>-<slug>
   and `CHANGELOG.md` (user-visible changes).
 - Run before pushing:
   `npm run lint && npm run test:coverage && npm run license:check && node scripts/check-secrets.mjs`
-  (`npm run format` first if Biome reports formatting in files you touched).
-- GitHub Copilot cloud agent gets these same instructions through
-  `.github/copilot-instructions.md`. Copilot branches are named `copilot/...`;
-  other agents use `agent/<n>-<slug>`.
+  Format only files you touched (`npx biome format --write <file>`). Never run a
+  whole-tree format; that is a separate human-approved change.
+- Gemini CLI loads these instructions through `GEMINI.md`. In the GitHub workflow
+  you cannot run `git commit`, `git push`, or `gh`; the workflow opens the PR from an
+  `agent/<n>-<slug>` branch.
 - Open a PR with the template, `Closes #<n>`, and the `ai-generated` label.
   State what you verified and what you did not.
 

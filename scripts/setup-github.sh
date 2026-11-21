@@ -6,8 +6,8 @@
 # Requires: gh (authenticated as a repo admin), node.
 # Usage:    scripts/setup-github.sh [owner/repo]    (default: origin remote)
 #           DRY_RUN=1 scripts/setup-github.sh        print the calls only
-#           ALLOW_ADMIN_BYPASS=1 scripts/setup-github.sh   solo maintainer: let admins merge
-#                                                    Copilot PRs they cannot approve
+#           ALLOW_ADMIN_BYPASS=1 scripts/setup-github.sh   PAT fallback on a one-person repo: let
+#                                                    admins merge PRs they authored
 #
 # This changes repository settings. Read it before running it.
 
@@ -133,11 +133,12 @@ if [[ "${DRY_RUN:-0}" != "1" ]]; then
   fi
 fi
 
-# Copilot cloud agent PRs cannot be approved by the person who assigned the
-# issue. On a one-maintainer repository that makes every agent PR unmergeable
-# unless a second reviewer exists. ALLOW_ADMIN_BYPASS=1 lets repository admins
+# Pull requests opened with a personal access token are authored by you, and the
+# author cannot approve their own PR. On a one-maintainer repository, prefer the
+# GitHub App identity (the PR is then authored by the app, and you can approve it).
+# If you use the PAT fallback instead, ALLOW_ADMIN_BYPASS=1 lets repository admins
 # merge through a pull request without the approval (checks still run, but an
-# admin can merge past them). Prefer a second reviewer where you can.
+# admin can merge past them).
 BYPASS_JSON='[]'
 if [[ "${ALLOW_ADMIN_BYPASS:-0}" == "1" ]]; then
   BYPASS_JSON='[{"actor_id":5,"actor_type":"RepositoryRole","bypass_mode":"pull_request"}]'
@@ -181,4 +182,10 @@ if ((${#WARNINGS[@]})); then
   for w in "${WARNINGS[@]}"; do echo "  - $w"; done
 fi
 
-echo "Done. Next: run scripts/seed-issues.sh to create the launch backlog."
+echo "Done. Next steps:"
+echo "  1. gh secret set GEMINI_API_KEY --repo $REPO     # key from https://aistudio.google.com/apikey"
+echo "  2. Create a GitHub App for the agent (see .kiro/steering/workflow.md), then:"
+echo "       gh variable set APP_ID --repo $REPO --body <app id>"
+echo "       gh secret set APP_PRIVATE_KEY --repo $REPO < private-key.pem"
+echo "     or, as a fallback, gh secret set AGENT_GITHUB_TOKEN --repo $REPO"
+echo "  3. scripts/seed-issues.sh to create the launch backlog."

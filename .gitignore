@@ -28,3 +28,7 @@ ai.json
 .vscode/.ropeproject
 .DS_Store
 coverage/
+
+# Gemini CLI agent workspace and credentials
+.gemini/
+gha-creds-*.json

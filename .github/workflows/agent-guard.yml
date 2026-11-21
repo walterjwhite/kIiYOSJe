@@ -1,8 +1,8 @@
 name: Agent PR guard
 
 # Extra gates for pull requests raised by an AI agent. An agent PR is one whose
-# head branch starts with `agent/` or `copilot/` (Copilot cloud agent) or that
-# carries the `ai-generated` label (agent-label.yml adds it to Copilot PRs).
+# head branch starts with `agent/` (the Gemini agent workflow) or that carries
+# the `ai-generated` label (the workflow adds it when it opens the PR).
 # Uses `pull_request` (not `pull_request_target`), so fork code never runs with
 # write tokens. Untrusted text (PR body) is passed through env, never interpolated.
 
@@ -40,7 +40,7 @@ jobs:
       - name: Decide whether this is an agent PR
         id: who
         run: |
-          case "$HEAD_REF" in agent/*|copilot/*) echo "agent=true" >> "$GITHUB_OUTPUT" ;; *)
+          case "$HEAD_REF" in agent/*) echo "agent=true" >> "$GITHUB_OUTPUT" ;; *)
             case ",$LABELS," in *,ai-generated,*) echo "agent=true" >> "$GITHUB_OUTPUT" ;; *) echo "agent=false" >> "$GITHUB_OUTPUT" ;; esac ;;
           esac
 

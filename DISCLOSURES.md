@@ -37,7 +37,12 @@ window, with file paths and origin. If none, write "None."
 
 TODO: state which parts were written with AI assistance (tool and model), with
 file paths or directories. Specs, steering, and hooks under `.kiro/` and most of
-the source were produced in Kiro sessions; confirm and list precisely.
+the source were produced in Kiro sessions; confirm and list precisely. From the
+Gemini agent workflow onward, PRs opened by `.github/workflows/gemini-agent.yml`
+carry the `ai-generated` label and name the run; list them from the label.
+The workflow uses the official Gemini API (Google AI Studio) with the maintainer's
+own key, through Google's `run-gemini-cli` action. It is development tooling and
+is not part of the shipped product.
 
 ## Borrowed snippets
 

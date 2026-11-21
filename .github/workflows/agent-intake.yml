@@ -2,7 +2,9 @@ name: Agent intake
 
 # An issue is eligible for an AI agent only when a maintainer applies `ai-ready`
 # and the issue has acceptance criteria. Issue text is untrusted data: this
-# workflow only reads it with github-script and never executes it.
+# workflow only reads it with github-script and never executes it. When the
+# checks pass it starts gemini-agent.yml (workflow_dispatch needs no extra token)
+# and passes a hash of the approved issue body, so an edit after approval stops the run.
 
 on:
   issues:
@@ -11,6 +13,7 @@ on:
 permissions:
   issues: write
   contents: read
+  actions: write
 
 jobs:
   check:
@@ -20,11 +23,10 @@ jobs:
     steps:
       - uses: actions/github-script@v7
         env:
-          # Optional. A fine-grained PAT (actions, contents, issues, pull requests: write,
-          # metadata: read) owned by a maintainer. Leave unset to assign Copilot by hand.
-          COPILOT_ASSIGN_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
+          GEMINI_CONFIGURED: ${{ secrets.GEMINI_API_KEY != '' }}
         with:
           script: |
+            const crypto = require("node:crypto");
             const { owner, repo } = context.repo;
             const number = context.payload.issue.number;
             const actor = context.payload.sender.login;
@@ -52,36 +54,27 @@ jobs:
               return reject("issues labelled `needs-human-decision` or `security` are not eligible for an agent.");
             }
 
-            const token = process.env.COPILOT_ASSIGN_TOKEN;
-            let assigned = false;
-            if (token) {
-              // Assigning Copilot needs a user token; GITHUB_TOKEN cannot do it.
-              const user = github.getOctokit(token);
-              try {
-                await user.request("POST /repos/{owner}/{repo}/issues/{issue_number}/assignees", {
-                  owner, repo, issue_number: number,
-                  assignees: ["copilot-swe-agent[bot]"],
-                  agent_assignment: {
-                    target_repo: `${owner}/${repo}`,
-                    base_branch: context.payload.repository.default_branch,
-                    custom_instructions:
-                      "Follow AGENTS.md and .github/copilot-instructions.md. Put 'Closes #" + number + "' in the PR description. Stay within the issue's acceptance criteria.",
-                    custom_agent: "",
-                    model: "",
-                  },
-                });
-                assigned = true;
-              } catch (e) {
-                core.warning(`Could not assign Copilot: ${e.status ?? ""} ${e.message}`);
-              }
+            if (process.env.GEMINI_CONFIGURED !== "true") {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: number,
+                body: "This issue passed the checks, but the `GEMINI_API_KEY` repository secret is not set, so no agent was started. Add it (see `.kiro/steering/workflow.md`), then run the **Gemini agent** workflow with this issue number.",
+              });
+              return;
             }
+
+            const bodySha = crypto.createHash("sha256").update(body).digest("hex");
+            await github.rest.actions.createWorkflowDispatch({
+              owner, repo,
+              workflow_id: "gemini-agent.yml",
+              ref: context.payload.repository.default_branch,
+              inputs: { issue_number: String(number), body_sha256: bodySha },
+            });
 
             await github.rest.issues.createComment({
               owner, repo, issue_number: number,
               body: [
-                assigned
-                  ? "Ready for an agent. Assigned to Copilot cloud agent; it will open a draft PR from a `copilot/` branch."
-                  : "Ready for an agent. Assign **Copilot** to this issue (Assignees, or the Agents tab) to start it. Automatic assignment is off until the `COPILOT_ASSIGN_TOKEN` secret is set.",
-                "Gates before merge: `ci-pass`, `agent-guard`, Security, a maintainer clicking **Approve and run workflows**, and a human approval (the person who assigned Copilot cannot approve its PR). See AGENTS.md.",
+                "Ready for an agent. The **Gemini agent** workflow was started for this issue. It will open a draft PR from an `agent/` branch, or comment here if it cannot.",
+                "Do not edit the issue body while it runs; an edit stops the run and you would need to re-apply `ai-ready`.",
+                "Gates before merge: `ci-pass`, `agent-guard`, Security, and a human approval. See AGENTS.md.",
               ].join("\n\n"),
             });

@@ -48,7 +48,7 @@ needs the TypeScript JavaScript API, which TypeScript 7 does not ship.
 ## Git
 
 - Branches: `feat/<slug>`, `fix/<slug>`, `docs/<slug>`; agents use
-  `agent/<issue>-<slug>`, and Copilot cloud agent uses its own `copilot/` branches.
+  `agent/<issue>-<slug>`.
 - Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`,
   `ci:`, `perf:`, `refactor:`), imperative, under 72 chars on the first line,
   body explains why. Reference the issue.

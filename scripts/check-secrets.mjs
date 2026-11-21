@@ -19,7 +19,8 @@ import { readFileSync, existsSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// MIND_REPO_ROOT lets CI run a trusted copy of this script against another checkout.
+const ROOT = process.env.MIND_REPO_ROOT ?? resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const RULES = [
   [/-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/, "private key"],
