@@ -103,6 +103,15 @@ use the switch to enable or disable it, and click the handled count to see the
 signals behind it. Fields can be edited in place. New Directions are written as
 YAML under `directions/` (**mind: Edit Directions**).
 
+Every edit is written back to that YAML file, so the policy stays reviewable in
+git. The detail screen's **Preview** buttons answer "what would this rule have
+caught?": they run the saved rule over up to fifty recent stored signals and show
+what would match, what fell through to the catch-all, and what would trip a
+guard. **Preview matches** does not call the model; **Preview with classifier**
+also asks it about up to ten matches, giving each a confidence and saying whether
+it would escalate or need you. A preview writes one `direction.previewed` event
+and nothing else — no signal, thought or action is changed.
+
 ## Learnings
 
 Narrow and widen proposals. They are rule-based: a periodic pass counts how often
@@ -114,7 +123,18 @@ match.
 
 ## Analytics
 
-Volume, override rate and time saved for the last 7 days.
+The last 7 days, in one place. Every number is paired with a comparison: the
+ratio is signals per Thought, and the target is the absorb rate the thesis has to
+reach (60%).
+
+The **Coverage** curve comes first because it is the claim: absorb rate per week
+plotted against the number of Directions in force that week. Only explicit
+Directions count — the catch-all is excluded, and the caption says how many
+signals that left out, so the rate cannot rise just because more traffic fell
+through to a rule that matches everything. A dashed line marks the target, a
+dotted stepped line shows Directions, and yellow bars under the axis are signals
+that were absorbed but never answered. A week with no traffic is a gap in the
+line, not 0%. Click any week to list its signals below.
 
 The **Flow** diagram shows where signals went: channel on the left, the Direction
 that matched in the middle, and the outcome on the right (absorbed, filed,

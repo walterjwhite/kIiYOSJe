@@ -94,13 +94,13 @@ the data model rather than only the surface.
 
 ### 2.6 Cross-channel, and the attention framing
 
-| concept                                                            | nearest prior art                                                                                               | in `mind`                                                         | status                 |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------- |
-| Mail + SMS + calendar into one ledger of things that need a person | Pipe (WhatsApp/email/Telegram/Teams into one thread per person); OpenLoomi (email/calendar/GitHub/Slack/Linear) | `signals` + `thoughts` across gmail, outlook, gmessages, calendar | `independent`          |
-| Typed decisions with a confidence score, presented as cards        | OpenLoomi Loop (`email_reply`, `rsvp`, `review_pr`… at 0.60–0.85)                                               | `posture` + `ClassifierOutput.signalKind`; Thoughts are the card  | `independent`          |
-| Read memory before judging, write the outcome back after           | OpenLoomi Read → Judge → Write contract, per-card memory hooks                                                  | `directions` + `signals` are the only context a draft gets        | `planned`              |
-| Morning brief _and_ evening "what was handled for you"             | OpenLoomi 9 AM to-do / 6 PM done                                                                                | `/brief.handled` — absorbed, filed, sent, disputed, awaitingReply | `adopted` (2026-11-18) |
-| No counts, no badges, no inbox                                     | — (every project above is inbox-shaped)                                                                         | extension has no badge or status-bar counter                      | `independent`          |
+| concept                                                            | nearest prior art                                                                                               | in `mind`                                                                             | status                 |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ---------------------- |
+| Mail + SMS + calendar into one ledger of things that need a person | Pipe (WhatsApp/email/Telegram/Teams into one thread per person); OpenLoomi (email/calendar/GitHub/Slack/Linear) | `signals` + `thoughts` across gmail, outlook, gmessages, calendar                     | `independent`          |
+| Typed decisions with a confidence score, presented as cards        | OpenLoomi Loop (`email_reply`, `rsvp`, `review_pr`… at 0.60–0.85)                                               | `posture` + `ClassifierOutput.signalKind`; Thoughts are the card                      | `independent`          |
+| Read memory before judging, write the outcome back after           | OpenLoomi Read → Judge → Write contract, per-card memory hooks                                                  | `directions` + `signals` are the only context a draft gets                            | `planned`              |
+| Morning brief _and_ evening "what was handled for you"             | OpenLoomi 9 AM to-do / 6 PM done                                                                                | `/brief.handled` — absorbed, filed, sent, disputed, awaitingReply                     | `adopted` (2026-11-18) |
+| No counts, no badges, no inbox                                     | — (every project above is inbox-shaped)                                                                         | no counts or badges on the sidebar; one status-bar item reports request activity only | `independent`          |
 
 ### 2.7 Speech
 

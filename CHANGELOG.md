@@ -8,15 +8,30 @@ versions while the project is `0.x`).
 ## [Unreleased]
 
 ### Added
+
+- Analytics opens with the coverage curve: weekly absorb rate against the number
+  of Directions in force, explicit Directions only, with the 60% target marked
+  and signals absorbed but never answered drawn beside it. Click a week to list
+  its signals (`GET /metrics/signals` gains `week=YYYY-MM-DD`).
+- Directions detail has **Preview** dry runs: `POST /directions/preview` over
+  stored signals, optionally with the classifier on up to ten matches, showing
+  what would match, what fell through to the catch-all and what would trip a
+  guard without changing anything.
 - Auto-link shortlists the three best-matching goals (BM25 over title, parent title, notes and hand-linked subjects, with sender and thread affinity) instead of sending up to 25 goals to the model, and shows each candidate's hand-linked subjects as examples. A message that resembles no goal skips the model call. Automatic link events record `promptVersion` and `candidateIds`. `GET /metrics` gains `autoLink` with the share of automatic links later undone.
 - Model Trace shows where signals went: green boxes under the model for Queue, Absorbed, Filed and each linked goal (top three, then "N other goals"). Clicking one lists its signals, and the signal table has a "Went to" column.
 - Sub-goals. **+ Sub-goal** on a goal adds a goal under it, to any depth; items can be dragged or linked to a sub-goal as to any goal. `POST /thoughts` accepts `parentId` (an existing goal). Migration `0013_goal_parent` adds `thoughts.parent_id`.
 - The Queue has a **Filter signals** box that matches every word against all text an item shows.
 
 ### Fixed
+
 - A message larger than the model's context window no longer fails with "exceeds the available context size". Message text is condensed and cut to fit before every model call, with one retry at half size. Set the window with `contextTokens` in `ai.json`.
 
 ### Changed
+
+- The sidebar groups System Events and Model Trace under a collapsed
+  **Developer** section, keeping the default path to the operator's screens.
+  Analytics is described by what it measures — absorb rate against Directions —
+  instead of "time saved", which was never rendered.
 - Model Trace boxes no longer overlap: steps are evenly spaced, the "Queue / absorb" step is gone (outcomes are drawn after the model instead), and model boxes widen to fit their text.
 - The Queue's Goals and signals columns scroll independently.
 - Analytics replaces the "By channel" bars with a flow diagram (channel, Direction, outcome) whose nodes and lines list their signals when clicked.
@@ -28,6 +43,8 @@ versions while the project is `0.x`).
 
 ### Removed
 
+- The nav tree's error badge. One status-bar item still reports request
+  activity, without a count.
 - The Today screen. Overdue and review-due goals, the absorbed count and the summary now live on the Queue. `GET /brief` is unchanged.
 
 ### Added

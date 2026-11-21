@@ -90,8 +90,8 @@ for on/off, a multi-select for days, and two validated `HH:MM` inputs.
 This is a standalone primitive, not yet called from anywhere, because
 nothing in the system proactively notifies the person today — PLAN.md's
 own non-goal ("not a notification system... nothing is pushed to me") and
-the "no badge counts, no status-bar counter, no notifications" rule for
-the extension mean there is no OS-level push to gate yet. It is built so
+the "no counts, no badges, no notifications" rule for
+the extension (a single status-bar item now reports request activity only) mean there is no OS-level push to gate yet. It is built so
 that the one real candidate — PLAN §6's "notify when it is ready" for the
 morning brief, were it ever implemented — has a check to call before
 firing. It is explicitly **not** a send gate: `decide()` and the §7 send
@@ -262,4 +262,3 @@ through in VS Code**.
 - **Analytics flow** (`GET /metrics/flow`, `flow-model.ts`, `flow-script.ts`) replaces
   the By channel bars. Tested at the data level and with a scripted fake DOM, not
   looked at in VS Code.
-

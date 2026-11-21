@@ -257,31 +257,45 @@ correction: it means the match was wrong, not that the draft was wrong.
 ## 10. VS Code extension
 
 The only UI for now. Its own Activity Bar icon opens a dedicated sidebar
-container (not nested in Explorer) — native tree views where possible;
-webviews for the brief, Analytics, and the Devices placeholder.
+container (not nested in Explorer): one tree of section links, each opening its
+own webview panel in the editor area. Nothing is shown until a section is
+opened — no section dumps live data into the sidebar at rest, and no row carries
+a count.
 
-- **Queue** tree view (view id `mind.review`) — `proposed` actions, one line
-  each, with inline approve/discard commands. This is the only place I
+- **Queue** — goals (and sub-goals) beside the items that need action; drag to
+  link; Details opens the conversation, thought and history. The only place I
   authorize a send.
-- **Thoughts** tree view — `active` first, then `seedling`; grouped by Direction.
-  Item click opens the thought body as a markdown editor.
-- **Signals** tree view — every signal, defaulting to today, widened with
-  `mind.signals.setRange`. Inline **Reclassify** command moves a signal to
-  a different Direction when the match itself was wrong.
-- **Journal** tree view — read-only window onto `events`, the append-only
-  audit log; nothing here is edited from the extension.
-- **Today** webview — Directions in effect, thoughts needing a decision,
-  actions proposed, commitments due, and a one-line absorb summary.
-- **Analytics** webview — volume by Direction, by channel, and by day;
-  every row and bar is clickable and opens the matching signals below it.
-- **Devices** webview — placeholder only. No pairing exists yet; this
-  previews the planned layout and says so, pending the Android app this
-  is meant for and PLAN.md's own P6 deferral of remote authentication.
-- **Commands** — `mind.capture`, `mind.pause` (kill switch), `mind.brief`,
-  `mind.direction.edit`, `mind.analytics`, `mind.devices`,
-  `mind.signal.reclassify`, `mind.notifications.configure`.
-- **No badge counts, no status-bar counter, no notifications.** Absence is the
-  feature; a count would reintroduce the thing being removed.
+- **Signals** — every signal, inbound and outbound; defaults to today, with a
+  range control to widen it. Reclassify a signal from here when the match itself
+  was wrong.
+- **Directions** — the table of rules mind matches against, and a detail screen
+  where every field is editable. **Preview** dry-runs the saved rule against
+  stored signals (optionally with the classifier on up to ten matches) and
+  writes nothing but one `direction.previewed` event.
+- **Learnings** — policy narrow/widen proposals the learning loop generates from
+  override history, plus the reclassification log.
+- **Analytics** — the coverage curve first: weekly absorb rate against the
+  number of Directions in force, explicit Directions only, with the 60% target
+  marked and absorbed-but-never-answered drawn beside it. Then per-Direction
+  rates, the flow diagram and daily volume. Every week, row, node and bar is
+  clickable.
+- **Journal** — my own dated notes.
+- **Developer** (collapsed group) — **System Events** (the append-only audit log)
+  and **Model Trace** (where model calls went). These answer "what did the
+  machine do", so they are not on the default path.
+- **Devices** — placeholder only. No pairing exists yet; this previews the
+  planned layout and says so, pending the Android app this is meant for and
+  PLAN.md's own P6 deferral of remote authentication.
+- **Settings** — which signal fields are shown, automatic goal linking, and the
+  audio summary's voice and speed.
+- **Commands** — `mind.capture`, `mind.pause` (kill switch),
+  `mind.direction.edit`, `mind.direction.new`, `mind.analytics`,
+  `mind.ai.configure`, `mind.notifications.configure`, and the server
+  start/stop/restart commands.
+- **No badge counts, no counters, no notifications.** Absence is the feature; a
+  count would reintroduce the thing being removed. One status-bar item reports
+  only whether a request is in flight — activity, not an amount — and carries no
+  number.
 
 ### Notification quiet period
 

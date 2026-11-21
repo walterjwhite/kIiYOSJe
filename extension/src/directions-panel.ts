@@ -1,12 +1,13 @@
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
 import { editAsMarkdown } from "./markdown-editor.js";
+import { buildPreview, type PreviewResult } from "./preview-model.js";
 import {
-  SectionPanel,
-  esc,
-  toggleSwitch,
   editableField,
+  esc,
   openInEditorLink,
+  SectionPanel,
+  toggleSwitch,
 } from "./webview-base.js";
 
 interface Direction {
@@ -75,6 +76,9 @@ export class DirectionsPanel extends SectionPanel {
   private drilldownLabel = "";
   private drilldownRows: SignalRow[] = [];
   private loadError: string | undefined;
+  private preview: PreviewResult | undefined;
+  private previewError: string | undefined;
+  private previewBusy = false;
 
   static show(): void {
     if (DirectionsPanel.current) {
@@ -105,9 +109,13 @@ export class DirectionsPanel extends SectionPanel {
       this.selected = m.id;
       this.drilldownLabel = "";
       this.drilldownRows = [];
+      this.preview = undefined;
+      this.previewError = undefined;
       this.render();
     } else if (m.command === "back") {
       this.selected = null;
+      this.preview = undefined;
+      this.previewError = undefined;
       this.render();
     } else if (m.command === "toggleEnabled" && m.id) {
       this.toggleEnabled(m.id);
@@ -121,6 +129,10 @@ export class DirectionsPanel extends SectionPanel {
       this.pickEnumField(m.id, "autonomy", AUTONOMY_OPTIONS);
     } else if (m.command === "pickScopeKind" && m.id) {
       this.pickEnumField(m.id, "scopeKind", SCOPE_KIND_OPTIONS);
+    } else if (m.command === "previewDirection" && m.id) {
+      this.previewDirection(m.id, false);
+    } else if (m.command === "previewClassify" && m.id) {
+      this.previewDirection(m.id, true);
     } else if (m.command === "drilldownSignals" && m.id) {
       this.drilldownSignals(m.id);
     } else if (m.command === "newDirection") {
@@ -133,6 +145,10 @@ export class DirectionsPanel extends SectionPanel {
   }
 
   private async load(): Promise<void> {
+    // A preview describes the rule as it was saved a moment ago; any edit or
+    // toggle makes it stale, so it is cleared rather than left on screen.
+    this.preview = undefined;
+    this.previewError = undefined;
     try {
       this.rows = await apiFetch<Direction[]>("/directions");
       this.loadError = undefined;
@@ -259,6 +275,57 @@ export class DirectionsPanel extends SectionPanel {
     });
   }
 
+  /**
+   * Dry run — the reviewable half of "policy is code": what would this saved
+   * rule have matched? POST /directions/preview writes nothing but one
+   * `direction.previewed` event. The classifier is only asked (about at most
+   * ten matches) when the operator explicitly picks the second button.
+   */
+  private async previewDirection(id: string, classify: boolean): Promise<void> {
+    this.previewBusy = true;
+    this.previewError = undefined;
+    this.render();
+    try {
+      this.preview = await apiFetch<PreviewResult>("/directions/preview", {
+        method: "POST",
+        body: JSON.stringify({ directionId: id, limit: 50, classify }),
+      });
+    } catch (err) {
+      this.previewError = String(err);
+    }
+    this.previewBusy = false;
+    this.render();
+  }
+
+  /** Renders only the preview for the Direction whose detail screen is open. */
+  private renderPreview(directionId: string): string {
+    if (!this.preview || this.preview.directionId !== directionId) return "";
+    const view = buildPreview(this.preview);
+    const rows = view.rows
+      .map(
+        (r) => `<tr>
+          <td>${esc(r.day)}</td>
+          <td>${esc(r.sender)}</td>
+          <td>${esc(r.adapter)}</td>
+          <td>${esc(r.disposition)}</td>
+          <td>${esc(r.matched)}</td>
+          <td>${r.wouldMatch ? "yes" : "no"}${r.confidence != null ? ` · ${r.confidence.toFixed(2)}` : ""}</td>
+          <td>${esc(r.flags.join(" · "))}</td>
+        </tr>`,
+      )
+      .join("");
+    return `<p><strong>${esc(view.summary)}</strong></p>
+      <p class="sub">${esc(view.caption)}</p>
+      ${
+        view.rows.length > 0
+          ? `<table>
+              <thead><tr><th>Received</th><th>From</th><th>Channel</th><th>Status</th><th>Matched</th><th>Would match</th><th>Notes</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>`
+          : ""
+      }`;
+  }
+
   /** Clicking the "Signals handled" cell/count opens the matching signals below, via the same drill-down endpoint Analytics uses. */
   private async drilldownSignals(id: string): Promise<void> {
     const dir = this.rows.find((d) => d.id === id);
@@ -368,6 +435,15 @@ export class DirectionsPanel extends SectionPanel {
       </table>
       <h2 class="clickable" data-action="drilldownSignals" data-id="${esc(dir.id)}">Signals handled</h2>
       <p class="sub">${dir.signals} total, ${dir.absorbed} absorbed, ${dir.proposed} proposed, ${dir.discarded} discarded${dir.overrideRate != null ? ` (${(dir.overrideRate * 100).toFixed(0)}% override rate)` : ""}.</p>
+      <h2>Preview</h2>
+      <div class="toolbar">
+        <button data-action="previewDirection" data-id="${esc(dir.id)}"${this.previewBusy ? " disabled" : ""}>Preview matches</button>
+        <button data-action="previewClassify" data-id="${esc(dir.id)}"${this.previewBusy ? " disabled" : ""}>Preview with classifier</button>
+      </div>
+      <p class="sub">Runs the saved rule against stored signals. "Preview matches" does not call the model; "Preview with classifier" also asks it about up to ten matches. Neither sends nor writes anything except one preview event.</p>
+      ${this.previewBusy ? '<p class="sub">Sampling…</p>' : ""}
+      ${this.previewError ? `<p class="danger">${esc(this.previewError)}</p>` : ""}
+      ${this.renderPreview(dir.id)}
       ${
         this.drilldownRows.length > 0
           ? `<table>

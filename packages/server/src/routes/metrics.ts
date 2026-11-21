@@ -36,22 +36,32 @@ export function metricsRouter(db: Db) {
     return c.json({ window: c.req.query("window") ?? "7d", links: rows });
   });
 
-  // GET /metrics/signals?directionId=&adapter=&day=YYYY-MM-DD&disposition=&window=7d
-  // Analytics drill-down: the signals behind one bar, row, node or line of the
-  // summary. At least one filter is required so this can't silently return
-  // the whole table; `window` only narrows it further.
+  // GET /metrics/signals?directionId=&adapter=&day=YYYY-MM-DD&week=YYYY-MM-DD&disposition=&window=7d
+  // Analytics drill-down: the signals behind one bar, row, node, line or week
+  // of the summary. At least one filter is required so this can't silently
+  // return the whole table; `window` only narrows it further. `week` is the
+  // Monday that starts a coverage bucket, and covers that seven-day span.
   app.get("/signals", (c) => {
     const directionId = c.req.query("directionId");
     const adapter = c.req.query("adapter");
     const day = c.req.query("day");
+    const week = c.req.query("week");
     const disposition = c.req.query("disposition");
     const window = c.req.query("window");
 
-    if (!directionId && !adapter && !day && !disposition) {
+    if (!directionId && !adapter && !day && !week && !disposition) {
       return c.json(
-        { error: "Provide at least one of directionId, adapter, day, disposition" },
+        { error: "Provide at least one of directionId, adapter, day, week, disposition" },
         400,
       );
+    }
+
+    let weekStart: number | null = null;
+    if (week) {
+      weekStart = Date.parse(`${week.slice(0, 10)}T00:00:00.000Z`);
+      if (Number.isNaN(weekStart)) {
+        return c.json({ error: "week must be a YYYY-MM-DD date" }, 400);
+      }
     }
 
     const conditions: ReturnType<typeof sql>[] = [];
@@ -64,6 +74,12 @@ export function metricsRouter(db: Db) {
     if (adapter) conditions.push(sql`${signals.adapter} = ${adapter}`);
     if (day) {
       conditions.push(sql`substr(${signals.receivedAt}, 1, 10) = ${day}`);
+    }
+    if (weekStart != null) {
+      conditions.push(sql`${signals.receivedAt} >= ${new Date(weekStart).toISOString()}`);
+      conditions.push(
+        sql`${signals.receivedAt} < ${new Date(weekStart + 7 * 86_400_000).toISOString()}`,
+      );
     }
 
     const whereClause = sql.join(conditions, sql` and `);

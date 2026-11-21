@@ -90,15 +90,20 @@ themselves carry no instructions.
 - **Directions** — the table of rules mind matches signals against; click
   a row to edit its standard, match/response prompts, and confidence.
   New Directions are still authored as YAML (**mind: Edit Directions**).
+  **Preview** dry-runs the saved rule against stored signals before you rely
+  on it.
 - **Learnings** — policy narrow/widen proposals the learning loop generates
   from override history, plus the reclassification log.
-- **Analytics** — volume, override rate, and time saved; click a row or
-  bar to see the signals behind it.
+- **Analytics** — the coverage curve first: weekly absorb rate against the
+  number of Directions in force, with signals absorbed but never answered
+  drawn beside it. Then per-Direction rates, the flow diagram and daily
+  volume. Click a week, row, node or bar to see the signals behind it.
 - **Journal** — your own dated notes.
-- **System Events** — what mind itself did, in order. Click a column header
-  to sort; the Detail column is a highlighted one-line preview of the event's
-  JSON that expands to the full payload.
-- **Model Trace** — an interactive graph of every model call and where it went.
+- **Developer** — a collapsed group holding **System Events** (what mind
+  itself did, in order; click a column header to sort) and **Model Trace**
+  (an interactive graph of every model call and where it went). These answer
+  "what did the machine do", not "what needs me", so they stay off the
+  default path.
 - **Devices** — placeholder; device pairing isn't built yet.
 - **Settings** — which signal fields are shown, automatic goal linking (on or
   off, and the minimum confidence), and the audio summary's voice, speed,

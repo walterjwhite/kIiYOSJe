@@ -40,6 +40,9 @@ design should change, not the prompts.
 - Human approval in the Queue is the only place a send is authorized.
 - An empty draft is never auto-sent.
 - No badge counts, status-bar counters, or notifications. Absence is the feature.
+  A status-bar indicator that reports whether a request is in flight is not a
+  counter: it reports activity, not an amount, and only while the operator is
+  driving the UI. A badge next to the icon is a counter, and is out.
 
 ## Privacy boundary
 

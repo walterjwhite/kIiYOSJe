@@ -1,23 +1,23 @@
 import * as vscode from "vscode";
-import { apiFetch } from "./api-client.js";
-import { configureAiProvider, refreshAiStatusBarItem, createAiStatusBarItem } from "./ai-config.js";
-import { configureNotificationQuietPeriod } from "./notifications-config.js";
-import { NavProvider } from "./nav-provider.js";
-import { QueuePanel } from "./queue-panel.js";
-import { QueueDetailPanel } from "./queue-detail-panel.js";
-import { SignalsPanel } from "./signals-panel.js";
-import { SignalDetailPanel } from "./signal-detail-panel.js";
-import { DirectionsPanel } from "./directions-panel.js";
-import { editDirections, newDirection, reloadDirectionsOnSave } from "./direction-files.js";
-import { LearningsPanel } from "./learnings-panel.js";
+import { configureAiProvider, createAiStatusBarItem, refreshAiStatusBarItem } from "./ai-config.js";
 import { AnalyticsPanel } from "./analytics-panel.js";
-import { JournalPanel } from "./journal-panel.js";
-import { SystemEventsPanel } from "./system-events-panel.js";
-import { ModelTracePanel } from "./model-trace-panel.js";
+import { apiFetch } from "./api-client.js";
 import { DevicesPanel } from "./devices-panel.js";
-import { SettingsPanel } from "./settings-panel.js";
-import { createStatusIndicatorItem, statusIndicator } from "./status-indicator.js";
+import { editDirections, newDirection, reloadDirectionsOnSave } from "./direction-files.js";
+import { DirectionsPanel } from "./directions-panel.js";
+import { JournalPanel } from "./journal-panel.js";
+import { LearningsPanel } from "./learnings-panel.js";
+import { ModelTracePanel } from "./model-trace-panel.js";
+import { NavProvider } from "./nav-provider.js";
+import { configureNotificationQuietPeriod } from "./notifications-config.js";
+import { QueueDetailPanel } from "./queue-detail-panel.js";
+import { QueuePanel } from "./queue-panel.js";
 import { ServerController } from "./server-control.js";
+import { SettingsPanel } from "./settings-panel.js";
+import { SignalDetailPanel } from "./signal-detail-panel.js";
+import { SignalsPanel } from "./signals-panel.js";
+import { createStatusIndicatorItem } from "./status-indicator.js";
+import { SystemEventsPanel } from "./system-events-panel.js";
 
 /**
  * The sidebar is one short list of section links (NavProvider) — mirroring
@@ -36,11 +36,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Status indicator: blue+spinning while any apiFetch call is in flight,
   // green briefly on success, red on failure, yellow for a flagged warning.
-  // Mirrored onto the nav tree's badge so it's visible even when the status
-  // bar is crowded or hidden.
+  // Status bar only — a badge on the nav tree would be a count sitting next
+  // to the icon whether or not anyone asked for it.
   const statusItem = createStatusIndicatorItem();
   context.subscriptions.push(statusItem);
-  statusIndicator.mirrorBadge(navTreeView);
 
   // Server lifecycle: start / stop / restart icons in the sidebar title bar.
   const server = new ServerController();

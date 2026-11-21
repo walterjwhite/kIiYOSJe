@@ -13,8 +13,10 @@ import * as vscode from "vscode";
  *   error      — red, stays until the next request
  *   warning    — yellow, for a call that succeeded but wants to flag something
  *
- * The nav tree view's own badge mirrors the same state as a second, always-
- * visible cue next to the mind icon in the Activity Bar.
+ * Deliberately not mirrored as a badge on the nav tree: a badge is a count
+ * sitting next to the icon whether or not the operator asked for it, which is
+ * the thing the product rules forbid. The status bar reports activity, not an
+ * amount, and only while a request is in flight.
  */
 export type IndicatorState = "idle" | "refreshing" | "success" | "error" | "warning";
 
@@ -46,18 +48,12 @@ const SETTLE_MS = 2500;
 
 class StatusIndicator {
   private item: vscode.StatusBarItem | undefined;
-  private badgeTargets: vscode.TreeView<unknown>[] = [];
   private settleTimer: NodeJS.Timeout | undefined;
   private inFlight = 0;
 
   attach(item: vscode.StatusBarItem): void {
     this.item = item;
     this.set("idle");
-  }
-
-  /** Mirror the same state onto one or more tree views' badges. */
-  mirrorBadge(...views: vscode.TreeView<unknown>[]): void {
-    this.badgeTargets.push(...views);
   }
 
   /** Call at the start of a request; pair with end(). Tracks overlapping calls. */
@@ -92,10 +88,6 @@ class StatusIndicator {
       this.item.text = `$(${ICONS[state]}) mind`;
       this.item.color = COLORS[state];
       this.item.tooltip = LABELS[state];
-    }
-    for (const view of this.badgeTargets) {
-      view.badge =
-        state === "error" || state === "warning" ? { value: 1, tooltip: LABELS[state] } : undefined;
     }
   }
 }
