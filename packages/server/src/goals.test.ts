@@ -1,8 +1,3 @@
-import { describe, it, expect } from "vitest";
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { eq } from "drizzle-orm";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -10,6 +5,11 @@ import { fileURLToPath } from "node:url";
 import * as schema from "@mind/core";
 import { events, signals, thoughts } from "@mind/core";
 import { AdapterRegistry } from "@mind/pipeline";
+import Database from "better-sqlite3";
+import { eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import * as auth from "./auth.js";
 
@@ -187,5 +187,39 @@ describe("auto-link settings", () => {
     expect((await call("/admin/autolink", put({ enabled: true, threshold: 0.2 }))).status).toBe(
       400,
     );
+  });
+});
+
+describe("GET /metrics autoLink", () => {
+  it("reports automatic links the operator later undid", async () => {
+    const { call, db } = setup();
+    db.insert(thoughts).values({ id: "g1", title: "Goal", body: "", state: "goal" }).run();
+    const kept = addSignal(db);
+    const undone = addSignal(db);
+    const event = (at: string, actor: string, kind: string, payload: object) =>
+      db
+        .insert(events)
+        .values({ id: `e${at}`, at, actor, kind, payload: JSON.stringify(payload) })
+        .run();
+    const now = Date.now();
+    const iso = (offset: number) => new Date(now - 1000 + offset).toISOString();
+    event(iso(0), "system", "signal.thought_linked", {
+      signalId: kept,
+      thoughtId: "g1",
+      auto: true,
+      promptVersion: 2,
+    });
+    event(iso(1), "system", "signal.thought_linked", {
+      signalId: undone,
+      thoughtId: "g1",
+      auto: true,
+      promptVersion: 2,
+    });
+    event(iso(2), "user", "signal.thought_unlinked", { signalId: undone });
+
+    const body = (await (await call("/metrics")).json()) as {
+      autoLink: { autoLinks: number; corrected: number; rate: number | null };
+    };
+    expect(body.autoLink).toMatchObject({ autoLinks: 2, corrected: 1, rate: 0.5 });
   });
 });

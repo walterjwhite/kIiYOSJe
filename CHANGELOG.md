@@ -8,6 +8,7 @@ versions while the project is `0.x`).
 ## [Unreleased]
 
 ### Added
+- Auto-link shortlists the three best-matching goals (BM25 over title, parent title, notes and hand-linked subjects, with sender and thread affinity) instead of sending up to 25 goals to the model, and shows each candidate's hand-linked subjects as examples. A message that resembles no goal skips the model call. Automatic link events record `promptVersion` and `candidateIds`. `GET /metrics` gains `autoLink` with the share of automatic links later undone.
 - Model Trace shows where signals went: green boxes under the model for Queue, Absorbed, Filed and each linked goal (top three, then "N other goals"). Clicking one lists its signals, and the signal table has a "Went to" column.
 - Sub-goals. **+ Sub-goal** on a goal adds a goal under it, to any depth; items can be dragged or linked to a sub-goal as to any goal. `POST /thoughts` accepts `parentId` (an existing goal). Migration `0013_goal_parent` adds `thoughts.parent_id`.
 - The Queue has a **Filter signals** box that matches every word against all text an item shows.

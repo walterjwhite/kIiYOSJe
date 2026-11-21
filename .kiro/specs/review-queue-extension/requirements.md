@@ -89,6 +89,17 @@ speech, so the Today screen is not needed.
    MAY link it to a goal, and it SHALL do so only when its confidence is at
    least the configured threshold and the goal exists. Each automatic link
    SHALL be recorded as an event with `auto: true`.
+   a. The model SHALL be offered only the three best-matching goals (lexical
+      score over title, parent title, notes and hand-linked subjects, plus
+      sender and thread affinity), and a link SHALL be made only to one of them.
+   b. WHEN no goal scores above zero THEN the model SHALL NOT be called and the
+      reason SHALL be recorded in `ai.skipped.link`.
+   c. Examples in the prompt SHALL come only from links the operator made by
+      hand and still stand, SHALL contain the subject only, and SHALL NOT
+      include other senders' addresses or message bodies.
+   d. Each automatic link event SHALL record `promptVersion` and `candidateIds`,
+      and `GET /metrics` SHALL report `autoLink` (automatic links, how many were
+      later unlinked or moved, and the rate).
 4. WHEN a goal's deadline has passed or its review is due THEN the Queue SHALL
    say so on the goal and in the strip at the top.
 5. WHEN I press Transcript THEN it SHALL show the summary text, and WHEN I press

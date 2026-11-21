@@ -13,7 +13,6 @@
  *     blocker attached, not a plausible wrong draft)
  */
 
-import { and, desc, eq, gte, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type {
   Commitment,
   Db,
@@ -26,7 +25,7 @@ import {
   actions,
   aiConfigured,
   autolinkSettings,
-  directions,
+  type directions,
   events,
   globalSendEnabled,
   isOpenCommitment,
@@ -42,19 +41,22 @@ import {
   thoughts,
   verifyCommitment,
 } from "@mind/core";
-import { dedupeKey, isDuplicate } from "./dedupe.js";
-import { normalize } from "./normalize.js";
-import { matchSignal } from "./match.js";
-import { classify } from "./classify.js";
-import type { ClassifierOutput } from "./classify.js";
-import { draft } from "./draft.js";
-import { transform } from "./transform.js";
-import { chooseLink, proposeLink } from "./link.js";
-import type { LinkOutput } from "./link.js";
-import type { ModelTrace } from "./model.js";
-import { decide } from "./decide.js";
-import { computeEscalateBy } from "./escalation.js";
+import { and, desc, eq, gte, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { AdapterRegistry } from "./adapter-registry.js";
+import type { ClassifierOutput } from "./classify.js";
+import { classify } from "./classify.js";
+import { decide } from "./decide.js";
+import { dedupeKey, isDuplicate } from "./dedupe.js";
+import { draft } from "./draft.js";
+import { computeEscalateBy } from "./escalation.js";
+import type { LinkOutput } from "./link.js";
+import { chooseLink, LINK_PROMPT_VERSION, proposeLink } from "./link.js";
+import { rankGoals } from "./link-candidates.js";
+import { loadLinkContext } from "./link-context.js";
+import { matchSignal } from "./match.js";
+import type { ModelTrace } from "./model.js";
+import { normalize } from "./normalize.js";
+import { transform } from "./transform.js";
 
 type DirectionRow = typeof directions.$inferSelect;
 
@@ -450,25 +452,41 @@ export async function ingest(
   const autolink = autolinkSettings();
   const queued = disposition === "promoted" || disposition === "escalated" || actionId !== null;
   if (queued && autolink.enabled) {
-    const goals = db
-      .select({ id: thoughts.id, title: thoughts.title, body: thoughts.body })
-      .from(thoughts)
-      .where(eq(thoughts.state, "goal"))
-      .all();
+    // Shortlist the best few goals first, so the model sees three choices and
+    // the operator's earlier manual links, not every goal. A message that
+    // resembles no goal never reaches the model.
+    const context = loadLinkContext(db, { id: signalId, threadId: signal.threadId ?? null });
+    const goals = context.goals;
+    const candidates = rankGoals(
+      {
+        sender: signal.sender,
+        subject: signal.subject ?? null,
+        body: normalizedBody,
+        threadGoalIds: context.threadGoalIds,
+      },
+      goals,
+      context.exemplars,
+    );
+    const overridden = overrides?.linkOutput !== undefined;
     if (goals.length === 0) aiSkipped["link"] = "no goals to link to";
-    else if (overrides?.linkOutput === undefined && !aiOn)
-      aiSkipped["link"] = "no AI provider configured";
-    const proposed =
-      overrides?.linkOutput !== undefined
-        ? overrides.linkOutput
-        : await proposeLink({
-            signalBody: normalizedBody,
-            sender: signal.sender,
-            subject: signal.subject ?? null,
-            goals,
-            onTrace: (t) => aiCalls.push(t),
-          });
-    const link = chooseLink(proposed, goals, autolink.threshold);
+    else if (!overridden && !aiOn) aiSkipped["link"] = "no AI provider configured";
+    else if (!overridden && candidates.length === 0)
+      aiSkipped["link"] = "no goal resembles the message";
+    const proposed = overridden
+      ? (overrides?.linkOutput ?? null)
+      : await proposeLink({
+          signalBody: normalizedBody,
+          sender: signal.sender,
+          subject: signal.subject ?? null,
+          candidates,
+          onTrace: (t) => aiCalls.push(t),
+        });
+    // The model may only pick from what it was shown.
+    const link = chooseLink(
+      proposed,
+      overridden ? goals : candidates.map((c) => c.goal),
+      autolink.threshold,
+    );
     if (link) {
       db.update(signals).set({ thoughtId: link.thoughtId }).where(eq(signals.id, signalId)).run();
       db.insert(events)
@@ -483,6 +501,8 @@ export async function ingest(
             auto: true,
             confidence: link.confidence,
             threshold: autolink.threshold,
+            promptVersion: LINK_PROMPT_VERSION,
+            candidateIds: candidates.map((c) => c.goal.id),
           }),
         })
         .run();

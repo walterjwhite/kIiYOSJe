@@ -6,11 +6,12 @@
  * threshold. Anything else leaves the signal unlinked.
  */
 
-import { z } from "zod";
 import { aiConfigured, contextTokens, logger } from "@mind/core";
+import { z } from "zod";
 import { bodyBudget, fitToTokens, withShrinkingBody } from "./fit.js";
-import { generateStructured } from "./model.js";
+import type { Candidate } from "./link-candidates.js";
 import type { ModelTrace } from "./model.js";
+import { generateStructured } from "./model.js";
 
 export interface GoalCandidate {
   readonly id: string;
@@ -31,10 +32,13 @@ export interface LinkDecision {
   readonly confidence: number;
 }
 
+/** Recorded on each automatic link so a change in behaviour can be traced to a prompt change. */
+export const LINK_PROMPT_VERSION = 2;
+
 /** Pure gate: only a known Goal at or above the threshold becomes a link. */
 export function chooseLink(
   output: LinkOutput | null,
-  goals: readonly GoalCandidate[],
+  goals: readonly { readonly id: string }[],
   threshold: number,
 ): LinkDecision | null {
   if (!output?.thoughtId) return null;
@@ -43,15 +47,17 @@ export function chooseLink(
   return { thoughtId: output.thoughtId, confidence: output.confidence };
 }
 
-const MAX_GOALS_IN_PROMPT = 25;
-
 /** The answer is an id and a number. */
 const LINK_ANSWER_TOKENS = 100;
 
-const SYSTEM = `You match an incoming message to one of the operator's Goals, or to none.
+const SYSTEM = `You match an incoming message to one of a few candidate Goals, or to none.
+The candidates were shortlisted by similarity, so none of them may be right.
 Be conservative: a wrong link hides a message inside the wrong piece of work.
 - Answer with a Goal id only when the message is clearly about that Goal's subject.
-- Return null when no Goal clearly fits, or when two fit about equally well.
+- Messages the operator linked to a Goal by hand are the strongest evidence of what belongs there.
+- "same sender" means the operator has linked a message from this sender to that Goal. It makes it likelier, not certain.
+- A sub-goal is shown as "Parent > Sub-goal". Prefer the more specific one when the message fits it.
+- Return null when no candidate clearly fits, or when two fit about equally well.
 - Confidence is how sure you are, from 0 to 1. Use below 0.5 when guessing.
 - Ids must be copied exactly from the list.`;
 
@@ -59,27 +65,43 @@ export interface LinkInput {
   signalBody: string;
   sender: string;
   subject: string | null;
-  goals: readonly GoalCandidate[];
+  /** The shortlist from `rankGoals`, best first. */
+  candidates: readonly Candidate[];
   onTrace?: (trace: ModelTrace) => void;
 }
 
+const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
 function buildPrompt(input: LinkInput): string {
-  // A long goal list would eat the window the message needs, so cap it.
-  const goals = input.goals
-    .slice(0, MAX_GOALS_IN_PROMPT)
-    .map(
-      (g) =>
-        `- id: ${g.id}\n  title: ${g.title}\n  notes: ${g.body.replace(/\s+/g, " ").slice(0, 300)}`,
-    )
+  // Examples carry only the subject of earlier messages, never their senders
+  // or bodies: other people's addresses stay out of the prompt.
+  const goals = input.candidates
+    .map(({ goal, exemplars, sameSender }) => {
+      const lines = [
+        `- id: ${goal.id}`,
+        `  title: ${goal.parentTitle ? `${goal.parentTitle} > ` : ""}${goal.title}`,
+        `  notes: ${goal.body.replace(/\s+/g, " ").slice(0, 300)}`,
+      ];
+      const subjects = exemplars.map((e) => e.subject).filter((s): s is string => !!s);
+      if (subjects.length > 0) {
+        lines.push(`  linked here by hand: ${subjects.map((s) => `"${clip(s, 80)}"`).join("; ")}`);
+      }
+      if (sameSender) lines.push("  same sender: yes");
+      return lines.join("\n");
+    })
     .join("\n");
-  return `Goals:\n${goals}\n\nFrom: ${input.sender}\n${input.subject ? `Subject: ${input.subject}\n` : ""}Message:\n${input.signalBody}\n\nWhich Goal does this message belong to, if any?`;
+  return `Candidate goals:\n${goals}\n\nFrom: ${input.sender}\n${input.subject ? `Subject: ${input.subject}\n` : ""}Message:\n${input.signalBody}\n\nWhich Goal does this message belong to, if any?`;
 }
 
 /** Asks the model. Returns null when AI is not configured, there are no Goals, or the call fails. */
 export async function proposeLink(input: LinkInput): Promise<LinkOutput | null> {
-  if (input.goals.length === 0 || !aiConfigured()) return null;
+  if (input.candidates.length === 0 || !aiConfigured()) return null;
   try {
-    const budget = bodyBudget(contextTokens(), SYSTEM + buildPrompt({ ...input, signalBody: "" }), LINK_ANSWER_TOKENS);
+    const budget = bodyBudget(
+      contextTokens(),
+      SYSTEM + buildPrompt({ ...input, signalBody: "" }),
+      LINK_ANSWER_TOKENS,
+    );
     return await withShrinkingBody(budget, (tokens) => {
       const body = fitToTokens(input.signalBody, tokens);
       return generateStructured(LinkOutputSchema, {

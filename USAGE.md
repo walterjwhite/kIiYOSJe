@@ -76,6 +76,20 @@ links only when its confidence is at least the threshold in **Settings** (defaul
 recorded in System Events as `signal.thought_linked` with `auto: true`, and
 **Unlink** undoes it. Turn it off in Settings.
 
+How it chooses: the app first shortlists the three goals whose title, parent
+title, notes and hand-linked messages share the most words with the message.
+A goal gets extra weight when you have already linked a message from the same
+sender to it, and a lot when the same thread is already linked to it. Only those
+three go to the model, each with the subjects of up to two messages you linked
+there by hand (never their senders or bodies). If no goal shares a word with
+the message, the model is not called and the item stays unlinked. Links the
+model made on its own are never used as examples.
+
+How well it works: `GET /metrics` has an `autoLink` section with the number of
+automatic links in the window, how many you later unlinked or moved to another
+goal (`corrected`), and the `rate`. Lower is better. It only counts mistakes you
+noticed and fixed.
+
 ## Signals
 
 Every signal, inbound and outbound. It defaults to today; use the range buttons to

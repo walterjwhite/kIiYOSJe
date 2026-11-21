@@ -1,8 +1,14 @@
-import { Hono } from "hono";
-import { sql, eq, gte } from "drizzle-orm";
-import { signals, thoughts, actions, directions } from "@mind/core";
 import type { Db } from "@mind/core";
-import { COVERAGE_TARGET, FALLBACK_DIRECTION_ID, WEEK_MS, weeklyCoverage } from "@mind/pipeline";
+import { actions, directions, events, signals, thoughts } from "@mind/core";
+import {
+  COVERAGE_TARGET,
+  FALLBACK_DIRECTION_ID,
+  linkCorrections,
+  WEEK_MS,
+  weeklyCoverage,
+} from "@mind/pipeline";
+import { eq, gte, sql } from "drizzle-orm";
+import { Hono } from "hono";
 
 export function metricsRouter(db: Db) {
   const app = new Hono();
@@ -11,7 +17,9 @@ export function metricsRouter(db: Db) {
   // that matched, and what became of them. One row per combination, so the
   // extension can draw the flow and every line in it can be drilled into.
   app.get("/flow", (c) => {
-    const since = new Date(Date.now() - parseDays(c.req.query("window") ?? "7d") * 86_400_000).toISOString();
+    const since = new Date(
+      Date.now() - parseDays(c.req.query("window") ?? "7d") * 86_400_000,
+    ).toISOString();
     const rows = db
       .select({
         adapter: signals.adapter,
@@ -40,7 +48,10 @@ export function metricsRouter(db: Db) {
     const window = c.req.query("window");
 
     if (!directionId && !adapter && !day && !disposition) {
-      return c.json({ error: "Provide at least one of directionId, adapter, day, disposition" }, 400);
+      return c.json(
+        { error: "Provide at least one of directionId, adapter, day, disposition" },
+        400,
+      );
     }
 
     const conditions: ReturnType<typeof sql>[] = [];
@@ -264,8 +275,21 @@ export function metricsRouter(db: Db) {
       .orderBy(sql`substr(${signals.receivedAt}, 1, 10)`)
       .all();
 
+    // Automatic goal links the operator later undid. Corrections arrive after
+    // the link, so both kinds of event are read from the start of the window.
+    const autoLink = linkCorrections(
+      db
+        .select({ at: events.at, actor: events.actor, kind: events.kind, payload: events.payload })
+        .from(events)
+        .where(
+          sql`${events.at} >= ${since} and ${events.kind} in ('signal.thought_linked', 'signal.thought_unlinked')`,
+        )
+        .all(),
+    );
+
     return c.json({
       window,
+      autoLink,
       signals: signalCount,
       thoughts: thoughtCount,
       ratio: thoughtCount > 0 ? +(signalCount / thoughtCount).toFixed(2) : null,
