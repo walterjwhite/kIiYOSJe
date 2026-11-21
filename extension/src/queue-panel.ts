@@ -1,10 +1,10 @@
 import * as vscode from "vscode";
 import { apiFetch, apiFetchBytes } from "./api-client.js";
 import { ago, channelLabel, timingLabel } from "./format.js";
-import { goalFlags, itemsForGoal, sortGoals, unlinkedItems, type Goal } from "./goals.js";
-import { runItemAction, type QueueItem } from "./queue-actions.js";
+import { type Goal, goalFlags, goalTree, itemsForGoal, sortGoals, unlinkedItems } from "./goals.js";
+import { type QueueItem, runItemAction } from "./queue-actions.js";
+import { itemSearchText } from "./queue-search.js";
 import {
-  VIEWS,
   addDays,
   dueUnplanned,
   groupByDate,
@@ -14,10 +14,11 @@ import {
   parsePlanDate,
   planLabel,
   planState,
-  viewCounts,
   type QueueView,
+  VIEWS,
+  viewCounts,
 } from "./queue-view.js";
-import { SectionPanel, esc } from "./webview-base.js";
+import { esc, SectionPanel } from "./webview-base.js";
 
 const QUEUE_STYLE = `
   .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
@@ -40,12 +41,19 @@ const QUEUE_STYLE = `
   .timing.today { color: var(--mind-yellow); }
   .timing.this-week { color: var(--mind-accent); }
   .timing.can-wait { color: var(--vscode-descriptionForeground, inherit); }
-  .queue-cols { display: grid; grid-template-columns: minmax(280px, 2fr) minmax(320px, 3fr); gap: 16px; align-items: start; }
-  @media (max-width: 760px) { .queue-cols { grid-template-columns: 1fr; } }
+  /* The page does not scroll; each column does, so a long goal list and a long signal list never move together. */
+  body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  .queue-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(280px, 2fr) minmax(320px, 3fr); gap: 16px; }
+  .queue-cols > section { min-height: 0; overflow-y: auto; padding-right: 6px; }
+  @media (max-width: 760px) { .queue-cols { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+  .search { display: flex; gap: 6px; margin: 0 0 8px; }
+  .search input { flex: 1; min-width: 0; }
+  .group-title[hidden], .queue-item[hidden], .empty[hidden] { display: none; }
   .col-title { margin: 0 0 8px; font-weight: 600; }
   .goal-card { border-left: 3px solid var(--mind-purple); }
   .goal-card.drop-over { outline: 2px dashed var(--mind-accent); outline-offset: 2px; background: color-mix(in srgb, var(--mind-accent) 10%, transparent); }
   .goal-card .queue-item { margin-left: 10px; }
+  .goal-card.sub { border-left-color: var(--mind-accent); }
   .new-goal { display: flex; gap: 6px; margin: 0 0 10px; }
   .new-goal input { flex: 1; min-width: 0; }
   .queue-item.card { padding: 6px 10px; margin: 4px 0; }
@@ -81,6 +89,7 @@ const QUEUE_SCRIPT = `
     var l = document.getElementById('queue-list');
     return l ? Array.prototype.slice.call(l.querySelectorAll('.queue-item')) : [];
   }
+  function visibleCards() { return cards().filter(function (c) { return !c.hidden; }); }
   function selectedIds() {
     return cards().filter(function (c) { return selected[c.dataset.itemId]; }).map(function (c) { return c.dataset.itemId; });
   }
@@ -106,7 +115,7 @@ const QUEUE_SCRIPT = `
     if (!line) return;
     var card = line.parentElement;
     var id = card.dataset.itemId;
-    var all = cards();
+    var all = visibleCards();
     var index = all.indexOf(card);
     if (index < 0) { card.classList.toggle('open'); return; }
     var additive = e.ctrlKey || e.metaKey;
@@ -139,6 +148,51 @@ const QUEUE_SCRIPT = `
     if (goalPicker.value) post({ command: 'link', items: selectedIds(), goal: goalPicker.value });
     goalPicker.value = '';
   });
+  // Search: every word must appear in the card's data-search text, which holds
+  // the attributes the card shows. Filtering is local, so typing never reloads.
+  var searchInput = document.getElementById('signal-search');
+  function applySearch() {
+    var words = (searchInput ? searchInput.value : '').toLowerCase().split(/\\s+/).filter(Boolean);
+    var shown = 0;
+    cards().forEach(function (c) {
+      var hay = c.getAttribute('data-search') || '';
+      var match = words.every(function (w) { return hay.indexOf(w) >= 0; });
+      c.hidden = !match;
+      if (match) shown++; else delete selected[c.dataset.itemId];
+    });
+    // A day heading is hidden when every card under it is.
+    var list = document.getElementById('queue-list');
+    if (list) {
+      var heading = null, any = false;
+      Array.prototype.forEach.call(list.children, function (el) {
+        if (el.classList.contains('group-title')) {
+          if (heading) heading.hidden = !any;
+          heading = el; any = false;
+        } else if (!el.hidden) any = true;
+      });
+      if (heading) heading.hidden = !any;
+    }
+    var count = document.getElementById('shown-count');
+    if (count) count.textContent = words.length ? shown + ' match' + (shown === 1 ? '' : 'es') : shown + ' awaiting action';
+    var none = document.getElementById('no-match');
+    if (none) none.hidden = !(words.length && shown === 0 && cards().length > 0);
+    paint();
+  }
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      applySearch();
+      post({ command: 'search', text: searchInput.value });
+    });
+    searchInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && searchInput.value) {
+        searchInput.value = '';
+        applySearch();
+        post({ command: 'search', text: '' });
+        e.stopPropagation();
+      }
+    });
+    applySearch();
+  }
   var goalInput = document.getElementById('new-goal');
   if (goalInput) goalInput.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && goalInput.value.trim()) {
@@ -275,6 +329,8 @@ export class QueuePanel extends SectionPanel {
   private static current: QueuePanel | undefined;
   /** Remembered between reopenings of the panel. */
   private static view: QueueView = "today";
+  /** The signal search text, remembered so a refresh does not clear it. */
+  private static search = "";
   private items: QueueItem[] = [];
   private goals: Goal[] = [];
   private summary: { absorbedToday: number } = { absorbedToday: 0 };
@@ -323,6 +379,8 @@ export class QueuePanel extends SectionPanel {
         ? [m.item]
         : [];
     if (m.command === "refresh") this.load();
+    else if (m.command === "search") QueuePanel.search = (m.text ?? "").slice(0, 200);
+    else if (m.command === "newSubGoal" && m.goal) void this.newSubGoal(m.goal);
     else if (m.command === "view" && VIEWS.some((v) => v.id === m.view)) {
       QueuePanel.view = m.view as QueueView;
       this.load();
@@ -468,16 +526,26 @@ export class QueuePanel extends SectionPanel {
     this.load();
   }
 
-  private async newGoal(title: string): Promise<void> {
+  private async newGoal(title: string, parentId: string | null = null): Promise<void> {
     try {
       await apiFetch("/thoughts", {
         method: "POST",
-        body: JSON.stringify({ title, body: "", directionId: null, state: "goal" }),
+        body: JSON.stringify({ title, body: "", directionId: null, state: "goal", parentId }),
       });
     } catch (err) {
       vscode.window.showErrorMessage(`mind: could not create the goal. ${String(err)}`);
     }
     this.load();
+  }
+
+  private async newSubGoal(parentId: string): Promise<void> {
+    const parent = this.goals.find((g) => g.id === parentId);
+    if (!parent) return;
+    const title = await vscode.window.showInputBox({
+      prompt: `New sub-goal under "${parent.title}"`,
+      validateInput: (v) => (v.trim() ? undefined : "Enter a title"),
+    });
+    if (title?.trim()) await this.newGoal(title.trim(), parentId);
   }
 
   private async setGoalState(goalId: string, state: "closed" | "parked"): Promise<void> {
@@ -592,7 +660,8 @@ export class QueuePanel extends SectionPanel {
       all: "Nothing unlinked is awaiting action.",
     };
 
-    const goalCards = goals.map((g) => this.renderGoal(g, today, now)).join("");
+    const tree = goalTree(this.goals, now);
+    const goalCards = tree.map((n) => this.renderGoal(n.goal, n.depth, today, now)).join("");
     const overdueGoals = goals.filter((g) => goalFlags(g, now).includes("overdue")).length;
     const reviewGoals = goals.filter((g) => goalFlags(g, now).includes("review")).length;
 
@@ -619,9 +688,12 @@ export class QueuePanel extends SectionPanel {
         <section>
           <h3 class="col-title">Not linked to a goal</h3>
           <div class="tabs">${tabs}</div>
+          <div class="search">
+            <input id="signal-search" type="search" value="${esc(QueuePanel.search)}" placeholder="Filter signals" aria-label="Filter signals by any visible text" />
+          </div>
           <div class="toolbar">
             <button data-action="refresh">↺ Refresh</button>
-            <span class="meta">${shown.length} awaiting action</span>
+            <span id="shown-count" class="meta">${shown.length} awaiting action</span>
           </div>
           <div id="selbar" class="toolbar" hidden>
             <span id="selcount" class="meta"></span>
@@ -630,25 +702,28 @@ export class QueuePanel extends SectionPanel {
             <button id="sel-backlog">Backlog</button>
             <select id="sel-goal" aria-label="Link selected to a goal">
               <option value="">Link to goal…</option>
-              ${goals.map((g) => `<option value="${esc(g.id)}">${esc(g.title)}</option>`).join("")}
+              ${tree.map((n) => `<option value="${esc(n.goal.id)}">${"\u00a0\u00a0".repeat(n.depth)}${esc(n.goal.title)}</option>`).join("")}
             </select>
             <button id="sel-clear">Clear</button>
           </div>
           ${dueBanner}
           <div id="queue-list">${content}</div>
           ${shown.length === 0 ? `<p class="empty">${empty[view]}</p>` : ""}
+          <p id="no-match" class="empty" hidden>No signals match this search.</p>
         </section>
       </div>
     `;
     this.panel.webview.html = this.shell("Queue", body, QUEUE_STYLE, QUEUE_SCRIPT);
   }
 
-  private renderGoal(goal: Goal, today: string, now: Date): string {
+  private renderGoal(goal: Goal, depth: number, today: string, now: Date): string {
     const linked = itemsForGoal(this.items, goal.id);
     const flags = goalFlags(goal, now)
       .map((f) => `<span class="flag ${f}">${f === "overdue" ? "Overdue" : "Review due"}</span>`)
       .join(" ");
-    return `<div class="card goal-card" data-goal="${esc(goal.id)}">
+    // Sub-goals are siblings in the DOM (indented), not nested, so a drop on a
+    // sub-goal never also fires on its parent.
+    return `<div class="card goal-card${depth > 0 ? " sub" : ""}" data-goal="${esc(goal.id)}" style="margin-left: ${depth * 18}px;">
       <div class="toolbar" style="justify-content: space-between; margin-bottom: 2px;">
         <strong>${esc(goal.title)}</strong>
         <span>${flags} <span class="badge">${linked.length} linked</span></span>
@@ -656,6 +731,7 @@ export class QueuePanel extends SectionPanel {
       ${goal.nextAction ? `<div class="meta">Next: ${esc(goal.nextAction)}</div>` : ""}
       ${linked.map((i) => this.renderItem(i, today, false, false, true)).join("") || '<div class="meta">Nothing linked.</div>'}
       <div class="toolbar" style="margin: 6px 0 0;">
+        <button data-action="newSubGoal" data-goal="${esc(goal.id)}">+ Sub-goal</button>
         <button data-action="goalState" data-goal="${esc(goal.id)}" data-state="closed">Done</button>
         <button data-action="goalState" data-goal="${esc(goal.id)}" data-state="parked">Park</button>
       </div>
@@ -693,7 +769,7 @@ export class QueuePanel extends SectionPanel {
     // Line 1 is the whole identity of the item (channel, sender, when it needs
     // you); line 2 is its summary. The rest opens on click.
     const timing = timingLabel(item.timing.bucket, item.timing.actBy);
-    return `<div class="card queue-item${upNext ? " up-next" : ""}"${draggable ? ' draggable="true"' : ""} tabindex="0" data-item-id="${esc(item.id)}">
+    return `<div class="card queue-item${upNext ? " up-next" : ""}"${draggable ? ' draggable="true"' : ""} tabindex="0" data-item-id="${esc(item.id)}" data-search="${esc(itemSearchText(item, today))}">
       <div class="item-line clickable">
         <span class="who">${draggable ? '<span class="handle" aria-hidden="true">⠿</span>' : ""}${upNext ? '<span class="badge">Up next</span> ' : ""}<span class="badge">${esc(channelLabel(item.adapter, item.account))}</span> ${esc(item.sender)}</span>
         <span class="timing ${esc(item.timing.bucket)}" title="${esc(item.timing.reason)}">${esc(timing)}</span>

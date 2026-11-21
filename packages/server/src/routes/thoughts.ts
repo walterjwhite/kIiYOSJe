@@ -30,6 +30,12 @@ export function thoughtsRouter(db: Db) {
   // POST /thoughts
   app.post("/", zValidator("json", CreateThoughtRequestSchema), (c) => {
     const body = c.req.valid("json");
+    if (body.parentId) {
+      const parent = db.select().from(thoughts).where(eq(thoughts.id, body.parentId)).get();
+      if (!parent || parent.state !== "goal") {
+        return c.json({ error: "parentId must be an existing goal" }, 400);
+      }
+    }
     const id = newId();
     db.insert(thoughts)
       .values({
@@ -37,6 +43,7 @@ export function thoughtsRouter(db: Db) {
         title: body.title,
         body: body.body,
         directionId: body.directionId,
+        parentId: body.parentId ?? null,
         state: body.state ?? "seedling",
       })
       .run();
@@ -46,7 +53,11 @@ export function thoughtsRouter(db: Db) {
         id: newId(),
         actor: "user",
         kind: "thought.created",
-        payload: JSON.stringify({ thoughtId: id, state: body.state ?? "seedling" }),
+        payload: JSON.stringify({
+          thoughtId: id,
+          state: body.state ?? "seedling",
+          parentId: body.parentId ?? null,
+        }),
       })
       .run();
 

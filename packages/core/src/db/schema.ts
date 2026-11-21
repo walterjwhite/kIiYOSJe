@@ -97,6 +97,10 @@ export const thoughts = sqliteTable("thoughts", {
   body: text("body").notNull().default(""),
   state: text("state").notNull().default("seedling"), // ThoughtState
   directionId: text("direction_id").references(() => directions.id),
+  // A sub-goal points at its parent goal (migration 0013 adds the foreign key).
+  // Not declared with .references() here because a table cannot reference
+  // itself in a typed drizzle schema.
+  parentId: text("parent_id"),
   nextAction: text("next_action"),
   reviewAt: text("review_at"),
   escalateBy: text("escalate_by"), // deadline; checker promotes thought when this passes

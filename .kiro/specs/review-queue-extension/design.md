@@ -15,7 +15,8 @@ extension/
   src/signals-provider.ts   Signals tree + range + reclassify
   src/journal-provider.ts   Journal tree (read-only)
   src/queue-panel.ts        Queue: goals column, unlinked column, summary strip
-  src/goals.ts              pure goal helpers (flags, sorting, splitting items)
+  src/goals.ts              pure goal helpers (flags, sorting, sub-goal tree, splitting items)
+  src/queue-search.ts       the lower-case text of a Queue item that the signal filter matches
   src/model-trace-panel.ts  Model Trace graph (data from signal.processed events)
   src/trace-model.ts        pure aggregation behind the graph
   src/json-html.ts          pure JSON highlighter used by System Events and others

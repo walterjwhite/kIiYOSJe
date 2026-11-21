@@ -99,3 +99,14 @@ speech, so the Today screen is not needed.
 7. WHEN a voice must be downloaded THEN it SHALL come only from the
    `rhasspy/piper-voices` repository, only if "Download voices" is on, and the
    voice name SHALL be validated so it cannot select another path or host.
+8. WHEN I add a sub-goal to a goal THEN it SHALL be a goal whose `parentId` is
+   that goal, shown indented under its parent, and items SHALL be linkable to
+   it exactly as to a top-level goal. `POST /thoughts` SHALL refuse a `parentId`
+   that is missing or not a goal. A sub-goal whose parent is closed or parked
+   SHALL still be shown, at the top level.
+9. WHEN the Queue is taller than the window THEN the Goals column and the
+   signals column SHALL each scroll on their own.
+10. WHEN I type in the signal filter THEN only items whose displayed text
+    contains every typed word (case-insensitive) SHALL remain visible, the count
+    SHALL say how many match, and items hidden by the filter SHALL be
+    deselected.

@@ -203,6 +203,8 @@ export const CreateThoughtRequestSchema = z.object({
   directionId: z.string().nullable(),
   /** "goal" creates a Goal the operator is focusing on; the default is a seedling. */
   state: z.enum(["seedling", "goal"]).optional(),
+  /** Makes the new Thought a sub-goal of this goal. The parent must exist and be a goal. */
+  parentId: z.string().nullable().optional(),
 });
 
 export const UpdateThoughtRequestSchema = z.object({

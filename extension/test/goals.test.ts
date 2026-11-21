@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { goalFlags, itemsForGoal, sortGoals, unlinkedItems, type Goal } from "../src/goals.js";
+import {
+  goalFlags,
+  goalTree,
+  itemsForGoal,
+  sortGoals,
+  unlinkedItems,
+  type Goal,
+} from "../src/goals.js";
 
 const NOW = new Date("2026-11-20T12:00:00Z");
 const goal = (id: string, over: Partial<Goal> = {}): Goal => ({
@@ -9,6 +16,7 @@ const goal = (id: string, over: Partial<Goal> = {}): Goal => ({
   nextAction: null,
   reviewAt: null,
   escalateBy: null,
+  parentId: null,
   ...over,
 });
 
@@ -49,5 +57,34 @@ describe("sortGoals", () => {
     const copy = [...input];
     expect(sortGoals(input, NOW).map((g) => g.id)).toEqual(["late", "review", "a", "b"]);
     expect(input).toEqual(copy);
+  });
+});
+
+describe("goalTree", () => {
+  it("lists each sub-goal directly after its parent with a depth", () => {
+    const goals = [
+      goal("b"),
+      goal("a"),
+      goal("a2", { parentId: "a" }),
+      goal("a1", { parentId: "a" }),
+      goal("a1x", { parentId: "a1" }),
+    ];
+    expect(goalTree(goals, NOW).map((n) => [n.goal.id, n.depth])).toEqual([
+      ["a", 0],
+      ["a1", 1],
+      ["a1x", 2],
+      ["a2", 1],
+      ["b", 0],
+    ]);
+  });
+
+  it("shows a sub-goal as top-level when its parent is not in the list", () => {
+    const tree = goalTree([goal("child", { parentId: "parked" })], NOW);
+    expect(tree.map((n) => [n.goal.id, n.depth])).toEqual([["child", 0]]);
+  });
+
+  it("does not loop or drop goals when parents form a cycle", () => {
+    const tree = goalTree([goal("a", { parentId: "b" }), goal("b", { parentId: "a" })], NOW);
+    expect(tree.map((n) => n.goal.id).sort()).toEqual(["a", "b"]);
   });
 });

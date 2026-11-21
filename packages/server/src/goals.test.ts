@@ -84,6 +84,51 @@ describe("creating a goal", () => {
   });
 });
 
+describe("sub-goals", () => {
+  const create = (call: ReturnType<typeof setup>["call"], body: Record<string, unknown>) =>
+    call("/thoughts", {
+      method: "POST",
+      body: JSON.stringify({ title: "Sub", body: "", directionId: null, state: "goal", ...body }),
+    });
+
+  it("creates a goal under a parent goal and lists its parentId", async () => {
+    const { call, db } = setup();
+    db.insert(thoughts).values({ id: "g1", title: "Goal", body: "", state: "goal" }).run();
+    const res = await create(call, { parentId: "g1" });
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: string };
+    expect(db.select().from(thoughts).where(eq(thoughts.id, id)).get()?.parentId).toBe("g1");
+    const listed = (await (await call("/thoughts?state=goal")).json()) as {
+      id: string;
+      parentId: string | null;
+    }[];
+    expect(listed.find((g) => g.id === id)?.parentId).toBe("g1");
+    expect(listed.find((g) => g.id === "g1")?.parentId).toBeNull();
+  });
+
+  it("rejects a parent that does not exist or is not a goal", async () => {
+    const { call, db } = setup();
+    db.insert(thoughts).values({ id: "t1", title: "Plain", body: "", state: "seedling" }).run();
+    expect((await create(call, { parentId: "missing" })).status).toBe(400);
+    expect((await create(call, { parentId: "t1" })).status).toBe(400);
+  });
+
+  it("lets a signal link to a sub-goal and reports it as its goalId", async () => {
+    const { call, db } = setup();
+    db.insert(thoughts).values({ id: "g1", title: "Goal", body: "", state: "goal" }).run();
+    db.insert(thoughts)
+      .values({ id: "g2", title: "Sub", body: "", state: "goal", parentId: "g1" })
+      .run();
+    const id = addSignal(db);
+    expect((await call(`/signals/${id}/thought`, put({ thoughtId: "g2" }))).status).toBe(200);
+    const items = (await (await call("/queue")).json()) as {
+      signalId: string;
+      goalId: string | null;
+    }[];
+    expect(items.find((i) => i.signalId === id)?.goalId).toBe("g2");
+  });
+});
+
 describe("linking a signal to a goal", () => {
   it("PUT /signals/:id/thought links it and DELETE unlinks it", async () => {
     const { call, db } = setup();

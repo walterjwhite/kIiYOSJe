@@ -12,6 +12,8 @@ export interface Goal {
   readonly nextAction: string | null;
   readonly reviewAt: string | null;
   readonly escalateBy: string | null;
+  /** The goal this one is a sub-goal of, or null for a top-level goal. */
+  readonly parentId: string | null;
 }
 
 export interface Linkable {
@@ -43,4 +45,46 @@ export function sortGoals<T extends Goal>(goals: readonly T[], now: Date): T[] {
     return f.includes("overdue") ? 0 : f.includes("review") ? 1 : 2;
   };
   return [...goals].sort((a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title));
+}
+
+export interface GoalNode<T extends Goal> {
+  readonly goal: T;
+  /** 0 for a top-level goal, 1 for its sub-goals, and so on. */
+  readonly depth: number;
+}
+
+/**
+ * Goals in display order: each goal is followed by its sub-goals (recursively),
+ * siblings sorted by `sortGoals`. A goal whose parent is not in the list (the
+ * parent was closed or parked) is shown top-level. Goals caught in a parent
+ * cycle are still shown, top-level, so none can disappear.
+ */
+export function goalTree<T extends Goal>(goals: readonly T[], now: Date): GoalNode<T>[] {
+  const ids = new Set(goals.map((g) => g.id));
+  const childrenOf = new Map<string | null, T[]>();
+  for (const g of goals) {
+    const key =
+      g.parentId !== null && ids.has(g.parentId) && g.parentId !== g.id ? g.parentId : null;
+    childrenOf.set(key, [...(childrenOf.get(key) ?? []), g]);
+  }
+  const out: GoalNode<T>[] = [];
+  const seen = new Set<string>();
+  const walk = (parent: string | null, depth: number) => {
+    for (const g of sortGoals(childrenOf.get(parent) ?? [], now)) {
+      if (seen.has(g.id)) continue;
+      seen.add(g.id);
+      out.push({ goal: g, depth });
+      walk(g.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  // Anything unreached sits in a cycle; show it rather than lose it.
+  for (const g of sortGoals(goals, now)) {
+    if (!seen.has(g.id)) {
+      seen.add(g.id);
+      out.push({ goal: g, depth: 0 });
+      walk(g.id, 1);
+    }
+  }
+  return out;
 }

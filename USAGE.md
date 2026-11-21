@@ -12,10 +12,15 @@ Two columns.
 - **Goals (left).** A Goal is a Thought you have decided to focus on. Type a
   name in the box and press Enter or **Add**. **Done** closes a goal and **Park**
   sets it aside. A goal shows a flag when its deadline has passed or its review
-  is due.
+  is due. **+ Sub-goal** adds a goal under it; sub-goals are indented below
+  their parent and can have sub-goals of their own.
 - **Not linked to a goal (right).** Everything awaiting action that is not
   linked to a goal. The tabs (Today, Upcoming, Backlog, All) are your plan for
-  the day.
+  the day. The **Filter signals** box narrows the current tab to items that
+  contain every word you type, in any text the item shows (channel, sender,
+  summary, timing, Direction, draft, plan, age). Escape clears it.
+
+The two columns scroll separately.
 
 Each item is two lines: the channel, sender and when it needs you, then its
 summary. Click the first line to open the item and see its draft, the reason it
@@ -25,7 +30,7 @@ is authorized.
 
 ### Linking items to goals
 
-- Drag an item onto a goal to link it.
+- Drag an item onto a goal or a sub-goal to link it.
 - **Unlink** on a linked item undoes it.
 - New items can be linked automatically; see [Auto-link](#auto-link).
 

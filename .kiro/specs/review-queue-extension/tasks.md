@@ -31,5 +31,8 @@
   - [x] 6.3 `GET /summary`, `POST|GET /summary/audio`, Piper runner with injected I/O
   - [x] 6.4 Voice, speed, tone, Piper command and download settings (`/admin/audio`)
   - [x] 6.5 Queue two-column layout, compact items, drag to link, transcript and audio buttons
+  - [x] 6.8 Sub-goals: `thoughts.parent_id` (migration 0013), `parentId` on `POST /thoughts`, indented tree and **+ Sub-goal** in the Queue
+  - [x] 6.9 Goals and signals columns scroll independently
+  - [x] 6.10 Signal filter across displayed attributes (`queue-search.ts`)
   - [ ] 6.6 Click through the Queue, Settings and Model Trace in VS Code
   - [ ] 6.7 Render audio with a real Piper install and confirm the CLI flags

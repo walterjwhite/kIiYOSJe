@@ -7,10 +7,15 @@ versions while the project is `0.x`).
 
 ## [Unreleased]
 
+### Added
+- Sub-goals. **+ Sub-goal** on a goal adds a goal under it, to any depth; items can be dragged or linked to a sub-goal as to any goal. `POST /thoughts` accepts `parentId` (an existing goal). Migration `0013_goal_parent` adds `thoughts.parent_id`.
+- The Queue has a **Filter signals** box that matches every word against all text an item shows.
+
 ### Fixed
 - A message larger than the model's context window no longer fails with "exceeds the available context size". Message text is condensed and cut to fit before every model call, with one retry at half size. Set the window with `contextTokens` in `ai.json`.
 
 ### Changed
+- The Queue's Goals and signals columns scroll independently.
 - Analytics replaces the "By channel" bars with a flow diagram (channel, Direction, outcome) whose nodes and lines list their signals when clicked.
 
 - Form controls follow the editor theme instead of the browser's light default.
