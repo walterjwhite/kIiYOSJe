@@ -71,39 +71,96 @@ fi
 echo "==> Gradle: $GRADLE"
 
 # ── 2. Locate JAVA_HOME ──────────────────────────────────────────────────────
+# Android Gradle Plugin 8 needs JDK 17 or newer. A NixOS box often has no java
+# on PATH and no ~/.nix-profile JDK link — only /nix/store entries, which also
+# include openjdk-8. So candidates are read for their version and the newest
+# suitable one wins, rather than taking the first path that happens to exist.
 
-if [ -z "${JAVA_HOME:-}" ] && command -v java >/dev/null 2>&1; then
-    # java lives in $JAVA_HOME/bin, so two levels up is the JDK root.
-    detected="$(dirname "$(dirname "$(command -v java)")")"
-    if [ -x "$detected/bin/java" ]; then
-        JAVA_HOME="$detected"
+# Print the major version of a JDK root, or 0 if it cannot be read.
+jdk_major() {
+    local version=""
+    if [ -f "$1/release" ]; then
+        version=$(sed -n 's/^JAVA_VERSION="\([0-9][0-9._]*\).*/\1/p' "$1/release" | head -1)
     fi
+    if [ -z "$version" ] && [ -x "$1/bin/java" ]; then
+        version=$("$1/bin/java" -version 2>&1 \
+            | sed -n 's/.*version "\([0-9][0-9._]*\).*/\1/p' | head -1 || true)
+    fi
+    if [ -z "$version" ]; then
+        echo 0
+        return 0
+    fi
+    version="${version#1.}"   # legacy 1.8.0_514 -> 8.0_514
+    echo "${version%%[._]*}"
+}
+
+# Print the newest JDK root at version 17+ among the arguments, or nothing.
+pick_jdk() {
+    local best="" best_major=0 candidate major
+    for candidate in "$@"; do
+        [ -n "$candidate" ] || continue
+        [ -x "$candidate/bin/java" ] || continue
+        major=$(jdk_major "$candidate")
+        [ "$major" -ge 17 ] 2>/dev/null || continue
+        if [ "$major" -gt "$best_major" ]; then
+            best="$candidate"
+            best_major="$major"
+        fi
+    done
+    if [ -n "$best" ]; then
+        printf '%s\n' "$best"
+    fi
+    return 0
+}
+
+PATH_JAVA_ROOT=""
+if command -v java >/dev/null 2>&1; then
+    # java lives in $JAVA_HOME/bin, so two levels up is the JDK root.
+    PATH_JAVA_ROOT=$(dirname "$(dirname "$(command -v java)")")
 fi
 
-if [ -z "${JAVA_HOME:-}" ]; then
-    for candidate in \
+JDK_ROOT=""
+if [ -n "${JAVA_HOME:-}" ]; then
+    JDK_ROOT="$JAVA_HOME"
+else
+    JDK_ROOT=$(pick_jdk \
+        "$PATH_JAVA_ROOT" \
+        /run/current-system/sw/lib/openjdk \
+        "$HOME/.nix-profile/lib/openjdk" \
+        "/etc/profiles/per-user/${USER:-nobody}/lib/openjdk" \
+        /nix/var/nix/profiles/default/lib/openjdk \
+        /nix/store/*openjdk*/lib/openjdk \
         "$HOME/.jdks"/* \
         /usr/lib/jvm/* \
         /opt/java/* \
         /opt/openjdk \
-        "$HOME/Android/Android Studio/jbr"; do
-        if [ -x "$candidate/bin/java" ]; then
-            JAVA_HOME="$candidate"
-            break
-        fi
-    done
+        "$HOME/Android/Android Studio/jbr" \
+        /opt/android-studio/jbr)
+    if [ -z "$JDK_ROOT" ] && command -v /usr/libexec/java_home >/dev/null 2>&1; then
+        JDK_ROOT=$(pick_jdk "$(/usr/libexec/java_home 2>/dev/null || true)")
+    fi
 fi
 
-if [ -z "${JAVA_HOME:-}" ] && command -v /usr/libexec/java_home >/dev/null 2>&1; then
-    JAVA_HOME="$(/usr/libexec/java_home 2>/dev/null || true)"
-fi
-
-if [ -z "${JAVA_HOME:-}" ] || [ ! -x "$JAVA_HOME/bin/java" ]; then
-    echo "Error: could not find a usable JDK (Android Gradle Plugin 8 needs 17+)." >&2
-    echo "Set JAVA_HOME explicitly." >&2
+if [ -z "$JDK_ROOT" ] || [ ! -x "$JDK_ROOT/bin/java" ]; then
+    echo "Error: could not find a usable JDK (Android Gradle Plugin 8 needs JDK 17 or newer)." >&2
+    if [ -n "$PATH_JAVA_ROOT" ]; then
+        echo "The java on PATH is $(jdk_major "$PATH_JAVA_ROOT") ($PATH_JAVA_ROOT)." >&2
+    fi
+    echo "Set JAVA_HOME to a JDK 17+ root. On NixOS, either of these works:" >&2
+    echo "  nix shell nixpkgs#jdk21 && ./deploy-debug.sh" >&2
+    echo "  export JAVA_HOME=\$(dirname \"\$(dirname \"\$(readlink -f \"\$(command -v javac)\")\")\")" >&2
     exit 1
 fi
-echo "==> JAVA_HOME: $JAVA_HOME"
+
+JDK_MAJOR=$(jdk_major "$JDK_ROOT")
+if [ "$JDK_MAJOR" != "0" ] && [ "$JDK_MAJOR" -lt 17 ]; then
+    echo "Error: JAVA_HOME is JDK $JDK_MAJOR ($JDK_ROOT); Android Gradle Plugin 8 needs JDK 17 or newer." >&2
+    exit 1
+fi
+
+export JAVA_HOME="$JDK_ROOT"
+export PATH="$JAVA_HOME/bin:$PATH"
+echo "==> JAVA_HOME: $JAVA_HOME (JDK ${JDK_MAJOR})"
 
 # ── 3. Locate the Android SDK and adb ────────────────────────────────────────
 

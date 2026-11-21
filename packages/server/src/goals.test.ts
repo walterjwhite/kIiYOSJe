@@ -169,6 +169,72 @@ describe("GET /queue goal link", () => {
   });
 });
 
+describe("PATCH /thoughts/:id title and parentId", () => {
+  const patch = (call: ReturnType<typeof setup>["call"], id: string, body: unknown) =>
+    call(`/thoughts/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+  const row = (db: ReturnType<typeof setup>["db"], id: string) =>
+    db.select().from(thoughts).where(eq(thoughts.id, id)).get();
+
+  function seed() {
+    const ctx = setup();
+    for (const id of ["g1", "g2", "g3"]) {
+      ctx.db.insert(thoughts).values({ id, title: id, body: "", state: "goal" }).run();
+    }
+    ctx.db.update(thoughts).set({ parentId: "g2" }).where(eq(thoughts.id, "g3")).run();
+    return ctx;
+  }
+
+  it("renames a goal and trims the title", async () => {
+    const { call, db } = seed();
+    expect((await patch(call, "g1", { title: "  Renamed  " })).status).toBe(200);
+    expect(row(db, "g1")?.title).toBe("Renamed");
+  });
+
+  it("rejects an empty title", async () => {
+    const { call } = seed();
+    expect((await patch(call, "g1", { title: "   " })).status).toBe(400);
+  });
+
+  it("makes a goal a sub-goal and back to top-level", async () => {
+    const { call, db } = seed();
+    expect((await patch(call, "g1", { parentId: "g2" })).status).toBe(200);
+    expect(row(db, "g1")?.parentId).toBe("g2");
+    expect((await patch(call, "g1", { parentId: null })).status).toBe(200);
+    expect(row(db, "g1")?.parentId).toBeNull();
+  });
+
+  it("rejects a missing parent, a non-goal parent, itself, and a descendant", async () => {
+    const { call, db } = seed();
+    db.insert(thoughts).values({ id: "t1", title: "Plain", body: "", state: "seedling" }).run();
+    expect((await patch(call, "g1", { parentId: "missing" })).status).toBe(400);
+    expect((await patch(call, "g1", { parentId: "t1" })).status).toBe(400);
+    expect((await patch(call, "g1", { parentId: "g1" })).status).toBe(400);
+    expect((await patch(call, "g2", { parentId: "g3" })).status).toBe(400);
+    expect(row(db, "g2")?.parentId).toBeNull();
+  });
+});
+
+describe("GET /signals thoughtId filter", () => {
+  it("returns only the signals linked to that goal, whatever their age", async () => {
+    const { call, db } = setup();
+    db.insert(thoughts).values({ id: "g1", title: "Goal", body: "", state: "goal" }).run();
+    db.insert(thoughts).values({ id: "g2", title: "Other", body: "", state: "goal" }).run();
+    const mine = addSignal(db);
+    const old = addSignal(db);
+    const other = addSignal(db);
+    addSignal(db);
+    db.update(signals).set({ thoughtId: "g1" }).where(eq(signals.id, mine)).run();
+    db.update(signals)
+      .set({ thoughtId: "g1", receivedAt: "2020-01-01T00:00:00.000Z" })
+      .where(eq(signals.id, old))
+      .run();
+    db.update(signals).set({ thoughtId: "g2" }).where(eq(signals.id, other)).run();
+
+    const rows = (await (await call("/signals?range=all&thoughtId=g1")).json()) as { id: string }[];
+    expect(rows.map((r) => r.id).sort()).toEqual([mine, old].sort());
+  });
+});
+
 describe("auto-link settings", () => {
   it("defaults to on at 0.8 and round-trips a change", async () => {
     const { call } = setup();

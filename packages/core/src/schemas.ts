@@ -211,6 +211,10 @@ export const UpdateThoughtRequestSchema = z.object({
   state: ThoughtStateSchema.optional(),
   nextAction: z.string().nullable().optional(),
   reviewAt: z.string().datetime().nullable().optional(),
+  /** Renames the thought. */
+  title: z.string().trim().min(1).optional(),
+  /** Moves a goal under another goal, or to top level with null. */
+  parentId: z.string().nullable().optional(),
 });
 
 // POST /events/notes — an operator-written journal note. Distinct from the

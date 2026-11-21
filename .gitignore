@@ -32,3 +32,12 @@ coverage/
 # Gemini CLI agent workspace and credentials
 .gemini/
 gha-creds-*.json
+
+# Demo video pipeline scratch space: rendered clips and TTS (work/, out/), raw
+# screenshots of a running app (frames/) and downloaded voice models. These are
+# inputs and outputs of scripts/demo-video, never sources — and frames/ can hold
+# real inbox data, so it must never be committed.
+scripts/demo-video/work/
+scripts/demo-video/out/
+scripts/demo-video/frames/
+scripts/demo-video/models/

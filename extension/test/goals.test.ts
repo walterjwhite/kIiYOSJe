@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canMoveUnder,
   goalFlags,
   goalTree,
   itemsForGoal,
@@ -18,6 +19,24 @@ const goal = (id: string, over: Partial<Goal> = {}): Goal => ({
   escalateBy: null,
   parentId: null,
   ...over,
+});
+
+describe("canMoveUnder", () => {
+  const goals = [goal("a"), goal("b", { parentId: "a" }), goal("c", { parentId: "b" }), goal("d")];
+  it("allows moving a goal under an unrelated goal, or to top level", () => {
+    expect(canMoveUnder(goals, "d", "a")).toBe(true);
+    expect(canMoveUnder(goals, "c", null)).toBe(true);
+  });
+  it("refuses itself, a descendant, and an unknown goal", () => {
+    expect(canMoveUnder(goals, "a", "a")).toBe(false);
+    expect(canMoveUnder(goals, "a", "c")).toBe(false);
+    expect(canMoveUnder(goals, "d", "missing")).toBe(false);
+    expect(canMoveUnder(goals, "missing", "a")).toBe(false);
+  });
+  it("refuses a move that changes nothing", () => {
+    expect(canMoveUnder(goals, "b", "a")).toBe(false);
+    expect(canMoveUnder(goals, "a", null)).toBe(false);
+  });
 });
 
 describe("unlinkedItems / itemsForGoal", () => {

@@ -40,9 +40,11 @@ Open `android/` in Android Studio (Ladybug or newer), or with JDK 17+. The
 committed Gradle wrapper downloads the pinned Gradle 8.11.1, so nothing else
 needs installing.
 
-The quickest path is the deploy script. It finds the JDK, the Android SDK and
-the device (or takes `JAVA_HOME` / `ANDROID_HOME` / `--serial`), builds, installs
-over the existing app (keeping the paired token) and launches it:
+The quickest path is the deploy script. It finds a JDK 17 or newer — `JAVA_HOME`
+first, then `java` on `PATH`, `~/.jdks`, `/usr/lib/jvm`, a NixOS store JDK or
+Android Studio's bundled JBR, picking the newest by version — then the Android
+SDK and the device (or takes `JAVA_HOME` / `ANDROID_HOME` / `--serial`), builds,
+installs over the existing app (keeping the paired token) and launches it:
 
 ```bash
 ./deploy-debug.sh                 # build, install, launch on the connected phone

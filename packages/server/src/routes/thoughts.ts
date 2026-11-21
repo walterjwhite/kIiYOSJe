@@ -74,8 +74,25 @@ export function thoughtsRouter(db: Db) {
 
     if (!existing) return c.json({ error: "Not found" }, 404);
 
+    if (body.parentId) {
+      const parent = db.select().from(thoughts).where(eq(thoughts.id, body.parentId)).get();
+      if (!parent || parent.state !== "goal") {
+        return c.json({ error: "parentId must be an existing goal" }, 400);
+      }
+      // Walk up from the new parent; reaching this goal means a cycle.
+      const seen = new Set<string>();
+      let cursor: string | null = body.parentId;
+      while (cursor && !seen.has(cursor)) {
+        if (cursor === id) return c.json({ error: "a goal cannot sit under itself" }, 400);
+        seen.add(cursor);
+        cursor = db.select().from(thoughts).where(eq(thoughts.id, cursor)).get()?.parentId ?? null;
+      }
+    }
+
     db.update(thoughts)
       .set({
+        ...(body.title !== undefined ? { title: body.title } : {}),
+        ...(body.parentId !== undefined ? { parentId: body.parentId } : {}),
         ...(body.state !== undefined ? { state: body.state } : {}),
         ...(body.nextAction !== undefined ? { nextAction: body.nextAction } : {}),
         ...(body.reviewAt !== undefined ? { reviewAt: body.reviewAt } : {}),

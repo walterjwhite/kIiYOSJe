@@ -1,7 +1,15 @@
 import * as vscode from "vscode";
 import { apiFetch, apiFetchBytes } from "./api-client.js";
 import { ago, channelLabel, timingLabel } from "./format.js";
-import { type Goal, goalFlags, goalTree, itemsForGoal, sortGoals, unlinkedItems } from "./goals.js";
+import {
+  canMoveUnder,
+  type Goal,
+  goalFlags,
+  goalTree,
+  itemsForGoal,
+  sortGoals,
+  unlinkedItems,
+} from "./goals.js";
 import { type QueueItem, runItemAction } from "./queue-actions.js";
 import { itemSearchText } from "./queue-search.js";
 import {
@@ -43,7 +51,9 @@ const QUEUE_STYLE = `
   .timing.can-wait { color: var(--vscode-descriptionForeground, inherit); }
   /* The page does not scroll; each column does, so a long goal list and a long signal list never move together. */
   body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-  .queue-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(280px, 2fr) minmax(320px, 3fr); gap: 16px; }
+  /* Use the whole panel width; the shared page style caps it for reading-width pages. */
+  html body { max-width: none; margin: 0; }
+  .queue-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(300px, 1fr) minmax(360px, 1fr); gap: 20px; }
   .queue-cols > section { min-height: 0; overflow-y: auto; padding-right: 6px; }
   @media (max-width: 760px) { .queue-cols { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
   .search { display: flex; gap: 6px; margin: 0 0 8px; }
@@ -53,6 +63,11 @@ const QUEUE_STYLE = `
   .goal-card { border-left: 3px solid var(--mind-purple); }
   .goal-card.drop-over { outline: 2px dashed var(--mind-accent); outline-offset: 2px; background: color-mix(in srgb, var(--mind-accent) 10%, transparent); }
   .goal-card .queue-item { margin-left: 10px; }
+  .goal-card[draggable="true"] { cursor: grab; }
+  .goal-card.dragging { opacity: 0.45; }
+  .col-title.drop-over { outline: 2px dashed var(--mind-accent); outline-offset: 2px; }
+  .linked[hidden] { display: none; }
+  .linked-toggle { margin: 4px 0 0; }
   .goal-card.sub { border-left-color: var(--mind-accent); }
   .new-goal { display: flex; gap: 6px; margin: 0 0 10px; }
   .new-goal input { flex: 1; min-width: 0; }
@@ -224,6 +239,52 @@ const QUEUE_SCRIPT = `
   var dragged = null;
   var dragIds = [];
   var droppedOnTab = false;
+  var draggedGoal = null;
+
+  // Linked records are hidden under their goal until asked for. The choice is
+  // remembered by the extension so a refresh keeps it.
+  document.querySelectorAll('[data-toggle-linked]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var goalId = btn.getAttribute('data-toggle-linked');
+      var box = btn.parentElement.querySelector('.linked');
+      if (!box) return;
+      box.hidden = !box.hidden;
+      btn.textContent = box.hidden ? 'Show linked' : 'Hide linked';
+      post({ command: 'linkedOpen', goal: goalId, open: !box.hidden });
+    });
+  });
+
+  // Dragging a goal card onto another goal makes it a sub-goal; dropping it on
+  // the "Goals" heading makes it top-level. The extension rejects cycles.
+  document.querySelectorAll('.goal-card[draggable="true"]').forEach(function (card) {
+    card.addEventListener('dragstart', function (e) {
+      if (e.target !== card) return;
+      draggedGoal = card.getAttribute('data-goal');
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedGoal);
+    });
+    card.addEventListener('dragend', function () {
+      draggedGoal = null;
+      card.classList.remove('dragging');
+      document.querySelectorAll('.drop-over').forEach(function (el) { el.classList.remove('drop-over'); });
+    });
+  });
+  var goalRoot = document.querySelector('[data-goal-root]');
+  if (goalRoot) {
+    goalRoot.addEventListener('dragover', function (e) {
+      if (!draggedGoal) return;
+      e.preventDefault();
+      goalRoot.classList.add('drop-over');
+    });
+    goalRoot.addEventListener('dragleave', function () { goalRoot.classList.remove('drop-over'); });
+    goalRoot.addEventListener('drop', function (e) {
+      if (!draggedGoal) return;
+      e.preventDefault();
+      goalRoot.classList.remove('drop-over');
+      post({ command: 'moveGoal', goal: draggedGoal, parent: null });
+    });
+  }
 
   document.querySelectorAll('[data-drop]').forEach(function (tab) {
     tab.addEventListener('dragover', function (e) {
@@ -243,7 +304,8 @@ const QUEUE_SCRIPT = `
 
   document.querySelectorAll('[data-goal]').forEach(function (goal) {
     goal.addEventListener('dragover', function (e) {
-      if (!dragged) return;
+      if (!dragged && !draggedGoal) return;
+      if (draggedGoal === goal.getAttribute('data-goal')) return;
       e.preventDefault();
       goal.classList.add('drop-over');
     });
@@ -251,6 +313,12 @@ const QUEUE_SCRIPT = `
       if (!goal.contains(e.relatedTarget)) goal.classList.remove('drop-over');
     });
     goal.addEventListener('drop', function (e) {
+      if (draggedGoal) {
+        e.preventDefault();
+        goal.classList.remove('drop-over');
+        post({ command: 'moveGoal', goal: draggedGoal, parent: goal.getAttribute('data-goal') });
+        return;
+      }
       if (!dragged) return;
       e.preventDefault();
       goal.classList.remove('drop-over');
@@ -331,6 +399,8 @@ export class QueuePanel extends SectionPanel {
   private static view: QueueView = "today";
   /** The signal search text, remembered so a refresh does not clear it. */
   private static search = "";
+  /** Goals whose linked records are shown; the rest keep them hidden. */
+  private static openGoals = new Set<string>();
   private items: QueueItem[] = [];
   private goals: Goal[] = [];
   private summary: { absorbedToday: number } = { absorbedToday: 0 };
@@ -369,6 +439,8 @@ export class QueuePanel extends SectionPanel {
       view?: string;
       when?: string;
       goal?: string;
+      parent?: string | null;
+      open?: boolean;
       text?: string;
       state?: string;
       items?: unknown;
@@ -381,7 +453,13 @@ export class QueuePanel extends SectionPanel {
     if (m.command === "refresh") this.load();
     else if (m.command === "search") QueuePanel.search = (m.text ?? "").slice(0, 200);
     else if (m.command === "newSubGoal" && m.goal) void this.newSubGoal(m.goal);
-    else if (m.command === "view" && VIEWS.some((v) => v.id === m.view)) {
+    else if (m.command === "renameGoal" && m.goal) void this.renameGoal(m.goal);
+    else if (m.command === "moveGoal" && m.goal && m.parent !== undefined) {
+      void this.moveGoal(m.goal, m.parent);
+    } else if (m.command === "linkedOpen" && m.goal) {
+      if (m.open) QueuePanel.openGoals.add(m.goal);
+      else QueuePanel.openGoals.delete(m.goal);
+    } else if (m.command === "view" && VIEWS.some((v) => v.id === m.view)) {
       QueuePanel.view = m.view as QueueView;
       this.load();
     } else if (m.command === "plan" && itemIds.length > 0 && m.when) this.plan(itemIds, m.when);
@@ -548,6 +626,36 @@ export class QueuePanel extends SectionPanel {
     if (title?.trim()) await this.newGoal(title.trim(), parentId);
   }
 
+  private async renameGoal(goalId: string): Promise<void> {
+    const goal = this.goals.find((g) => g.id === goalId);
+    if (!goal) return;
+    const title = await vscode.window.showInputBox({
+      prompt: "Rename goal",
+      value: goal.title,
+      validateInput: (v) => (v.trim() ? undefined : "Enter a title"),
+    });
+    if (title === undefined || !title.trim() || title.trim() === goal.title) return;
+    await this.patchGoal(goalId, { title: title.trim() }, "rename the goal");
+  }
+
+  /** Makes a goal a sub-goal of `parentId`, or top-level when null. */
+  private async moveGoal(goalId: string, parentId: string | null): Promise<void> {
+    if (!canMoveUnder(this.goals, goalId, parentId)) return;
+    await this.patchGoal(goalId, { parentId }, "move the goal");
+  }
+
+  private async patchGoal(goalId: string, change: object, what: string): Promise<void> {
+    try {
+      await apiFetch(`/thoughts/${encodeURIComponent(goalId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(change),
+      });
+    } catch (err) {
+      vscode.window.showErrorMessage(`mind: could not ${what}. ${String(err)}`);
+    }
+    this.load();
+  }
+
   private async setGoalState(goalId: string, state: "closed" | "parked"): Promise<void> {
     if (!this.goals.some((g) => g.id === goalId)) return;
     try {
@@ -678,7 +786,7 @@ export class QueuePanel extends SectionPanel {
       <div id="audio-box"></div>
       <div class="queue-cols">
         <section>
-          <h3 class="col-title">Goals</h3>
+          <h3 class="col-title" data-goal-root title="Drop a goal here to make it top-level">Goals</h3>
           <div class="new-goal">
             <input id="new-goal" type="text" placeholder="New goal" aria-label="New goal" />
             <button data-action="newGoal" data-value-from="#new-goal">Add</button>
@@ -721,16 +829,23 @@ export class QueuePanel extends SectionPanel {
     const flags = goalFlags(goal, now)
       .map((f) => `<span class="flag ${f}">${f === "overdue" ? "Overdue" : "Review due"}</span>`)
       .join(" ");
+    const open = QueuePanel.openGoals.has(goal.id);
     // Sub-goals are siblings in the DOM (indented), not nested, so a drop on a
     // sub-goal never also fires on its parent.
-    return `<div class="card goal-card${depth > 0 ? " sub" : ""}" data-goal="${esc(goal.id)}" style="margin-left: ${depth * 18}px;">
+    return `<div class="card goal-card${depth > 0 ? " sub" : ""}" draggable="true" data-goal="${esc(goal.id)}" style="margin-left: ${depth * 18}px;">
       <div class="toolbar" style="justify-content: space-between; margin-bottom: 2px;">
         <strong>${esc(goal.title)}</strong>
-        <span>${flags} <span class="badge">${linked.length} linked</span></span>
+        <span>${flags}</span>
       </div>
       ${goal.nextAction ? `<div class="meta">Next: ${esc(goal.nextAction)}</div>` : ""}
-      ${linked.map((i) => this.renderItem(i, today, false, false, true)).join("") || '<div class="meta">Nothing linked.</div>'}
+      ${
+        linked.length > 0
+          ? `<div class="linked-toggle"><button class="linked-btn" data-toggle-linked="${esc(goal.id)}">${open ? "Hide linked" : "Show linked"}</button>
+             <div class="linked"${open ? "" : " hidden"}>${linked.map((i) => this.renderItem(i, today, false, false, true)).join("")}</div></div>`
+          : ""
+      }
       <div class="toolbar" style="margin: 6px 0 0;">
+        <button data-action="renameGoal" data-goal="${esc(goal.id)}">Rename</button>
         <button data-action="newSubGoal" data-goal="${esc(goal.id)}">+ Sub-goal</button>
         <button data-action="goalState" data-goal="${esc(goal.id)}" data-state="closed">Done</button>
         <button data-action="goalState" data-goal="${esc(goal.id)}" data-state="parked">Park</button>

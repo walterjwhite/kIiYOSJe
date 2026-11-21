@@ -83,6 +83,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
   });
 
   // GET /signals?range=1h|4h|12h|today|7d|30d|all&directionId=&adapter=&account=
+  // &thoughtId=<goal id> limits it to the signals linked to that goal.
   // &since=<ISO>&until=<ISO> (since/until override range entirely, for a
   // fully custom window; range alone covers the common cases).
   app.get("/", (c) => {
@@ -90,6 +91,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
     const directionId = c.req.query("directionId");
     const adapter = c.req.query("adapter");
     const account = c.req.query("account");
+    const thoughtId = c.req.query("thoughtId");
     const sinceParam = c.req.query("since");
     const untilParam = c.req.query("until");
 
@@ -118,6 +120,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
     if (directionId) conditions.push(sql`${signals.directionId} = ${directionId}`);
     if (adapter) conditions.push(sql`${signals.adapter} = ${adapter}`);
     if (account) conditions.push(sql`${signals.account} = ${account}`);
+    if (thoughtId) conditions.push(sql`${signals.thoughtId} = ${thoughtId}`);
 
     const whereClause = conditions.length > 0 ? sql.join(conditions, sql` and `) : undefined;
 

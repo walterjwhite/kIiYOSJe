@@ -7,7 +7,18 @@ versions while the project is `0.x`).
 
 ## [Unreleased]
 
+### Changed
+
+- Queue: goal cards no longer show a "N linked" badge or "Nothing linked."
+  Linked records are hidden under their goal until you choose **Show linked**.
+  The two columns now use the full panel width.
+
 ### Added
+
+- Queue: rename a goal (**Rename**) and drag a goal onto another goal to make it
+  a sub-goal, or onto the **Goals** heading to make it top-level.
+  `PATCH /thoughts/:id` accepts `title` and `parentId` (the parent must be an
+  open goal and cannot be the goal itself or one of its descendants).
 
 - Device pairing. **Devices** in the extension is a real registry: choose a
   name and scopes, show a six-digit code, and the new client exchanges it for

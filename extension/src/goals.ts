@@ -47,6 +47,32 @@ export function sortGoals<T extends Goal>(goals: readonly T[], now: Date): T[] {
   return [...goals].sort((a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title));
 }
 
+/**
+ * Whether `goalId` may become a sub-goal of `parentId` (null = top level).
+ * Refuses unknown goals, no-op moves, and any parent that is the goal itself
+ * or one of its descendants, which would create a cycle.
+ */
+export function canMoveUnder(
+  goals: readonly Goal[],
+  goalId: string,
+  parentId: string | null,
+): boolean {
+  const byId = new Map(goals.map((g) => [g.id, g]));
+  const moving = byId.get(goalId);
+  if (!moving) return false;
+  if ((moving.parentId ?? null) === parentId) return false;
+  if (parentId === null) return true;
+  if (!byId.has(parentId)) return false;
+  const seen = new Set<string>();
+  for (let cursor: string | null = parentId; cursor !== null; ) {
+    if (cursor === goalId || seen.has(cursor)) return false;
+    seen.add(cursor);
+    // An ancestor that is no longer an open goal ends the chain.
+    cursor = byId.get(cursor)?.parentId ?? null;
+  }
+  return true;
+}
+
 export interface GoalNode<T extends Goal> {
   readonly goal: T;
   /** 0 for a top-level goal, 1 for its sub-goals, and so on. */
