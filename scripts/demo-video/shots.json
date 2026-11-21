@@ -43,7 +43,8 @@
       "id": "07-signals",
       "duration": 8,
       "caption": "Signals — reclassify anything misrouted",
-      "narration": "Signals lists every signal, inbound and outbound, today by default. If one matched the wrong Direction, reclassify it here."
+      "narration": "Signals lists every signal, inbound and outbound, today by default. If one matched the wrong Direction, reclassify it here.",
+      "masks": [{ "x": 596, "y": 186, "w": 240, "h": 800 }]
     },
     {
       "id": "08-directions",

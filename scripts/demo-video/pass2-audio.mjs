@@ -56,8 +56,10 @@ if (!existsSync(captions)) {
 mkdirSync(ttsDir, { recursive: true });
 
 const voiceUrl = (() => {
-  const [language, region, name, quality] = voice.split("-");
-  return `https://huggingface.co/rhasspy/piper-voices/resolve/main/${language}/${language}_${region}/${name}/${quality}/${voice}`;
+  // en_US-lessac-medium -> en / en_US / lessac / medium
+  const [locale, name, quality] = voice.split("-");
+  const [family] = locale.split("_");
+  return `https://huggingface.co/rhasspy/piper-voices/resolve/main/${family}/${locale}/${name}/${quality}/${voice}`;
 })();
 
 if (flag("--download-voice")) {
@@ -80,8 +82,10 @@ function has(command) {
   try {
     execFileSync(command, ["--version"], { stdio: "ignore" });
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // Installed but unhappy with --version is still installed; only ENOENT
+    // means the binary is not on PATH. piper exits non-zero here.
+    return err?.code !== "ENOENT";
   }
 }
 
