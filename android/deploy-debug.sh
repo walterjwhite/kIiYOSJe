@@ -5,8 +5,10 @@
 #   ./deploy-debug.sh                      # build, install, launch
 #   ./deploy-debug.sh --build-only         # build only; no phone required
 #   ./deploy-debug.sh --serial R58M1234AB  # choose among several devices
+#   ./deploy-debug.sh --local              # also adb reverse the server port over USB
 #
 # Environment overrides (all optional):
+#   MIND_PORT             server port --local forwards (default 8787)
 #   JAVA_HOME             JDK root (auto-detected if unset)
 #   ANDROID_HOME          Android SDK root, or ANDROID_SDK_ROOT (auto-detected)
 #   ADB_SERIAL            target device serial (ANDROID_SERIAL also works)
@@ -20,11 +22,14 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_ONLY=0
+LOCAL=0
+MIND_PORT="${MIND_PORT:-8787}"
 SERIAL="${ADB_SERIAL:-${ANDROID_SERIAL:-}}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --build-only) BUILD_ONLY=1 ;;
+        --local) LOCAL=1 ;;
         --serial)
             SERIAL="${2:-}"
             if [ -z "$SERIAL" ]; then
@@ -34,7 +39,8 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         -h | --help)
-            sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            # Print the header comment block, without hard-coding how long it is.
+            awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}"
             exit 0
             ;;
         -*)
@@ -45,6 +51,14 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+# Fail on a bad port before doing any work, device or not.
+if [ "$LOCAL" -eq 1 ]; then
+    if ! [[ "$MIND_PORT" =~ ^[0-9]+$ ]] || [ "$MIND_PORT" -lt 1 ] || [ "$MIND_PORT" -gt 65535 ]; then
+        echo "Error: MIND_PORT must be a TCP port (1-65535), got '$MIND_PORT'." >&2
+        exit 2
+    fi
+fi
 
 if [ ! -d "$PROJECT_DIR" ]; then
     echo "Error: directory not found: $PROJECT_DIR" >&2
@@ -233,7 +247,22 @@ if [ "$BUILD_ONLY" -eq 0 ]; then
     echo "==> Device: $SERIAL"
 fi
 
-# ── 5. Auto-detect the application id ────────────────────────────────────────
+# ── 5. Forward the server port over USB (--local) ────────────────────────────
+# 'adb reverse' makes 127.0.0.1:<port> on the phone reach this machine, so the
+# phone can pair from the QR code without the server binding to the network.
+
+if [ "$LOCAL" -eq 1 ]; then
+    if [ "$BUILD_ONLY" -eq 1 ]; then
+        echo "Note: --local needs a phone; skipped for --build-only." >&2
+    else
+        echo ""
+        echo "==> Forwarding tcp:$MIND_PORT to this machine over USB..."
+        ${ADB} reverse "tcp:$MIND_PORT" "tcp:$MIND_PORT"
+        echo "==> The phone now reaches http://127.0.0.1:$MIND_PORT here."
+    fi
+fi
+
+# ── 6. Auto-detect the application id ────────────────────────────────────────
 
 PACKAGE_NAME="${ANDROID_PACKAGE_NAME:-}"
 
@@ -256,7 +285,7 @@ if [ -z "$PACKAGE_NAME" ]; then
 fi
 echo "==> Package: $PACKAGE_NAME"
 
-# ── 6. Auto-detect the launcher activity ─────────────────────────────────────
+# ── 7. Auto-detect the launcher activity ─────────────────────────────────────
 
 MAIN_ACTIVITY="${ANDROID_MAIN_ACTIVITY:-}"
 
@@ -282,7 +311,7 @@ if [ -z "$MAIN_ACTIVITY" ]; then
 fi
 echo "==> Activity: ${MAIN_ACTIVITY:-<unknown>}"
 
-# ── 7. Build ─────────────────────────────────────────────────────────────────
+# ── 8. Build ────────────────────────────────────────────────────────────────
 
 echo ""
 echo "==> Building the debug APK..."
@@ -301,24 +330,31 @@ if [ "$BUILD_ONLY" -eq 1 ]; then
     exit 0
 fi
 
-# ── 8. Install ───────────────────────────────────────────────────────────────
+# ── 9. Install ──────────────────────────────────────────────────────────────
 
 echo ""
 echo "==> Installing..."
 # -r keeps app data (the paired token survives), -d allows a version downgrade.
 ${ADB} install -r -d "$APK_PATH"
 
-# ── 9. Launch ────────────────────────────────────────────────────────────────
+# ── 10. Launch ──────────────────────────────────────────────────────────────
 
 if [ -n "$MAIN_ACTIVITY" ]; then
     echo ""
     echo "==> Launching $MAIN_ACTIVITY..."
     ${ADB} shell am start -W -n "${PACKAGE_NAME}/${MAIN_ACTIVITY}" >/dev/null
     echo ""
-    echo "Done. First run: enter the server address and the six-digit code from"
-    echo "VS Code → mind → Devices → Show pairing code. For a server on this"
-    echo "machine over USB, 'adb reverse tcp:8787 tcp:8787' lets you pair to"
-    echo "http://127.0.0.1:8787 without binding the server to the network."
+    echo "Done. First run: in VS Code open mind → Devices → Show pairing code,"
+    echo "then scan the QR code with the phone — it carries the server address"
+    echo "and the six digits."
+    if [ "$LOCAL" -eq 1 ]; then
+        echo "The port is forwarded, so the address should be http://127.0.0.1:$MIND_PORT"
+        echo "(set mind.pairingServerUrl to that if the QR code shows a LAN address)."
+    else
+        echo "For a server on this machine over USB, rerun with --local to forward"
+        echo "tcp:$MIND_PORT and pair to http://127.0.0.1:$MIND_PORT without binding the"
+        echo "server to the network."
+    fi
 else
     echo ""
     echo "Done — installed. Launch it manually or set ANDROID_MAIN_ACTIVITY."

@@ -69,6 +69,11 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
+    // Scanning the pairing QR code. The embedded ZXing activity does the camera
+    // preview, permission prompt and decoding, which keeps the app's own UI a
+    // text field and a button.
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // JVM unit tests only; neither ships in the APK. The android.jar stub for

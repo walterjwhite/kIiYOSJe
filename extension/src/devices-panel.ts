@@ -1,5 +1,6 @@
-import { apiFetch } from "./api-client.js";
+import { apiFetch, pairingServerUrl } from "./api-client.js";
 import { ago } from "./format.js";
+import { qrSvg } from "./qr.js";
 import { esc, SectionPanel } from "./webview-base.js";
 
 /**
@@ -41,6 +42,8 @@ const DEVICES_STYLE = `
   .scope-options label { display: flex; gap: 5px; align-items: center; font-size: 0.9em; }
   .pair-actions { display: flex; gap: 8px; margin-top: 14px; }
   .code-note { text-align: center; margin-top: 6px; }
+  .pairing-qr { display: flex; justify-content: center; margin: 2px 0 12px; }
+  .pairing-qr svg { max-width: 100%; height: auto; border-radius: 6px; }
 `;
 
 const DEVICES_SCRIPT = `
@@ -184,15 +187,28 @@ export class DevicesPanel extends SectionPanel {
     const shown = `${esc(code.slice(0, 3))} ${esc(code.slice(3))}`;
     const expires = new Date(pairing.expiresAt);
     const expiry = Number.isNaN(expires.getTime()) ? "shortly" : expires.toLocaleTimeString();
+    const server = pairingServerUrl();
+
+    // One image carries the address and the code, so pairing is a scan rather
+    // than typing a URL on a phone keyboard.
+    let qr = "";
+    try {
+      qr = qrSvg(`mind://pair?server=${encodeURIComponent(server)}&code=${code}`, { scale: 6 });
+    } catch {
+      // An address too long for the encoder still pairs by hand; keep the digits.
+    }
 
     return `
       <div class="pairing-panel">
+        ${qr ? `<div class="pairing-qr">${qr}</div>` : ""}
         <div class="pairing-code">${shown}</div>
         <p class="sub code-note">
-          Enter this code on <strong>${esc(pairing.name)}</strong> in the mind
-          Android app before ${esc(expiry)}. The device receives its own token;
-          this code works once and is not stored in readable form.
+          Scan this with the mind Android app — it fills in the address and the
+          code — or type the code on <strong>${esc(pairing.name)}</strong> before
+          ${esc(expiry)}. The device receives its own token; this code works once
+          and is not stored in readable form.
         </p>
+        <p class="sub code-note">Address: <code>${esc(server)}</code></p>
         <p class="sub code-note">Permissions: ${esc(pairing.scopes.join(", "))}</p>
         <div class="pair-actions" style="justify-content:center;">
           <button id="devices-pair-cancel">Cancel</button>

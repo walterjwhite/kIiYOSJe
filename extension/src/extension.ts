@@ -11,6 +11,7 @@ import { ModelTracePanel } from "./model-trace-panel.js";
 import { NavProvider } from "./nav-provider.js";
 import { configureNotificationQuietPeriod } from "./notifications-config.js";
 import { QueueDetailPanel } from "./queue-detail-panel.js";
+import { GoalDetailPanel } from "./goal-detail-panel.js";
 import { QueuePanel } from "./queue-panel.js";
 import { ServerController } from "./server-control.js";
 import { SettingsPanel } from "./settings-panel.js";
@@ -59,6 +60,11 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.queue.item", (itemId: string) =>
       QueueDetailPanel.show(itemId),
+    ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.goal.open", (goalId: string) =>
+      GoalDetailPanel.show(goalId),
     ),
   );
   context.subscriptions.push(

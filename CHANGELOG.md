@@ -9,17 +9,23 @@ versions while the project is `0.x`).
 
 ### Changed
 
-- Queue: goal cards no longer show a "N linked" badge or "Nothing linked."
-  Linked records are hidden under their goal until you choose **Show linked**.
-  The two columns now use the full panel width.
+- Queue: goal cards are clean. There is no "N linked" badge and no **Rename**,
+  **+ Sub-goal**, **Done** or **Park** button. Double-click a goal name to rename
+  it in place, drag a goal onto another goal to make it a sub-goal (or onto the
+  **Goals** heading for top level), and use the one **Show linked** button above
+  the goals to show or hide linked records for every goal. Linked records are
+  hidden by default. The two columns use the full panel width.
+- Clicking a goal opens its details: an editable name and a **Signals** tab with
+  every signal linked to it. `GET /signals` accepts `thoughtId`, and
+  `PATCH /thoughts/:id` accepts `title` and `parentId` (the parent must be an open
+  goal and cannot be the goal itself or one of its descendants).
+
+### Fixed
+
+- `GET /signals?range=all` returned only today's signals, so **All** on the
+  Signals screen showed the same as **Today**.
 
 ### Added
-
-- Queue: rename a goal (**Rename**) and drag a goal onto another goal to make it
-  a sub-goal, or onto the **Goals** heading to make it top-level.
-  `PATCH /thoughts/:id` accepts `title` and `parentId` (the parent must be an
-  open goal and cannot be the goal itself or one of its descendants).
-
 - Device pairing. **Devices** in the extension is a real registry: choose a
   name and scopes, show a six-digit code, and the new client exchanges it for
   its own token. Tokens and codes are stored hashed, codes expire in ten
@@ -27,6 +33,16 @@ versions while the project is `0.x`).
   revoking one device takes effect on its next request without touching the
   others. `POST /devices/pairing`, `POST /devices/pair`, `GET /devices`,
   `DELETE /devices/:id`. Migration `0014_devices`.
+- Pairing is a scan. The Devices panel shows a QR code that carries the server
+  address *and* the six-digit code, and the Android app's **Scan pairing QR
+  code** fills in both fields (they stay editable, and typing still works). The
+  encoder is in `extension/src/qr.ts`, so the extension keeps no runtime
+  dependencies. `mind.pairingServerUrl` chooses the encoded address; the
+  default is this machine's private IPv4 address, since `mind.serverUrl` is
+  normally loopback.
+- `android/deploy-debug.sh --local` forwards `tcp:8787` to the phone with
+  `adb reverse`, so the phone can pair to `http://127.0.0.1:8787` without the
+  server binding to the network. `MIND_PORT` changes the port.
 - An Android client in [`android/`](android/README.md): pair once, then read the
   Queue, capture a thought, acknowledge a signal, and approve or discard a draft
   when the device was granted `send`. The last queue is cached and labelled as

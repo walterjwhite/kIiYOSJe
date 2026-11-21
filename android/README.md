@@ -25,9 +25,20 @@ server cannot be reached.
 2. In VS Code: **mind → Devices**. Pick a name and permissions
    (a phone defaults to `read` + `capture`), then **Show pairing code**.
 
-3. In the app: enter `http://<machine-address>:8787` and the six digits. The app
-   exchanges the code for its own token, stored encrypted with a key in the
-   Android Keystore.
+3. In the app: **Scan pairing QR code**, and point the phone at the code beside
+   the six digits. The QR code carries the address *and* the code, so both
+   fields are filled in; pairing is still one explicit tap, so a code scanned by
+   mistake is not spent. Both fields stay editable and can be typed by hand.
+
+   The app exchanges the code for its own token, stored encrypted with a key in
+   the Android Keystore.
+
+The address in the QR code is `mind.pairingServerUrl` if set, and otherwise
+this machine's private IPv4 address (the extension itself keeps talking to
+`mind.serverUrl`, usually loopback). When the phone reaches the server over USB
+instead — `./deploy-debug.sh --local` forwards the port with `adb reverse` — set
+`mind.pairingServerUrl` to `http://127.0.0.1:8787` so the scanned address is the
+forwarded one.
 
 The code is single-use, expires in ten minutes, and accepts five wrong tries.
 Revoke the phone from the same Devices screen; it is locked out on its next
@@ -49,7 +60,12 @@ installs over the existing app (keeping the paired token) and launches it:
 ```bash
 ./deploy-debug.sh                 # build, install, launch on the connected phone
 ./deploy-debug.sh --build-only    # just the APK, no phone needed
+./deploy-debug.sh --local         # ...and 'adb reverse tcp:8787 tcp:8787' over USB
 ```
+
+`--local` forwards the server port to the phone, so the phone can pair to
+`http://127.0.0.1:8787` without the server binding to the network. `MIND_PORT`
+changes the port (default 8787).
 
 By hand the same two steps are:
 

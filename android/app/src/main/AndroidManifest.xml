@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The pairing QR code is scanned with the camera. Not required: the address
+         and code can always be typed instead, so a camera-less device can still
+         pair. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <!-- allowBackup=false keeps the paired device token out of cloud backups, and
          dataExtractionRules excludes everything from the Android 12+ backup and

@@ -3,15 +3,66 @@
  * Used by all tree providers and webviews.
  */
 
-import * as vscode from "vscode";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as vscode from "vscode";
 import { statusIndicator } from "./status-indicator.js";
 
 export function serverUrl(): string {
   return (
     vscode.workspace.getConfiguration("mind").get<string>("serverUrl") ?? "http://127.0.0.1:8787"
+  );
+}
+
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+/**
+ * The address to put in a pairing QR code: one the phone can reach, which is not
+ * necessarily the one this extension uses. `mind.serverUrl` is normally
+ * loopback, and a phone only gets there over USB (adb reverse), so the default
+ * here is this machine's private network address. Setting
+ * `mind.pairingServerUrl` overrides it, for example to `http://127.0.0.1:8787`
+ * when deploying with `android/deploy-debug.sh --local`.
+ */
+export function pairingServerUrl(): string {
+  const configured =
+    vscode.workspace.getConfiguration("mind").get<string>("pairingServerUrl") ?? "";
+  if (configured.trim()) return configured.trim().replace(/\/+$/, "");
+
+  const local = serverUrl();
+  let parsed: URL;
+  try {
+    parsed = new URL(local);
+  } catch {
+    return local;
+  }
+  if (!LOOPBACK_HOSTS.has(parsed.hostname)) return local;
+
+  const address = localAddress();
+  if (!address) return local;
+  return `${parsed.protocol}//${address}:${parsed.port || "8787"}`;
+}
+
+/** This machine's private IPv4 address, if it has one. */
+function localAddress(): string | undefined {
+  const candidates: string[] = [];
+  for (const entries of Object.values(os.networkInterfaces())) {
+    for (const entry of entries ?? []) {
+      if (entry.family !== "IPv4" || entry.internal) continue;
+      candidates.push(entry.address);
+    }
+  }
+  return candidates.find((address) => isPrivate(address)) ?? candidates[0];
+}
+
+function isPrivate(address: string): boolean {
+  const parts = address.split(".").map(Number);
+  const [first, second] = parts;
+  return (
+    first === 10 ||
+    (first === 172 && (second ?? 0) >= 16 && (second ?? 0) <= 31) ||
+    (first === 192 && second === 168)
   );
 }
 

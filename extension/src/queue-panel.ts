@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { apiFetch, apiFetchBytes } from "./api-client.js";
+import { GoalDetailPanel } from "./goal-detail-panel.js";
 import { ago, channelLabel, timingLabel } from "./format.js";
 import {
   canMoveUnder,
@@ -66,8 +67,10 @@ const QUEUE_STYLE = `
   .goal-card[draggable="true"] { cursor: grab; }
   .goal-card.dragging { opacity: 0.45; }
   .col-title.drop-over { outline: 2px dashed var(--mind-accent); outline-offset: 2px; }
-  .linked[hidden] { display: none; }
-  .linked-toggle { margin: 4px 0 0; }
+  .linked { display: none; }
+  .show-linked .linked { display: block; }
+  .goal-title { flex: 1; min-width: 0; cursor: pointer; }
+  .goal-title input { font: inherit; }
   .goal-card.sub { border-left-color: var(--mind-accent); }
   .new-goal { display: flex; gap: 6px; margin: 0 0 10px; }
   .new-goal input { flex: 1; min-width: 0; }
@@ -241,16 +244,54 @@ const QUEUE_SCRIPT = `
   var droppedOnTab = false;
   var draggedGoal = null;
 
-  // Linked records are hidden under their goal until asked for. The choice is
-  // remembered by the extension so a refresh keeps it.
-  document.querySelectorAll('[data-toggle-linked]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var goalId = btn.getAttribute('data-toggle-linked');
-      var box = btn.parentElement.querySelector('.linked');
-      if (!box) return;
-      box.hidden = !box.hidden;
-      btn.textContent = box.hidden ? 'Show linked' : 'Hide linked';
-      post({ command: 'linkedOpen', goal: goalId, open: !box.hidden });
+  // Linked records are hidden under their goals until asked for, for all goals
+  // at once. The extension remembers the choice so a refresh keeps it.
+  var linkedToggle = document.getElementById('toggle-linked');
+  if (linkedToggle) linkedToggle.addEventListener('click', function () {
+    var col = document.getElementById('goals-col');
+    var on = col.classList.toggle('show-linked');
+    linkedToggle.textContent = on ? 'Hide linked' : 'Show linked';
+    post({ command: 'linkedOpen', open: on });
+  });
+
+  // A goal title: click opens the goal's details, double-click renames in
+  // place. The click waits briefly so a double-click does not also open details.
+  document.querySelectorAll('.goal-title').forEach(function (title) {
+    var card = title.closest('.goal-card');
+    var goalId = card.getAttribute('data-goal');
+    var timer = null;
+    title.addEventListener('click', function () {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(function () { timer = null; post({ command: 'openGoal', goal: goalId }); }, 250);
+    });
+    title.addEventListener('dblclick', function () {
+      if (timer) { clearTimeout(timer); timer = null; }
+      var original = title.textContent;
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.value = original;
+      input.setAttribute('aria-label', 'Goal name');
+      input.style.width = '100%';
+      var done = false;
+      // A draggable card would take the mouse away from the text field.
+      card.draggable = false;
+      function finish(save) {
+        if (done) return;
+        done = true;
+        card.draggable = true;
+        var text = input.value.trim();
+        title.textContent = save && text ? text : original;
+        if (save && text && text !== original) post({ command: 'renameGoal', goal: goalId, text: text });
+      }
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+      });
+      input.addEventListener('blur', function () { finish(true); });
+      title.textContent = '';
+      title.appendChild(input);
+      input.focus();
+      input.select();
     });
   });
 
@@ -399,8 +440,8 @@ export class QueuePanel extends SectionPanel {
   private static view: QueueView = "today";
   /** The signal search text, remembered so a refresh does not clear it. */
   private static search = "";
-  /** Goals whose linked records are shown; the rest keep them hidden. */
-  private static openGoals = new Set<string>();
+  /** Whether linked records show under their goals (all goals at once). */
+  private static showLinked = false;
   private items: QueueItem[] = [];
   private goals: Goal[] = [];
   private summary: { absorbedToday: number } = { absorbedToday: 0 };
@@ -452,14 +493,14 @@ export class QueuePanel extends SectionPanel {
         : [];
     if (m.command === "refresh") this.load();
     else if (m.command === "search") QueuePanel.search = (m.text ?? "").slice(0, 200);
-    else if (m.command === "newSubGoal" && m.goal) void this.newSubGoal(m.goal);
-    else if (m.command === "renameGoal" && m.goal) void this.renameGoal(m.goal);
-    else if (m.command === "moveGoal" && m.goal && m.parent !== undefined) {
+    else if (m.command === "renameGoal" && m.goal && m.text?.trim()) {
+      void this.renameGoal(m.goal, m.text.trim());
+    } else if (m.command === "openGoal" && m.goal && this.goals.some((g) => g.id === m.goal)) {
+      void vscode.commands.executeCommand("mind.goal.open", m.goal);
+    } else if (m.command === "moveGoal" && m.goal && m.parent !== undefined) {
       void this.moveGoal(m.goal, m.parent);
-    } else if (m.command === "linkedOpen" && m.goal) {
-      if (m.open) QueuePanel.openGoals.add(m.goal);
-      else QueuePanel.openGoals.delete(m.goal);
-    } else if (m.command === "view" && VIEWS.some((v) => v.id === m.view)) {
+    } else if (m.command === "linkedOpen") QueuePanel.showLinked = m.open === true;
+    else if (m.command === "view" && VIEWS.some((v) => v.id === m.view)) {
       QueuePanel.view = m.view as QueueView;
       this.load();
     } else if (m.command === "plan" && itemIds.length > 0 && m.when) this.plan(itemIds, m.when);
@@ -475,12 +516,6 @@ export class QueuePanel extends SectionPanel {
       void this.link(itemIds, null);
     } else if (m.command === "newGoal" && m.text?.trim()) {
       void this.newGoal(m.text.trim());
-    } else if (
-      m.command === "goalState" &&
-      m.goal &&
-      (m.state === "closed" || m.state === "parked")
-    ) {
-      void this.setGoalState(m.goal, m.state);
     } else if (m.command === "transcript") {
       void this.showTranscript();
     } else if (m.command === "audio") {
@@ -604,11 +639,11 @@ export class QueuePanel extends SectionPanel {
     this.load();
   }
 
-  private async newGoal(title: string, parentId: string | null = null): Promise<void> {
+  private async newGoal(title: string): Promise<void> {
     try {
       await apiFetch("/thoughts", {
         method: "POST",
-        body: JSON.stringify({ title, body: "", directionId: null, state: "goal", parentId }),
+        body: JSON.stringify({ title, body: "", directionId: null, state: "goal", parentId: null }),
       });
     } catch (err) {
       vscode.window.showErrorMessage(`mind: could not create the goal. ${String(err)}`);
@@ -616,26 +651,10 @@ export class QueuePanel extends SectionPanel {
     this.load();
   }
 
-  private async newSubGoal(parentId: string): Promise<void> {
-    const parent = this.goals.find((g) => g.id === parentId);
-    if (!parent) return;
-    const title = await vscode.window.showInputBox({
-      prompt: `New sub-goal under "${parent.title}"`,
-      validateInput: (v) => (v.trim() ? undefined : "Enter a title"),
-    });
-    if (title?.trim()) await this.newGoal(title.trim(), parentId);
-  }
-
-  private async renameGoal(goalId: string): Promise<void> {
+  private async renameGoal(goalId: string, title: string): Promise<void> {
     const goal = this.goals.find((g) => g.id === goalId);
-    if (!goal) return;
-    const title = await vscode.window.showInputBox({
-      prompt: "Rename goal",
-      value: goal.title,
-      validateInput: (v) => (v.trim() ? undefined : "Enter a title"),
-    });
-    if (title === undefined || !title.trim() || title.trim() === goal.title) return;
-    await this.patchGoal(goalId, { title: title.trim() }, "rename the goal");
+    if (!goal || title === goal.title) return;
+    await this.patchGoal(goalId, { title }, "rename the goal");
   }
 
   /** Makes a goal a sub-goal of `parentId`, or top-level when null. */
@@ -653,19 +672,7 @@ export class QueuePanel extends SectionPanel {
     } catch (err) {
       vscode.window.showErrorMessage(`mind: could not ${what}. ${String(err)}`);
     }
-    this.load();
-  }
-
-  private async setGoalState(goalId: string, state: "closed" | "parked"): Promise<void> {
-    if (!this.goals.some((g) => g.id === goalId)) return;
-    try {
-      await apiFetch(`/thoughts/${encodeURIComponent(goalId)}`, {
-        method: "PATCH",
-        body: JSON.stringify({ state }),
-      });
-    } catch (err) {
-      vscode.window.showErrorMessage(`mind: could not update the goal. ${String(err)}`);
-    }
+    GoalDetailPanel.refreshIfOpen();
     this.load();
   }
 
@@ -785,8 +792,13 @@ export class QueuePanel extends SectionPanel {
       <div id="transcript-box" hidden><pre id="transcript"></pre></div>
       <div id="audio-box"></div>
       <div class="queue-cols">
-        <section>
+        <section id="goals-col"${QueuePanel.showLinked ? ' class="show-linked"' : ""}>
           <h3 class="col-title" data-goal-root title="Drop a goal here to make it top-level">Goals</h3>
+          ${
+            this.items.some((i) => i.goalId !== null)
+              ? `<div class="toolbar"><button id="toggle-linked">${QueuePanel.showLinked ? "Hide linked" : "Show linked"}</button></div>`
+              : ""
+          }
           <div class="new-goal">
             <input id="new-goal" type="text" placeholder="New goal" aria-label="New goal" />
             <button data-action="newGoal" data-value-from="#new-goal">Add</button>
@@ -829,27 +841,16 @@ export class QueuePanel extends SectionPanel {
     const flags = goalFlags(goal, now)
       .map((f) => `<span class="flag ${f}">${f === "overdue" ? "Overdue" : "Review due"}</span>`)
       .join(" ");
-    const open = QueuePanel.openGoals.has(goal.id);
     // Sub-goals are siblings in the DOM (indented), not nested, so a drop on a
-    // sub-goal never also fires on its parent.
+    // sub-goal never also fires on its parent. Linked records are always
+    // rendered; CSS hides them unless the Goals column has `show-linked`.
     return `<div class="card goal-card${depth > 0 ? " sub" : ""}" draggable="true" data-goal="${esc(goal.id)}" style="margin-left: ${depth * 18}px;">
       <div class="toolbar" style="justify-content: space-between; margin-bottom: 2px;">
-        <strong>${esc(goal.title)}</strong>
+        <strong class="goal-title" title="Click for details, double-click to rename">${esc(goal.title)}</strong>
         <span>${flags}</span>
       </div>
       ${goal.nextAction ? `<div class="meta">Next: ${esc(goal.nextAction)}</div>` : ""}
-      ${
-        linked.length > 0
-          ? `<div class="linked-toggle"><button class="linked-btn" data-toggle-linked="${esc(goal.id)}">${open ? "Hide linked" : "Show linked"}</button>
-             <div class="linked"${open ? "" : " hidden"}>${linked.map((i) => this.renderItem(i, today, false, false, true)).join("")}</div></div>`
-          : ""
-      }
-      <div class="toolbar" style="margin: 6px 0 0;">
-        <button data-action="renameGoal" data-goal="${esc(goal.id)}">Rename</button>
-        <button data-action="newSubGoal" data-goal="${esc(goal.id)}">+ Sub-goal</button>
-        <button data-action="goalState" data-goal="${esc(goal.id)}" data-state="closed">Done</button>
-        <button data-action="goalState" data-goal="${esc(goal.id)}" data-state="parked">Park</button>
-      </div>
+      ${linked.length > 0 ? `<div class="linked">${linked.map((i) => this.renderItem(i, today, false, false, true)).join("")}</div>` : ""}
     </div>`;
   }
 

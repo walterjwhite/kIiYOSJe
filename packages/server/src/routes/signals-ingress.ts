@@ -101,7 +101,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
     } else if (range in RANGE_HOURS) {
       since = new Date(Date.now() - RANGE_HOURS[range]! * 3_600_000).toISOString();
     } else {
-      const days = RANGE_DAYS[range] ?? 0;
+      const days = range in RANGE_DAYS ? (RANGE_DAYS[range] ?? null) : 0;
       since =
         days === null
           ? null

@@ -128,6 +128,11 @@
           "default": "http://127.0.0.1:8787",
           "description": "mind server URL (must be localhost)"
         },
+        "mind.pairingServerUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Address a phone should use when it scans a pairing QR code. Leave empty for this machine's private network address; set http://127.0.0.1:8787 when the phone reaches the server over USB with 'adb reverse' (android/deploy-debug.sh --local)."
+        },
         "mind.debug": {
           "type": "boolean",
           "default": false,

@@ -204,11 +204,17 @@ was last seen, and its permissions. **Revoke** locks that device out on its next
 request; every other client keeps working. A revoked row stays in the list so
 the history is visible.
 
-**Show pairing code** picks a name and permissions here, then shows a six-digit
-code for ten minutes. Enter the code in the Android app (or any client that
-speaks `POST /devices/pair`). The device receives its own token exactly once;
-the server stores only a hash. The code works once, accepts five wrong tries,
-and new phones default to `read` + `capture`.
+**Show pairing code** picks a name and permissions here, then shows a QR code
+and a six-digit code for ten minutes. The QR code carries both the server
+address and the code, so the Android app fills in both from one scan; the digits
+can also be typed, and any client speaking `POST /devices/pair` can use them.
+The address encoded there is `mind.pairingServerUrl` if set, otherwise this
+machine's private IPv4 address — set it to `http://127.0.0.1:8787` when the phone
+reaches the server over USB (`android/deploy-debug.sh --local`).
+
+The device receives its own token exactly once; the server stores only a hash.
+The code works once, accepts five wrong tries, and new phones default to
+`read` + `capture`.
 
 Permissions mean what they say: `read` is every GET, `capture` adds a thought or
 acknowledges a signal, `send` approves or discards a drafted reply, `render` is
