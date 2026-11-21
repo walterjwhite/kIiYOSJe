@@ -68,8 +68,11 @@ server from step 2 is running.
 Click the **mind** icon in the Activity Bar, then click a section to open
 it as its own panel:
 
-- **Queue** — drafted replies awaiting approval; approve or discard each
-  one inline. This is the only place a send is authorized.
+- **Queue** — everything awaiting action: drafted replies and surfaced
+  signals nobody has acknowledged. Each item says when it needs you and why
+  (some can wait), and offers the actions that fit it. Drag to reorder;
+  **Details** opens the conversation, thought, and history. Approving a
+  drafted reply here is the only place a send is authorized.
 - **Today** — the daily brief: what needs you, what's running, what's overdue.
 - **Signals** — every signal, inbound and outbound; defaults to today, with
   a range control to widen it. Reclassify a signal from here if it matched

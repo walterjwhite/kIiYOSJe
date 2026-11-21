@@ -18,6 +18,7 @@ import { signalsRouter } from "./routes/signals-ingress.js";
 import { adminRouter } from "./routes/admin.js";
 import { proposalsRouter } from "./routes/proposals.js";
 import { eventsRouter } from "./routes/events.js";
+import { queueRouter } from "./routes/queue.js";
 
 export function buildApp(db: Db, adapters: AdapterRegistry) {
   const app = new Hono();
@@ -37,6 +38,7 @@ export function buildApp(db: Db, adapters: AdapterRegistry) {
   app.route("/admin", adminRouter());
   app.route("/proposals", proposalsRouter(db));
   app.route("/events", eventsRouter(db));
+  app.route("/queue", queueRouter(db));
 
   return app;
 }

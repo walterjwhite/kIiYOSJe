@@ -452,6 +452,61 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
     return c.json({ ok: true, reviewedAt: at });
   });
 
+  /**
+   * POST /signals/:id/acknowledge — "seen, nothing more to do", in one step:
+   * marks the signal reviewed, closes its linked thought, and dismisses any
+   * proposed reply. Dismissed (not discarded) so that acknowledging does not
+   * count as rejecting the draft in the direction's override rate.
+   */
+  app.post("/:id/acknowledge", (c) => {
+    const { id } = c.req.param();
+    const signal = db.select().from(signals).where(eq(signals.id, id)).get();
+    if (!signal) return c.json({ error: "Not found" }, 404);
+
+    const at = new Date().toISOString();
+    const dismissed = db
+      .select({ id: actions.id })
+      .from(actions)
+      .where(and(eq(actions.signalId, id), eq(actions.status, "proposed")))
+      .all()
+      .map((a) => a.id);
+
+    let closedThoughtId: string | null = null;
+    db.transaction((tx) => {
+      tx.update(signals).set({ reviewedAt: at }).where(eq(signals.id, id)).run();
+
+      if (signal.thoughtId) {
+        const thought = tx.select().from(thoughts).where(eq(thoughts.id, signal.thoughtId)).get();
+        if (thought && thought.state !== "closed") {
+          tx.update(thoughts)
+            .set({ state: "closed", updatedAt: at })
+            .where(eq(thoughts.id, thought.id))
+            .run();
+          closedThoughtId = thought.id;
+        }
+      }
+
+      for (const actionId of dismissed) {
+        tx.update(actions).set({ status: "dismissed" }).where(eq(actions.id, actionId)).run();
+      }
+
+      tx.insert(events)
+        .values({
+          id: newId(),
+          actor: "user",
+          kind: "signal.acknowledged",
+          payload: JSON.stringify({
+            signalId: id,
+            closedThoughtId,
+            dismissedActionIds: dismissed,
+          }),
+        })
+        .run();
+    });
+
+    return c.json({ ok: true, reviewedAt: at, closedThoughtId, dismissedActionIds: dismissed });
+  });
+
   app.delete("/:id/reviewed", (c) => {
     const { id } = c.req.param();
     const signal = db.select().from(signals).where(eq(signals.id, id)).get();

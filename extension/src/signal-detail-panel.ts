@@ -1,7 +1,11 @@
+import { jsonToHtml } from "./json-html.js";
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
 import { statusIndicator } from "./status-indicator.js";
 import { extractLink } from "./link-extract.js";
+import { channelLabel } from "./format.js";
+import { acknowledgeSignal, openLinkAction } from "./queue-actions.js";
+import { QueuePanel } from "./queue-panel.js";
 import { SectionPanel, esc } from "./webview-base.js";
 
 interface Signal {
@@ -332,48 +336,21 @@ export class SignalDetailPanel extends SectionPanel {
     else if (action.kind === "openLink") await this.openLink(action);
   }
 
-  /**
-   * Acknowledge: "seen, nothing more to do." Marks the signal reviewed and
-   * closes its linked thought so it stops appearing as open work. Both use
-   * existing endpoints; both are recorded as events.
-   */
+  /** Acknowledge: reviewed, thought closed, any proposed reply dismissed. One server call. */
   private async acknowledge(): Promise<void> {
     try {
-      await apiFetch(`/signals/${this.signalId}/reviewed`, { method: "PUT" });
-      const thought = this.data?.thought;
-      if (thought && thought.state !== "closed") {
-        await apiFetch(`/thoughts/${thought.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ state: "closed" }),
-        });
-      }
+      await acknowledgeSignal(this.signalId);
+      QueuePanel.refreshIfOpen();
     } catch (err) {
       vscode.window.showErrorMessage(String(err));
     }
     this.load();
   }
 
-  /**
-   * Opens a link from the message in the operator's own browser, where their
-   * signed-in session applies. The server never fetches it, and the URL is
-   * re-validated against the declared prefix immediately before opening.
-   */
   private async openLink(action: Extract<SignalAction, { kind: "openLink" }>): Promise<void> {
-    const link = this.data
-      ? extractLink(this.data.signal.htmlBody, this.data.signal.body, action.linkPrefix)
-      : undefined;
-    if (!link) {
-      vscode.window.showErrorMessage(`mind: no matching link found for "${action.label}".`);
-      return;
-    }
-    const host = new URL(link).host;
-    const choice = await vscode.window.showWarningMessage(
-      action.confirm ?? `Open a link on ${host} in your browser?`,
-      { modal: true, detail: `${host}${new URL(link).pathname}` },
-      "Open",
-    );
-    if (choice !== "Open") return;
-    await vscode.env.openExternal(vscode.Uri.parse(link, true));
+    const signal = this.data?.signal;
+    if (!signal) return;
+    await openLinkAction(action, signal.htmlBody, signal.body);
   }
 
   private async clearReviewed(): Promise<void> {
@@ -490,7 +467,7 @@ export class SignalDetailPanel extends SectionPanel {
         ${ds.showSubject && signal.subject ? `<tr><th>Subject</th><td>${esc(signal.subject)}</td></tr>` : ""}
         ${ds.showCc && cc.length > 0 ? `<tr><th>Cc</th><td>${esc(cc.join(", "))}</td></tr>` : ""}
         ${ds.showBcc && bcc.length > 0 ? `<tr><th>Bcc</th><td>${esc(bcc.join(", "))}</td></tr>` : ""}
-        <tr><th>Channel</th><td>${esc(signal.adapter)}${signal.account ? ` · ${esc(signal.account)}` : ""}</td></tr>
+        <tr><th>Channel</th><td>${esc(channelLabel(signal.adapter, signal.account))}</td></tr>
         <tr><th>First received</th><td>${esc(signal.receivedAt)}</td></tr>
         <tr><th>Status</th><td><span class="badge">${esc(signal.disposition)}</span></td></tr>
         <tr><th>Kind</th><td>${esc(signal.signalKind ?? "—")}</td></tr>
@@ -577,7 +554,7 @@ export class SignalDetailPanel extends SectionPanel {
   /** The tab title carries enough to tell signals apart without opening them: subject (if any), sender, channel, and roughly when. */
   private tabTitle(signal: Signal): string {
     const when = signal.receivedAt.slice(0, 16).replace("T", " ");
-    const channel = signal.account ? `${signal.adapter}:${signal.account}` : signal.adapter;
+    const channel = channelLabel(signal.adapter, signal.account);
     const subjectPart = signal.subject ? `${signal.subject} — ` : "";
     return `${subjectPart}${signal.sender} — ${channel} — ${when}`;
   }
@@ -607,7 +584,7 @@ function describeNoActionReason(signal: Signal): string {
   }
 }
 
-function renderEventDetail(kind: string, payload: Record<string, unknown>): string {
+export function renderEventDetail(kind: string, payload: Record<string, unknown>): string {
   // signal.processed carries the actual AI reasoning: confidence, intent,
   // urgency, whether it judged itself able to answer, and why it landed
   // where it did. This is the one that answers "how did AI process this".
@@ -734,7 +711,6 @@ function renderDebugDetail(e: JournalEvent, payload: Record<string, unknown>): s
     }
   }
 
-  const raw = JSON.stringify(payload, null, 2);
   return `<table class="debug">${rows.join("")}</table>
-    <details><summary class="meta">Raw event payload</summary><pre>${esc(raw)}</pre></details>`;
+    <details><summary class="meta">Raw event payload</summary><pre class="json">${jsonToHtml(payload, 2)}</pre></details>`;
 }

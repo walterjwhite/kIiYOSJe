@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { channelLabel } from "./format.js";
 import { apiFetch } from "./api-client.js";
 import { SectionPanel, esc } from "./webview-base.js";
 
@@ -147,7 +148,7 @@ export class SignalsPanel extends SectionPanel {
     const rows = this.signals
       .map(
         (s) => `<tr class="clickable" data-action="open" data-id="${esc(s.id)}">
-          <td>${esc(s.adapter)}${s.account ? ` · ${esc(s.account)}` : ""}</td>
+          <td>${esc(channelLabel(s.adapter, s.account))}</td>
           <td>${esc(s.sender)}</td>
           ${this.showSubject ? `<td>${esc(s.subject ?? "—")}</td>` : ""}
           <td>${s.transformedSummary ? esc(s.transformedSummary) + ' <span class="badge">rewritten</span>' : esc(s.body.slice(0, 100))}</td>

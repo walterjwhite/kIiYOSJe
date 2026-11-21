@@ -46,6 +46,8 @@ export const ActionStatus = {
   proposed: "proposed",
   sent: "sent",
   discarded: "discarded",
+  /** Closed by acknowledging the signal. Not a rejection of the draft, so it is excluded from override-rate statistics. */
+  dismissed: "dismissed",
   failed: "failed",
 } as const;
 export type ActionStatus = (typeof ActionStatus)[keyof typeof ActionStatus];

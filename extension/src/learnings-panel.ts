@@ -1,3 +1,4 @@
+import { jsonToHtml } from "./json-html.js";
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
 import { SectionPanel, esc } from "./webview-base.js";
@@ -147,7 +148,7 @@ export class LearningsPanel extends SectionPanel {
                <button data-action="reject" data-id="${esc(p.eventId)}">Reject</button>`
             : `<span class="badge">${esc(p.status)}</span>`;
         return `<div class="card">
-          <div><span class="badge">${esc(d.kind)}</span> ${esc(d.directionId ?? "new direction")} — <strong>${esc(d.field)}</strong>: ${esc(JSON.stringify(d.currentValue))} → ${esc(JSON.stringify(d.proposedValue))}</div>
+          <div><span class="badge">${esc(d.kind)}</span> ${esc(d.directionId ?? "new direction")} — <strong>${esc(d.field)}</strong>: <span class="json">${jsonToHtml(d.currentValue)}</span> → <span class="json">${jsonToHtml(d.proposedValue)}</span></div>
           <div class="sub">${esc(d.rationale)}</div>
           <div class="sub">evidence: ${d.evidence.total} total, ${d.evidence.discarded} discarded, ${(d.evidence.overrideRate * 100).toFixed(0)}% override rate</div>
           <div class="toolbar" style="margin-top: 6px; margin-bottom: 0;">${actions}</div>

@@ -78,6 +78,20 @@
       "when": 1795310000000,
       "tag": "0010_signal_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1795320000000,
+      "tag": "0011_queue_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1795330000000,
+      "tag": "0012_queue_plan",
+      "breakpoints": true
     }
   ]
 }

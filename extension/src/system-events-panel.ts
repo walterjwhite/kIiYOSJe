@@ -1,4 +1,5 @@
 import { apiFetch } from "./api-client.js";
+import { jsonTextToHtml } from "./json-html.js";
 import { SectionPanel, esc } from "./webview-base.js";
 
 export type EventRange = "1h" | "4h" | "12h" | "today" | "7d" | "30d" | "all";
@@ -93,17 +94,13 @@ export class SystemEventsPanel extends SectionPanel {
 
     const rows = this.events
       .map((e) => {
-        let detail = e.payload;
-        try {
-          detail = JSON.stringify(JSON.parse(e.payload));
-        } catch {
-          /* keep raw payload */
-        }
+        const compact = jsonTextToHtml(e.payload);
+        const pretty = jsonTextToHtml(e.payload, 2);
         return `<tr>
-          <td>${esc(e.at)}</td>
+          <td data-sort-value="${esc(e.at)}">${esc(e.at)}</td>
           <td>${esc(e.actor)}</td>
           <td>${esc(e.kind)}</td>
-          <td class="meta">${esc(detail.slice(0, 200))}</td>
+          <td class="meta"><details><summary class="json">${compact}</summary><pre class="json">${pretty}</pre></details></td>
         </tr>`;
       })
       .join("");
@@ -117,8 +114,8 @@ export class SystemEventsPanel extends SectionPanel {
       </div>
       ${
         this.events.length > 0
-          ? `<table>
-              <thead><tr><th>When</th><th>Actor</th><th>Kind</th><th>Detail</th></tr></thead>
+          ? `<table class="sortable">
+              <thead><tr><th data-sort="text">When</th><th data-sort="text">Actor</th><th data-sort="text">Kind</th><th data-sort="text">Detail</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>`
           : '<p class="empty">Nothing in this range.</p>'

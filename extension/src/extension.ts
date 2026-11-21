@@ -4,6 +4,7 @@ import { configureAiProvider, refreshAiStatusBarItem, createAiStatusBarItem } fr
 import { configureNotificationQuietPeriod } from "./notifications-config.js";
 import { NavProvider } from "./nav-provider.js";
 import { QueuePanel } from "./queue-panel.js";
+import { QueueDetailPanel } from "./queue-detail-panel.js";
 import { BriefPanel } from "./brief-panel.js";
 import { SignalsPanel } from "./signals-panel.js";
 import { SignalDetailPanel } from "./signal-detail-panel.js";
@@ -55,6 +56,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.queue", () => QueuePanel.show()),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.queue.item", (itemId: string) =>
+      QueueDetailPanel.show(itemId),
+    ),
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.brief", () => BriefPanel.show()),

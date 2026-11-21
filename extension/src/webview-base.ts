@@ -30,7 +30,7 @@ export abstract class SectionPanel {
   protected abstract onMessage(msg: unknown): void;
 
   /** Wraps body HTML in the shared CSP/style shell and returns a nonce for inline scripts. */
-  protected shell(title: string, bodyHtml: string, extraStyle = ""): string {
+  protected shell(title: string, bodyHtml: string, extraStyle = "", extraScript = ""): string {
     const nonce = crypto.randomBytes(16).toString("base64");
     return `<!DOCTYPE html>
 <html lang="en">
@@ -262,6 +262,24 @@ export abstract class SectionPanel {
     }
 
     .danger { color: var(--mind-red); font-weight: 500; }
+
+    /* JSON syntax highlighting (see json-html.ts) */
+    .json { font-family: var(--vscode-editor-font-family, monospace); font-size: 0.92em; white-space: pre-wrap; word-break: break-word; }
+    summary.json { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60ch; cursor: pointer; }
+    pre.json { margin: 6px 0; padding: 8px 10px; background: var(--mind-row-alt); border-radius: 4px; overflow-x: auto; }
+    .j-key { color: var(--vscode-symbolIcon-propertyForeground, var(--mind-accent)); }
+    .j-str { color: var(--vscode-debugTokenExpression-string, var(--mind-green)); }
+    .j-num { color: var(--vscode-debugTokenExpression-number, var(--mind-yellow)); }
+    .j-bool { color: var(--vscode-debugTokenExpression-boolean, var(--mind-purple)); }
+    .j-null { color: var(--mind-red); font-style: italic; }
+    .j-punct { opacity: 0.6; }
+
+    /* Sortable tables: add class="sortable" and <th data-sort="text|num">; a cell's data-sort-value overrides its text. */
+    table.sortable th[data-sort] { cursor: pointer; user-select: none; }
+    table.sortable th[data-sort]:hover { opacity: 1; }
+    table.sortable th[data-sort]::after { content: " \\2195"; opacity: 0.35; }
+    table.sortable th[aria-sort="ascending"]::after { content: " \\25B2"; opacity: 1; }
+    table.sortable th[aria-sort="descending"]::after { content: " \\25BC"; opacity: 1; }
 
     .bar-row {
       display: flex;
@@ -523,6 +541,29 @@ export abstract class SectionPanel {
       switchEl.click();
     }
   });
+  document.addEventListener('click', function(e) {
+    var th = e.target.closest('table.sortable th[data-sort]');
+    if (!th) return;
+    var table = th.closest('table');
+    var body = table.tBodies[0];
+    var col = Array.prototype.indexOf.call(th.parentNode.children, th);
+    var asc = th.getAttribute('aria-sort') !== 'ascending';
+    var numeric = th.getAttribute('data-sort') === 'num';
+    function key(row) {
+      var cell = row.children[col];
+      var v = cell.hasAttribute('data-sort-value') ? cell.getAttribute('data-sort-value') : cell.textContent.trim();
+      return numeric ? (parseFloat(v) || 0) : v.toLowerCase();
+    }
+    var rows = Array.prototype.slice.call(body.rows).map(function(r, i) { return { r: r, k: key(r), i: i }; });
+    rows.sort(function(a, b) {
+      var c = a.k < b.k ? -1 : a.k > b.k ? 1 : 0;
+      return (asc ? c : -c) || a.i - b.i;
+    });
+    rows.forEach(function(x) { body.appendChild(x.r); });
+    Array.prototype.forEach.call(th.parentNode.children, function(h) { h.removeAttribute('aria-sort'); });
+    th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+  });
+${extraScript}
 </script>
 </body>
 </html>`;

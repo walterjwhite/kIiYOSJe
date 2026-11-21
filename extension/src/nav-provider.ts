@@ -26,7 +26,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     id: "queue",
     label: "Queue",
-    description: "proposed actions awaiting approval",
+    description: "plan and work through what needs action",
     icon: "inbox",
     command: "mind.queue",
   },

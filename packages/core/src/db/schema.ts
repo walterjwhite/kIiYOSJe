@@ -144,6 +144,27 @@ export const actions = sqliteTable("actions", {
   sentAt: text("sent_at"),
 }, (t) => [index("actions_status_idx").on(t.status)]);
 
+// ── queue_order ──────────────────────────────────────────────────────────────
+// The operator's drag-and-drop order of Queue items. `item_id` is the queue
+// item id ("action:<id>" or "signal:<id>"), not a foreign key, because items
+// come from two tables. Rows for resolved items are dropped on the next save.
+
+export const queueOrder = sqliteTable("queue_order", {
+  itemId: text("item_id").primaryKey(),
+  position: integer("position").notNull(),
+});
+
+// ── queue_plan ───────────────────────────────────────────────────────────────
+// Which day the operator plans to deal with a Queue item. `planned_date` is a
+// calendar date (YYYY-MM-DD) in the operator's own timezone, chosen in the
+// extension, so the server never has to know the timezone. No row means the
+// item is in the backlog.
+
+export const queuePlan = sqliteTable("queue_plan", {
+  itemId: text("item_id").primaryKey(),
+  plannedDate: text("planned_date").notNull(),
+});
+
 // ── events (append-only audit log) ───────────────────────────────────────────
 
 export const events = sqliteTable("events", {
