@@ -1,0 +1,85 @@
+name: Agent PR guard
+
+# Extra gates for pull requests raised by an AI agent. An agent PR is one whose
+# head branch starts with `agent/` or that carries the `ai-generated` label.
+# Uses `pull_request` (not `pull_request_target`), so fork code never runs with
+# write tokens. Untrusted text (PR body) is passed through env, never interpolated.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: agent-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: agent-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+      BASE_REF: origin/${{ github.base_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Decide whether this is an agent PR
+        id: who
+        run: |
+          case "$HEAD_REF" in agent/*) echo "agent=true" >> "$GITHUB_OUTPUT" ;; *)
+            case ",$LABELS," in *,ai-generated,*) echo "agent=true" >> "$GITHUB_OUTPUT" ;; *) echo "agent=false" >> "$GITHUB_OUTPUT" ;; esac ;;
+          esac
+
+      - name: Require a linked issue
+        if: steps.who.outputs.agent == 'true'
+        run: |
+          if ! printf '%s' "$PR_BODY" | grep -Eiq '(closes|fixes|resolves) +#[0-9]+'; then
+            echo "Agent PRs must say 'Closes #<issue>' in the description."; exit 1
+          fi
+
+      - name: Require the ai-generated label
+        if: steps.who.outputs.agent == 'true'
+        run: |
+          case ",$LABELS," in *,ai-generated,*) ;; *) echo "Add the ai-generated label."; exit 1 ;; esac
+
+      - name: Protected paths need an approved scope
+        if: steps.who.outputs.agent == 'true'
+        run: |
+          case ",$LABELS," in
+            *,human-approved-scope,*) node scripts/check-pr-scope.mjs "$BASE_REF" --allow-protected ;;
+            *) node scripts/check-pr-scope.mjs "$BASE_REF" ;;
+          esac
+
+      - name: Source changes need test changes
+        if: steps.who.outputs.agent == 'true'
+        run: |
+          changed=$(git diff --name-only "$BASE_REF...HEAD")
+          src=$(printf '%s\n' "$changed" | grep -E '^(packages|extension)/.*/?src/.*\.ts$' | grep -vE '\.test\.ts$' || true)
+          tests=$(printf '%s\n' "$changed" | grep -E '\.test\.ts$' || true)
+          case ",$LABELS," in *,no-tests-needed,*) exit 0 ;; esac
+          if [ -n "$src" ] && [ -z "$tests" ]; then
+            echo "Source changed without a test change. Add a test, or ask a maintainer for no-tests-needed."
+            printf '%s\n' "$src"; exit 1
+          fi
+
+      - name: Dependency changes are visible
+        if: steps.who.outputs.agent == 'true'
+        run: |
+          if git diff --name-only "$BASE_REF...HEAD" | grep -qE '(^|/)package(-lock)?\.json$'; then
+            case ",$LABELS," in *,deps-approved,*) ;; *)
+              echo "Manifest or lockfile changed. A maintainer must add deps-approved after reviewing the license and need."; exit 1 ;;
+            esac
+          fi

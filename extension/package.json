@@ -47,6 +47,10 @@
         "title": "mind: Open System Events"
       },
       {
+        "command": "mind.modelTrace",
+        "title": "mind: Open Model Trace"
+      },
+      {
         "command": "mind.devices",
         "title": "mind: Open Devices"
       },

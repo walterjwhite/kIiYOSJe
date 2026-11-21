@@ -1,0 +1,57 @@
+name: Agent intake
+
+# An issue is eligible for an AI agent only when a maintainer applies `ai-ready`
+# and the issue has acceptance criteria. Issue text is untrusted data: this
+# workflow only reads it with github-script and never executes it.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  check:
+    if: github.event.label.name == 'ai-ready'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const number = context.payload.issue.number;
+            const actor = context.payload.sender.login;
+
+            const reject = async (reason) => {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name: "ai-ready" }).catch(() => {});
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: number,
+                body: `Removed \`ai-ready\`: ${reason}`,
+              });
+            };
+
+            const perm = await github.rest.repos.getCollaboratorPermissionLevel({ owner, repo, username: actor });
+            if (!["admin", "maintain"].includes(perm.data.permission)) {
+              return reject(`@${actor} is not a maintainer. Only maintainers can mark an issue as ready for an agent.`);
+            }
+
+            const body = context.payload.issue.body ?? "";
+            const hasCriteria = /acceptance criteria/i.test(body) && /- \[[ x]\]/i.test(body);
+            if (!hasCriteria) {
+              return reject("the issue needs an **Acceptance criteria** section with at least one checkbox.");
+            }
+            const labels = context.payload.issue.labels.map((l) => l.name);
+            if (labels.includes("needs-human-decision") || labels.includes("security")) {
+              return reject("issues labelled `needs-human-decision` or `security` are not eligible for an agent.");
+            }
+
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: number,
+              body: [
+                "Ready for an agent. Work on a branch named `agent/<issue>-<slug>`, open a PR with `Closes #" + number + "`, and follow AGENTS.md.",
+                "Gates before merge: `ci-pass`, `agent-guard`, `Security`, and one human approval (two for CODEOWNERS paths).",
+              ].join("\n"),
+            });

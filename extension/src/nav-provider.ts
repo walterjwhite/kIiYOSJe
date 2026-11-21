@@ -80,6 +80,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     command: "mind.systemEvents",
   },
   {
+    id: "modelTrace",
+    label: "Model Trace",
+    description: "where model calls go, as a graph",
+    icon: "type-hierarchy",
+    command: "mind.modelTrace",
+  },
+  {
     id: "devices",
     label: "Devices",
     description: "paired clients (preview)",

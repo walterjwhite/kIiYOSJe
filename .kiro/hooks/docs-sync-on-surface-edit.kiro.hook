@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Keep docs in step with config and API surface",
+  "description": "When a route, config, env var, or CLI command changes, prompt the agent to update the docs, data inventory, and changelog in the same change.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "packages/server/src/routes/*.ts",
+      "packages/core/src/config.ts",
+      "packages/core/src/credentials.ts",
+      "packages/cli/src/**/*.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A route, config key, environment variable, or CLI command may have changed. Check README.md, the matching .kiro/specs requirements or design, .kiro/steering/privacy-data.md (if data is stored or sent), and CHANGELOG.md [Unreleased]. Update what is stale, in this change. If nothing user-visible changed, say so and do nothing."
+  }
+}

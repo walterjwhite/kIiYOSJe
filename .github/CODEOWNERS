@@ -1,0 +1,13 @@
+# Paths here require review from the listed owner. Enable "Require review from
+# Code Owners" in branch protection (scripts/setup-github.sh does this).
+*                                   @walterjwhite
+/.github/                           @walterjwhite
+/.kiro/steering/                    @walterjwhite
+/scripts/check-*                    @walterjwhite
+/LICENSE                            @walterjwhite
+/extension/LICENSE                  @walterjwhite
+/SECURITY.md                        @walterjwhite
+/packages/core/migrations/          @walterjwhite
+/packages/pipeline/src/decide.ts    @walterjwhite
+/packages/server/src/auth.ts        @walterjwhite
+/packages/adapters/                 @walterjwhite

@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Vulnerability audit after a manifest edit",
+  "description": "Runs npm audit on production dependencies when a manifest or lockfile changes, next to the license audit.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "package.json",
+      "package-lock.json",
+      "packages/*/package.json",
+      "extension/package.json"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "npm audit --omit=dev --audit-level=high"
+  }
+}

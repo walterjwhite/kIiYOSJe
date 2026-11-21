@@ -1,0 +1,25 @@
+{
+  "enabled": true,
+  "name": "Warn before editing protected paths",
+  "description": "Auth, send gates, licensing, workflows, and quality-gate scripts need explicit human approval. Make the agent stop and confirm instead of editing silently.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "packages/server/src/auth.ts",
+      "packages/pipeline/src/decide.ts",
+      "LICENSE",
+      "extension/LICENSE",
+      ".github/**",
+      "scripts/check-*",
+      ".kiro/steering/licensing.md",
+      ".kiro/steering/product.md",
+      ".kiro/steering/security.md",
+      ".gitignore"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "You just edited a protected path (auth, send gates, licensing, CI, quality-gate scripts, policy steering, or .gitignore). Confirm the user explicitly asked for this change. If they did not, revert it and ask. If they did, state in your reply exactly what changed and why, and that the PR needs the human-approved-scope label and CODEOWNERS review."
+  }
+}

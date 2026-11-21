@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "Applied migrations are immutable",
+  "description": "structure.md says never edit an applied migration. This fails when an existing .sql file under packages/core/migrations is modified, deleted, or renamed.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": ["packages/core/migrations/**"]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "node scripts/check-migrations.mjs"
+  }
+}

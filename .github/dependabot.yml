@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, needs-triage]
+    groups:
+      dev-tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+    # Runtime dependencies are pinned exactly (see tech.md). Dependabot PRs still
+    # have to pass `npm run license:check` and the dependency review job.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies, ci]
+    groups:
+      actions:
+        patterns: ["*"]

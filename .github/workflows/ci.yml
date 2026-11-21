@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: Typecheck, test, policy checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run lint
+      - name: Tests
+        run: npm test
+      - name: License audit
+        run: npm run license:check
+      - name: Secret scan
+        run: node scripts/check-secrets.mjs --all
+      - name: Applied migrations unchanged
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+        run: node scripts/check-migrations.mjs "$BASE_REF"
+
+  build:
+    name: Build server and extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Build server packages
+        run: npx tsc --build packages/core packages/pipeline packages/server packages/cli
+      - name: Server starts and answers /health
+        env:
+          MIND_CONFIG_DIR: ${{ runner.temp }}/mind-config
+          MIND_DATA_DIR: ${{ runner.temp }}/mind-data
+        run: |
+          node packages/server/dist/main.js > "$RUNNER_TEMP/server.log" 2>&1 &
+          pid=$!
+          for i in $(seq 1 30); do
+            if [ -s "$MIND_CONFIG_DIR/token" ]; then
+              token=$(cat "$MIND_CONFIG_DIR/token")
+              if curl -fsS -H "Authorization: Bearer $token" http://127.0.0.1:8787/health >/dev/null 2>&1; then ok=1; break; fi
+            fi
+            sleep 1
+          done
+          # Unauthenticated requests must be refused.
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/health || true)
+          kill "$pid" 2>/dev/null || true
+          if [ -z "${ok:-}" ]; then cat "$RUNNER_TEMP/server.log"; exit 1; fi
+          [ "$code" = "401" ] || { echo "expected 401 without a token, got $code"; exit 1; }
+      - name: Package VSIX
+        run: bash scripts/build-extension.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: extension/*.vsix
+          if-no-files-found: error
+          retention-days: 7
+
+  # Single required status check for branch protection.
+  ci-pass:
+    name: ci-pass
+    if: always()
+    needs: [verify, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All required jobs succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for r in $RESULTS; do
+            [ "$r" = "success" ] || { echo "job result: $r"; exit 1; }
+          done

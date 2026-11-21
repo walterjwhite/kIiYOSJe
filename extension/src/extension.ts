@@ -14,6 +14,7 @@ import { LearningsPanel } from "./learnings-panel.js";
 import { AnalyticsPanel } from "./analytics-panel.js";
 import { JournalPanel } from "./journal-panel.js";
 import { SystemEventsPanel } from "./system-events-panel.js";
+import { ModelTracePanel } from "./model-trace-panel.js";
 import { DevicesPanel } from "./devices-panel.js";
 import { SettingsPanel } from "./settings-panel.js";
 import { createStatusIndicatorItem, statusIndicator } from "./status-indicator.js";
@@ -87,6 +88,9 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.systemEvents", () => SystemEventsPanel.show()),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("mind.modelTrace", () => ModelTracePanel.show()),
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.devices", () => DevicesPanel.show()),

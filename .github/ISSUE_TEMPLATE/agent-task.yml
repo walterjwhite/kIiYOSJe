@@ -1,0 +1,56 @@
+name: Task (agent-ready)
+description: A scoped change that a human or an AI agent can pick up and deliver as one PR.
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Write this so someone with no context can finish it. A maintainer adds `ai-ready` once it is clear enough for an agent.
+        Do not paste secrets, tokens, or real message content.
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options: [feature, bug, security-hardening, performance, test, docs, chore]
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and why it matters
+      description: What is wrong or missing, and which part of the thesis, safety posture, or launch readiness it affects.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Packages and files likely involved. State what is out of scope.
+      placeholder: "In: packages/server/src/auth.ts. Out: changing the token format."
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria
+      description: Checkboxes, each verifiable by a test or a command. Use WHEN/THEN/SHALL wording where it helps.
+      placeholder: |
+        - [ ] WHEN a request has a wrong token THEN the server SHALL respond 401 in constant time
+        - [ ] A regression test covers it
+        - [ ] `npm run lint`, `npm test`, `npm run license:check` pass
+    validations:
+      required: true
+  - type: textarea
+    id: spec
+    attributes:
+      label: Related spec, steering, or docs
+      description: Paths under .kiro/ or docs this change must stay consistent with.
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints acknowledged
+      options:
+        - label: No new dependency unless this issue says so (license check required).
+          required: true
+        - label: No change to the send gates, auth, migrations already applied, or licensing without explicit approval in this issue.
+          required: true

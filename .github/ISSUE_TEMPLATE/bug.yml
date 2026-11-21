@@ -1,0 +1,41 @@
+name: Bug report
+description: Something behaves differently from the spec or the docs.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include tokens, credentials, or real message bodies. For a security problem, use a private advisory instead (see SECURITY.md).
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Prefer a failing test or a `demo:seed` scenario.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "OS, Node version, model provider (e.g. ollama qwen2.5:3b)"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted log excerpt
+      render: text

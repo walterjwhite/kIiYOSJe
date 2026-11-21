@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "name": "Safety tests after a gate-adjacent edit",
+  "description": "Runs the send-gate, autosend, and injection-guard tests whenever the decide step, adapters, pipeline guards, or auth change. Gates are the product's core promise.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "packages/pipeline/src/decide.ts",
+      "packages/pipeline/src/autosend*.ts",
+      "packages/pipeline/src/classify.ts",
+      "packages/pipeline/src/draft.ts",
+      "packages/adapters/src/**/*.ts",
+      "packages/server/src/auth.ts",
+      "packages/server/src/routes/actions.ts"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "npx vitest run packages/pipeline/src/decide.test.ts packages/pipeline/src/autosend.test.ts packages/pipeline/src/guards.test.ts packages/server/src/app.test.ts"
+  }
+}
