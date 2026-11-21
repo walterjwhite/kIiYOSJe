@@ -198,7 +198,7 @@ export class ModelTracePanel extends SectionPanel {
       <div id="verdict"><strong></strong></div>
       <div id="stats" class="stats"></div>
       <div id="graph-wrap">
-        <svg id="graph" viewBox="0 0 1100 340" role="img" aria-label="Model call flow graph"></svg>
+        <svg id="graph" viewBox="0 0 1000 340" role="img" aria-label="Model call flow graph"></svg>
         <div id="tip"></div>
       </div>
       <div id="ping" class="meta"></div>

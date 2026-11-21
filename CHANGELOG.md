@@ -8,7 +8,7 @@ versions while the project is `0.x`).
 ## [Unreleased]
 
 ### Added
-- Model Trace shows where signals went: green boxes beside Outcome for Queue, Absorbed, Filed and each linked goal (top three, then "N other goals"). Clicking one lists its signals, and the signal table has a "Went to" column.
+- Model Trace shows where signals went: green boxes under the model for Queue, Absorbed, Filed and each linked goal (top three, then "N other goals"). Clicking one lists its signals, and the signal table has a "Went to" column.
 - Sub-goals. **+ Sub-goal** on a goal adds a goal under it, to any depth; items can be dragged or linked to a sub-goal as to any goal. `POST /thoughts` accepts `parentId` (an existing goal). Migration `0013_goal_parent` adds `thoughts.parent_id`.
 - The Queue has a **Filter signals** box that matches every word against all text an item shows.
 
@@ -16,7 +16,7 @@ versions while the project is `0.x`).
 - A message larger than the model's context window no longer fails with "exceeds the available context size". Message text is condensed and cut to fit before every model call, with one retry at half size. Set the window with `contextTokens` in `ai.json`.
 
 ### Changed
-- Model Trace boxes no longer overlap: steps are evenly spaced, "Queue / absorb" is now "Outcome", and model boxes widen to fit their text.
+- Model Trace boxes no longer overlap: steps are evenly spaced, the "Queue / absorb" step is gone (outcomes are drawn after the model instead), and model boxes widen to fit their text.
 - The Queue's Goals and signals columns scroll independently.
 - Analytics replaces the "By channel" bars with a flow diagram (channel, Direction, outcome) whose nodes and lines list their signals when clicked.
 

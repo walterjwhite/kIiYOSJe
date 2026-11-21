@@ -55,18 +55,19 @@ export const TRACE_SCRIPT = `
   var firstLoad = true;
   // Evenly spaced, each box 118 wide with a 12 px gap, so labels never touch.
   var STEPS = [
-    { id: 'signal', label: 'Signal', x: 70 },
-    { id: 'match', label: 'Match', x: 200 },
-    { id: 'classify', label: 'Classify', x: 330, op: true },
-    { id: 'transform', label: 'Transform', x: 460, op: true },
-    { id: 'draft', label: 'Draft', x: 590, op: true },
-    { id: 'link', label: 'Link to goal', x: 720, op: true },
-    { id: 'outcome', label: 'Outcome', x: 850 }
+    { id: 'signal', label: 'Signal', x: 80 },
+    { id: 'match', label: 'Match', x: 248 },
+    { id: 'classify', label: 'Classify', x: 416, op: true },
+    { id: 'transform', label: 'Transform', x: 584, op: true },
+    { id: 'draft', label: 'Draft', x: 752, op: true },
+    { id: 'link', label: 'Link to goal', x: 920, op: true }
   ];
-  var SY = 70, MY = 270, W = 118, H = 52;
-  // Where signals end up: a column to the right of Outcome.
-  var DX = 1020, DW = 140, DH = 38, DGAP = 50, MAX_GOALS = 3;
-  var MODEL_CENTER = 460;
+  // Three rows: pipeline steps, the model that served them, where signals ended up.
+  var SY = 56, MY = 165, W = 118, H = 52;
+  var CURVE = 30; // control-point offset for step -> model curves
+  var BUS_Y = 246; // where model lines meet before fanning out to the outcomes
+  var DY = 302, DW = 140, DH = 38, DSPACE = 156, MAX_GOALS = 3;
+  var MODEL_CENTER = 500;
   var CHAR_PX = 7.4; // width of one bold 13px character, for sizing boxes to their text
   var graph = document.getElementById('graph');
   var tip = document.getElementById('tip');
@@ -176,14 +177,14 @@ export const TRACE_SCRIPT = `
     if (models.length === 0) {
       ['classify', 'transform', 'draft', 'link'].forEach(function (op) {
         var x1 = stepX[op], x2 = MODEL_CENTER;
-        mk('path', { d: 'M' + x1 + ' ' + (SY + H / 2) + ' C' + x1 + ' ' + (SY + 120) + ',' + x2 + ' ' + (MY - 120) + ',' + x2 + ' ' + (MY - H / 2), 'class': 'edge ghost', 'stroke-width': 2 }, edgesG);
+        mk('path', { d: 'M' + x1 + ' ' + (SY + H / 2) + ' C' + x1 + ' ' + (SY + CURVE) + ',' + x2 + ' ' + (MY - CURVE) + ',' + x2 + ' ' + (MY - H / 2), 'class': 'edge ghost', 'stroke-width': 2 }, edgesG);
       });
     }
     s.edges.forEach(function (e) {
       var x1 = stepX[e.operation];
       if (x1 === undefined) x1 = stepX.draft;
       var x2 = pos[e.modelKey];
-      var d = 'M' + x1 + ' ' + (SY + H / 2) + ' C' + x1 + ' ' + (SY + 120) + ',' + x2 + ' ' + (MY - 120) + ',' + x2 + ' ' + (MY - H / 2);
+      var d = 'M' + x1 + ' ' + (SY + H / 2) + ' C' + x1 + ' ' + (SY + CURVE) + ',' + x2 + ' ' + (MY - CURVE) + ',' + x2 + ' ' + (MY - H / 2);
       var dim = filter && ((filter.type === 'op' && filter.value !== e.operation) || (filter.type === 'model' && filter.value !== e.modelKey));
       var p = mk('path', {
         d: d,
@@ -207,7 +208,6 @@ export const TRACE_SCRIPT = `
       txt(g, st.x, SY - 4, 't1', st.label);
       var sub = '';
       if (st.id === 'signal') sub = s.signals + ' processed';
-      else if (st.id === 'outcome') sub = s.signals + ' decided';
       else if (st.op) sub = o ? o.count + ' calls \\u00b7 ' + fmtMs(o.avgMs) : 'no calls';
       if (sub) txt(g, st.x, SY + 13, 't2', sub);
       hover(g, function () {
@@ -248,24 +248,35 @@ export const TRACE_SCRIPT = `
       g.addEventListener('click', function () { setFilter({ type: 'model', value: m.key }); });
     });
 
-    drawDestinations();
+    var sources = models.length === 0
+      ? [{ x: MODEL_CENTER, y: MY + H / 2 }]
+      : models.map(function (m) { return { x: pos[m.key], y: MY + H / 2 + 10 }; });
+    drawDestinations(sources);
   }
 
-  // Where signals went: Outcome fans out to the places they ended up.
-  function stepX_(id) {
-    for (var i = 0; i < STEPS.length; i++) if (STEPS[i].id === id) return STEPS[i].x;
-    return 0;
-  }
-  function drawDestinations() {
+  // Where signals went: a row under the model(s). Each model's line drops to a
+  // shared point, then fans out to the outcomes. Which model served which
+  // outcome is not recorded per signal, so the fan-out is not split by model.
+  function drawDestinations(sources) {
     var dests = shownDestinations();
-    var ox = stepX_('outcome') + W / 2;
+    if (dests.length === 0) return;
+    var total = dests.length * DSPACE - (DSPACE - DW);
+    var x0 = Math.max(10, Math.min(MODEL_CENTER - total / 2, 1000 - 10 - total));
+    var busX = x0 + total / 2;
+    sources.forEach(function (src) {
+      mk('path', {
+        d: 'M' + src.x + ' ' + src.y + ' C' + src.x + ' ' + (src.y + 25) + ',' + busX + ' ' + (BUS_Y - 25) + ',' + busX + ' ' + BUS_Y,
+        'class': 'edge dest', 'stroke-width': 2
+      }, graph);
+    });
     var biggest = dests.reduce(function (a, d) { return Math.max(a, d.count); }, 1);
     dests.forEach(function (d, i) {
-      var y = SY + i * DGAP;
+      var DX = x0 + i * DSPACE + DW / 2;
+      var y = DY;
       var sel = filter && filter.type === 'dest' && filter.value === d.key;
       var dim = filter && filter.type === 'dest' && !sel;
       mk('path', {
-        d: 'M' + ox + ' ' + SY + ' C' + (ox + 40) + ' ' + SY + ',' + (DX - DW / 2 - 40) + ' ' + y + ',' + (DX - DW / 2) + ' ' + y,
+        d: 'M' + busX + ' ' + BUS_Y + ' C' + busX + ' ' + (BUS_Y + 25) + ',' + DX + ' ' + (y - DH / 2 - 25) + ',' + DX + ' ' + (y - DH / 2),
         'class': 'edge dest' + (dim ? ' dim' : ''),
         'stroke-width': 2 + 8 * d.count / biggest
       }, graph);
@@ -313,7 +324,7 @@ export const TRACE_SCRIPT = `
       var found = data.summary.destinations.filter(function (d) { return d.key === filter.value; })[0];
       return 'Signals that went to ' + (found ? found.label : 'other goals');
     }
-    return { signal: 'Signals processed', match: 'Signals matched to a direction', outcome: 'Signals by outcome' }[filter.value];
+    return { signal: 'Signals processed', match: 'Signals matched to a direction' }[filter.value];
   }
 
   function header(box, count, noun) {
