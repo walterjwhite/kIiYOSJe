@@ -28,6 +28,8 @@ export interface ModelRequest {
   prompt: string;
   /** Which pipeline step is calling, recorded in the trace. */
   operation?: ModelOperation;
+  /** Characters of the message cut to fit the context window; recorded in the trace. */
+  omittedChars?: number;
   /** Receives one trace per call, success or failure. Never carries prompt or response text. */
   onTrace?: (trace: ModelTrace) => void;
 }
@@ -51,6 +53,8 @@ export interface ModelTrace {
   error?: string;
   promptChars: number;
   responseChars: number;
+  /** Characters of the message left out so the prompt fit the model's context window. */
+  omittedChars?: number;
   inputTokens?: number;
   outputTokens?: number;
 }
@@ -77,6 +81,7 @@ async function traced<T>(
     transport: cli ? ("acp" as const) : ("http" as const),
     endpoint: cli ? null : safeBaseUrl(),
     promptChars: request.system.length + request.prompt.length,
+    ...(request.omittedChars ? { omittedChars: request.omittedChars } : {}),
   };
   try {
     const r = await call();

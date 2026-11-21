@@ -9,8 +9,9 @@
  * provider, so classify() calls a real model out of the box at zero cost.
  */
 
-import { ClassifierOutputSchema, aiConfigured, aiProvider, logger } from "@mind/core";
+import { ClassifierOutputSchema, aiConfigured, aiProvider, contextTokens, logger } from "@mind/core";
 import type { z } from "zod";
+import { bodyBudget, fitToTokens, withShrinkingBody } from "./fit.js";
 import { generateStructured } from "./model.js";
 import type { ModelTrace } from "./model.js";
 
@@ -27,6 +28,9 @@ export interface ClassifyInput {
   /** Receives a trace of the model call (timing, model, provider). */
   onTrace?: (trace: ModelTrace) => void;
 }
+
+/** Room kept for the classifier's JSON answer. */
+const CLASSIFY_ANSWER_TOKENS = 400;
 
 const SYSTEM = `You are a signal classifier for a local attention-management system.
 Your job is to read an incoming message and return structured metadata.
@@ -77,11 +81,17 @@ export async function classify(input: ClassifyInput): Promise<ClassifierOutput> 
   }
 
   try {
-    const object = await generateStructured(ClassifierOutputSchema, {
-      system: SYSTEM,
-      prompt: buildPrompt(input),
-      operation: "classify",
-      ...(input.onTrace ? { onTrace: input.onTrace } : {}),
+    // The structured answer is short; the rest of the window is for the message.
+    const budget = bodyBudget(contextTokens(), SYSTEM + buildPrompt({ ...input, signalBody: "" }), CLASSIFY_ANSWER_TOKENS);
+    const object = await withShrinkingBody(budget, (tokens) => {
+      const body = fitToTokens(input.signalBody, tokens);
+      return generateStructured(ClassifierOutputSchema, {
+        system: SYSTEM,
+        prompt: buildPrompt({ ...input, signalBody: body.text }),
+        operation: "classify",
+        omittedChars: body.omittedChars,
+        ...(input.onTrace ? { onTrace: input.onTrace } : {}),
+      });
     });
     return ClassifierOutputSchema.parse(object);
   } catch (err) {

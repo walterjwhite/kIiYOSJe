@@ -7,20 +7,48 @@ import { COVERAGE_TARGET, FALLBACK_DIRECTION_ID, WEEK_MS, weeklyCoverage } from 
 export function metricsRouter(db: Db) {
   const app = new Hono();
 
-  // GET /metrics/signals?directionId=&adapter=&day=YYYY-MM-DD
-  // Analytics drill-down: the signals behind one bar/row of the summary
-  // below. At least one filter is required so this can't silently return
-  // the whole table.
+  // GET /metrics/flow?window=7d — how signals moved: channel, the Direction
+  // that matched, and what became of them. One row per combination, so the
+  // extension can draw the flow and every line in it can be drilled into.
+  app.get("/flow", (c) => {
+    const since = new Date(Date.now() - parseDays(c.req.query("window") ?? "7d") * 86_400_000).toISOString();
+    const rows = db
+      .select({
+        adapter: signals.adapter,
+        directionId: signals.directionId,
+        directionName: directions.name,
+        disposition: signals.disposition,
+        count: sql<number>`count(*)`,
+      })
+      .from(signals)
+      .leftJoin(directions, eq(directions.id, signals.directionId))
+      .where(gte(signals.receivedAt, since))
+      .groupBy(signals.adapter, signals.directionId, signals.disposition)
+      .all();
+    return c.json({ window: c.req.query("window") ?? "7d", links: rows });
+  });
+
+  // GET /metrics/signals?directionId=&adapter=&day=YYYY-MM-DD&disposition=&window=7d
+  // Analytics drill-down: the signals behind one bar, row, node or line of the
+  // summary. At least one filter is required so this can't silently return
+  // the whole table; `window` only narrows it further.
   app.get("/signals", (c) => {
     const directionId = c.req.query("directionId");
     const adapter = c.req.query("adapter");
     const day = c.req.query("day");
+    const disposition = c.req.query("disposition");
+    const window = c.req.query("window");
 
-    if (!directionId && !adapter && !day) {
-      return c.json({ error: "Provide at least one of directionId, adapter, day" }, 400);
+    if (!directionId && !adapter && !day && !disposition) {
+      return c.json({ error: "Provide at least one of directionId, adapter, day, disposition" }, 400);
     }
 
     const conditions: ReturnType<typeof sql>[] = [];
+    if (disposition) conditions.push(sql`${signals.disposition} = ${disposition}`);
+    if (window) {
+      const since = new Date(Date.now() - parseDays(window) * 86_400_000).toISOString();
+      conditions.push(sql`${signals.receivedAt} >= ${since}`);
+    }
     if (directionId) conditions.push(sql`${signals.directionId} = ${directionId}`);
     if (adapter) conditions.push(sql`${signals.adapter} = ${adapter}`);
     if (day) {

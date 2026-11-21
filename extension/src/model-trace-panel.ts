@@ -124,7 +124,7 @@ export class ModelTracePanel extends SectionPanel {
         };
         const tags = await get<{ models?: { name: string }[] }>("/api/tags");
         const ps = await get<{
-          models?: { name: string; size_vram?: number; expires_at?: string }[];
+          models?: { name: string; size_vram?: number; context_length?: number }[];
         }>("/api/ps");
         const installed = (tags.models ?? []).map((m) => m.name);
         lines.push({ text: `Ollama is answering at ${root}.` });
@@ -132,7 +132,7 @@ export class ModelTracePanel extends SectionPanel {
         const running = ps.models ?? [];
         lines.push({
           text: running.length
-            ? `Loaded in memory now: ${running.map((m) => m.name + (m.size_vram ? " (on GPU)" : " (CPU)")).join(", ")}`
+            ? `Loaded in memory now: ${running.map((m) => m.name + (m.size_vram ? " (on GPU)" : " (CPU)") + (m.context_length ? `, ${m.context_length} token window` : "")).join(", ")}`
             : "No model is loaded right now. Ollama unloads idle models after a few minutes, so this is normal when nothing ran recently.",
         });
         for (const m of used) {

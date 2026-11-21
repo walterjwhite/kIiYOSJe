@@ -250,3 +250,16 @@ through in VS Code**.
   README "Audio summary (Piper)"). `.kiro/steering/privacy-data.md` and
   `product.md` still describe the model provider as the only egress; updating
   them needs a maintainer decision.
+
+## Long messages and the Analytics flow
+
+- **Long messages** are condensed and cut to the model's window before each call
+  (`packages/pipeline/src/fit.ts`), with one retry at half size. Tested with a stub
+  that refuses prompts over 4096 tokens like Ollama does; not measured against the
+  operator's real Ollama. Whether answers stay good when the middle of a long message
+  is cut is unmeasured; the start and end are kept on the assumption that they carry
+  the question and the deadline.
+- **Analytics flow** (`GET /metrics/flow`, `flow-model.ts`, `flow-script.ts`) replaces
+  the By channel bars. Tested at the data level and with a scripted fake DOM, not
+  looked at in VS Code.
+

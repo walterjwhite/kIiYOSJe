@@ -15,7 +15,8 @@
  * degrade-quietly behaviour as classify()/draft().
  */
 
-import { aiConfigured, aiProvider, logger } from "@mind/core";
+import { aiConfigured, aiProvider, contextTokens, logger } from "@mind/core";
+import { bodyBudget, fitToTokens, withShrinkingBody } from "./fit.js";
 import { generateReply } from "./model.js";
 import type { ModelTrace } from "./model.js";
 
@@ -30,6 +31,9 @@ export interface TransformInput {
   /** Receives a trace of the model call (timing, model, provider). */
   onTrace?: (trace: ModelTrace) => void;
 }
+
+/** The rewrite is one line. */
+const TRANSFORM_ANSWER_TOKENS = 200;
 
 const SYSTEM = `You rewrite a message into a short, plain-language summary for someone
 scanning a list of many signals. Follow the rewrite instructions exactly. State only what
@@ -55,11 +59,16 @@ export async function transform(input: TransformInput): Promise<string | null> {
   }
 
   try {
-    const text = await generateReply({
-      system: SYSTEM,
-      prompt: buildPrompt(input),
-      operation: "transform",
-      ...(input.onTrace ? { onTrace: input.onTrace } : {}),
+    const budget = bodyBudget(contextTokens(), SYSTEM + buildPrompt({ ...input, signalBody: "" }), TRANSFORM_ANSWER_TOKENS);
+    const text = await withShrinkingBody(budget, (tokens) => {
+      const body = fitToTokens(input.signalBody, tokens);
+      return generateReply({
+        system: SYSTEM,
+        prompt: buildPrompt({ ...input, signalBody: body.text }),
+        operation: "transform",
+        omittedChars: body.omittedChars,
+        ...(input.onTrace ? { onTrace: input.onTrace } : {}),
+      });
     });
     return text.length > 0 ? text : null;
   } catch (err) {

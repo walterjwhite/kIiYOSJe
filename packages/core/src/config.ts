@@ -184,6 +184,8 @@ export interface AiConfigFile {
   draftModel?: string | undefined;
   baseURL?: string | undefined;
   apiKey?: string | undefined;
+  /** The model's context window in tokens; message text is cut to fit it. Default 4096 for ollama, else 32000. */
+  contextTokens?: number | undefined;
 }
 
 function readAiConfigFile(): AiConfigFile {
@@ -200,8 +202,25 @@ export function writeAiConfig(config: AiConfigFile): void {
   ensureDirs();
   const path = aiConfigPath();
   const tmp = `${path}.tmp`;
-  writeFileSync(tmp, JSON.stringify(config, null, 2), { mode: 0o600 });
+  // A provider change from the editor does not know about this tuning knob, so keep it.
+  const merged = config.contextTokens === undefined
+    ? { ...config, ...(readAiConfigFile().contextTokens === undefined ? {} : { contextTokens: readAiConfigFile().contextTokens }) }
+    : config;
+  writeFileSync(tmp, JSON.stringify(merged, null, 2), { mode: 0o600 });
   renameSync(tmp, path);
+}
+
+/**
+ * How many tokens the model can take in one call, prompt and answer together.
+ * ai.json `contextTokens`, then MIND_CONTEXT_TOKENS, then the provider default:
+ * 4096 for Ollama (its own default window) and 32000 otherwise. Raise it only
+ * after raising the window on the model side (see README, "Long messages").
+ */
+export function contextTokens(): number {
+  const fromEnv = Number(process.env["MIND_CONTEXT_TOKENS"]);
+  const configured = readAiConfigFile().contextTokens ?? (Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : undefined);
+  if (configured !== undefined && configured >= 1024) return Math.floor(configured);
+  return aiProvider() === "ollama" ? 4096 : 32000;
 }
 
 export function aiProvider(): AiProvider {

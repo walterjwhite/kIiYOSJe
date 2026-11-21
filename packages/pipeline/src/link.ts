@@ -7,7 +7,8 @@
  */
 
 import { z } from "zod";
-import { aiConfigured, logger } from "@mind/core";
+import { aiConfigured, contextTokens, logger } from "@mind/core";
+import { bodyBudget, fitToTokens, withShrinkingBody } from "./fit.js";
 import { generateStructured } from "./model.js";
 import type { ModelTrace } from "./model.js";
 
@@ -42,6 +43,11 @@ export function chooseLink(
   return { thoughtId: output.thoughtId, confidence: output.confidence };
 }
 
+const MAX_GOALS_IN_PROMPT = 25;
+
+/** The answer is an id and a number. */
+const LINK_ANSWER_TOKENS = 100;
+
 const SYSTEM = `You match an incoming message to one of the operator's Goals, or to none.
 Be conservative: a wrong link hides a message inside the wrong piece of work.
 - Answer with a Goal id only when the message is clearly about that Goal's subject.
@@ -58,24 +64,31 @@ export interface LinkInput {
 }
 
 function buildPrompt(input: LinkInput): string {
+  // A long goal list would eat the window the message needs, so cap it.
   const goals = input.goals
+    .slice(0, MAX_GOALS_IN_PROMPT)
     .map(
       (g) =>
         `- id: ${g.id}\n  title: ${g.title}\n  notes: ${g.body.replace(/\s+/g, " ").slice(0, 300)}`,
     )
     .join("\n");
-  return `Goals:\n${goals}\n\nFrom: ${input.sender}\n${input.subject ? `Subject: ${input.subject}\n` : ""}Message:\n${input.signalBody.slice(0, 4000)}\n\nWhich Goal does this message belong to, if any?`;
+  return `Goals:\n${goals}\n\nFrom: ${input.sender}\n${input.subject ? `Subject: ${input.subject}\n` : ""}Message:\n${input.signalBody}\n\nWhich Goal does this message belong to, if any?`;
 }
 
 /** Asks the model. Returns null when AI is not configured, there are no Goals, or the call fails. */
 export async function proposeLink(input: LinkInput): Promise<LinkOutput | null> {
   if (input.goals.length === 0 || !aiConfigured()) return null;
   try {
-    return await generateStructured(LinkOutputSchema, {
-      system: SYSTEM,
-      prompt: buildPrompt(input),
-      operation: "link",
-      ...(input.onTrace ? { onTrace: input.onTrace } : {}),
+    const budget = bodyBudget(contextTokens(), SYSTEM + buildPrompt({ ...input, signalBody: "" }), LINK_ANSWER_TOKENS);
+    return await withShrinkingBody(budget, (tokens) => {
+      const body = fitToTokens(input.signalBody, tokens);
+      return generateStructured(LinkOutputSchema, {
+        system: SYSTEM,
+        prompt: buildPrompt({ ...input, signalBody: body.text }),
+        operation: "link",
+        omittedChars: body.omittedChars,
+        ...(input.onTrace ? { onTrace: input.onTrace } : {}),
+      });
     });
   } catch (err) {
     logger.warn(

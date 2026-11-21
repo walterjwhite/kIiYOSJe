@@ -95,8 +95,16 @@ match.
 
 ## Analytics
 
-Volume, override rate and time saved. Click a Direction row, a channel bar or a
-day bar to list the signals behind it below.
+Volume, override rate and time saved for the last 7 days.
+
+The **Flow** diagram shows where signals went: channel on the left, the Direction
+that matched in the middle, and the outcome on the right (absorbed, filed,
+surfaced, escalated). A line's thickness is how many signals took that path, and
+the dashes move along it. Hover a node or line to highlight its path and see the
+numbers. Click a node or a line to list its signals below, and click a row to open
+the signal. "Other" nodes group the smallest channels or Directions and cannot be
+opened. The Direction table and the daily volume bars below it open their signals
+the same way.
 
 ## Journal
 

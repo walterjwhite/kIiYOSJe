@@ -26,6 +26,7 @@ import {
   classifyModel,
   draftModel,
   aiBaseUrl,
+  contextTokens,
   loadApiKey,
   quietPeriodConfig,
   writeQuietPeriodConfig,
@@ -57,6 +58,8 @@ const AiConfigRequestSchema = z.object({
   draftModel: z.string().min(1).optional(),
   baseURL: z.string().url().optional(),
   apiKey: z.string().optional(),
+  /** The model's context window; omit to leave the current value alone. */
+  contextTokens: z.number().int().min(1024).max(2_000_000).optional(),
 });
 
 export function adminRouter() {
@@ -94,6 +97,7 @@ export function adminRouter() {
       draftModel: draftModel(),
       baseURL: aiBaseUrl(),
       apiKeyConfigured: loadApiKey() !== undefined,
+      contextTokens: contextTokens(),
     });
   });
 

@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
+import { buildFlow, type FlowGraph, type FlowRow } from "./flow-model.js";
+import { FLOW_SCRIPT, FLOW_STYLE } from "./flow-script.js";
 import { SectionPanel, esc } from "./webview-base.js";
 
 interface DirectionMetric {
@@ -37,6 +39,9 @@ interface MetricsPayload {
   dailyVolume: DailyMetric[];
 }
 
+/** The flow diagram covers the same window as the summary numbers above it. */
+const FLOW_WINDOW = "7d";
+
 interface SignalRow {
   id: string;
   adapter: string;
@@ -57,6 +62,7 @@ interface SignalRow {
 export class AnalyticsPanel extends SectionPanel {
   private static current: AnalyticsPanel | undefined;
   private metrics: MetricsPayload | undefined;
+  private flow: FlowGraph = buildFlow([]);
   private drilldownLabel = "";
   private drilldownRows: SignalRow[] = [];
   private loadError: string | undefined;
@@ -85,6 +91,8 @@ export class AnalyticsPanel extends SectionPanel {
       adapter?: string;
       day?: string;
       id?: string;
+      disposition?: string;
+      window?: string;
     };
     if (m.command === "refresh") this.load();
     else if (m.command === "drilldown") this.drilldown(m);
@@ -95,7 +103,9 @@ export class AnalyticsPanel extends SectionPanel {
 
   private async load(): Promise<void> {
     try {
-      this.metrics = await apiFetch<MetricsPayload>("/metrics");
+      this.metrics = await apiFetch<MetricsPayload>(`/metrics?window=${FLOW_WINDOW}`);
+      const flow = await apiFetch<{ links: FlowRow[] }>(`/metrics/flow?window=${FLOW_WINDOW}`);
+      this.flow = buildFlow(flow.links);
       this.loadError = undefined;
     } catch (err) {
       this.loadError = String(err);
@@ -109,20 +119,30 @@ export class AnalyticsPanel extends SectionPanel {
     directionId?: string;
     adapter?: string;
     day?: string;
+    disposition?: string;
+    window?: string;
   }): Promise<void> {
     const params = new URLSearchParams();
-    let label = "";
+    const parts: string[] = [];
+    if (msg.adapter) {
+      params.set("adapter", msg.adapter);
+      parts.push(msg.adapter);
+    }
     if (msg.directionId) {
       params.set("directionId", msg.directionId);
-      const dir = this.metrics?.byDirection.find((d) => d.id === msg.directionId);
-      label = `${dir?.name ?? msg.directionId} signals`;
-    } else if (msg.adapter) {
-      params.set("adapter", msg.adapter);
-      label = `${msg.adapter} signals`;
-    } else if (msg.day) {
-      params.set("day", msg.day);
-      label = `Signals on ${msg.day}`;
+      parts.push(this.metrics?.byDirection.find((d) => d.id === msg.directionId)?.name ?? msg.directionId);
     }
+    if (msg.disposition) {
+      params.set("disposition", msg.disposition);
+      parts.push(msg.disposition);
+    }
+    if (msg.day) {
+      params.set("day", msg.day);
+      parts.push(msg.day);
+    }
+    // Only the diagram sends a window, so the list matches the numbers it shows.
+    if (msg.window === FLOW_WINDOW) params.set("window", FLOW_WINDOW);
+    const label = `${parts.join(" · ")} signals`;
 
     try {
       this.drilldownRows = await apiFetch<SignalRow[]>(`/metrics/signals?${params.toString()}`);
@@ -158,19 +178,6 @@ export class AnalyticsPanel extends SectionPanel {
       )
       .join("");
 
-    const maxChannel = Math.max(1, ...m.byChannel.map((c) => c.count));
-    const channelBars = m.byChannel
-      .map(
-        (
-          ch,
-        ) => `<div class="bar-row clickable" data-action="drilldown" data-adapter="${esc(ch.adapter)}">
-          <span class="bar-label">${esc(ch.adapter)}</span>
-          <div class="bar-track"><div class="bar-fill" style="width:${(ch.count / maxChannel) * 100}%"></div></div>
-          <span class="bar-value">${ch.count}</span>
-        </div>`,
-      )
-      .join("");
-
     const maxDay = Math.max(1, ...m.dailyVolume.map((d) => d.count));
     const dayBars = m.dailyVolume
       .map(
@@ -202,6 +209,9 @@ export class AnalyticsPanel extends SectionPanel {
            </table>`
         : "";
 
+    // Embedded as inert JSON; "<" is escaped so the data cannot close the tag.
+    const flowJson = JSON.stringify({ ...this.flow, window: FLOW_WINDOW }).replace(/</g, "\\u003c");
+
     const body = `
       <p class="sub">Window: ${esc(m.window)} · ${m.signals} signals / ${m.thoughts} thoughts${m.ratio != null ? ` · ratio ${m.ratio}` : ""}</p>
       <div class="toolbar"><button data-action="refresh">↺ Refresh</button></div>
@@ -212,8 +222,12 @@ export class AnalyticsPanel extends SectionPanel {
         <tbody>${directionRows}</tbody>
       </table>
 
-      <h2>By channel</h2>
-      ${channelBars || '<p class="empty">No signals yet.</p>'}
+      <h2>Flow</h2>
+      <div id="flow-wrap">
+        <svg id="flow" viewBox="0 0 900 240" role="img" aria-label="Signals by channel, direction and outcome"></svg>
+        <div id="flow-tip"></div>
+      </div>
+      <script type="application/json" id="flow-data">${flowJson}</script>
 
       <h2>Daily volume</h2>
       ${dayBars || '<p class="empty">No signals yet.</p>'}
@@ -221,6 +235,6 @@ export class AnalyticsPanel extends SectionPanel {
       ${drilldown}
     `;
 
-    this.panel.webview.html = this.shell("Analytics", body);
+    this.panel.webview.html = this.shell("Analytics", body, FLOW_STYLE, FLOW_SCRIPT);
   }
 }

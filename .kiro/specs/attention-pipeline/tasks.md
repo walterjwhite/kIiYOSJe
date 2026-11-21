@@ -33,3 +33,9 @@
 - [ ] 8. Retrieval (deferred to P6)
   - [ ] 8.1 FTS5 over signals and thoughts
   - [ ] 8.2 Embeddings only if FTS5 proves insufficient
+- [x] 9. Long messages (Requirement 7)
+  - [x] 9.1 `fit.ts`: condense, cut to a token budget, retry once at half size
+  - [x] 9.2 Applied to classify, draft, transform and link; `contextTokens` setting
+  - [x] 9.3 Regression test against a stub that refuses over 4096 tokens
+  - [ ] 9.4 Measure latency and quality at 4096 and 8192 on the operator's hardware
+

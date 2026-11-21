@@ -6,6 +6,7 @@ export * from "./classify.js";
 export * from "./draft.js";
 export * from "./transform.js";
 export * from "./link.js";
+export * from "./fit.js";
 export * from "./decide.js";
 export * from "./escalation.js";
 export * from "./escalation-checker.js";

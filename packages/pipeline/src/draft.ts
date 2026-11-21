@@ -6,8 +6,9 @@
  * Returns null only when no provider is configured at all.
  */
 
-import { aiConfigured, aiProvider, logger } from "@mind/core";
+import { aiConfigured, aiProvider, contextTokens, logger } from "@mind/core";
 import type { ClassifierOutput } from "./classify.js";
+import { bodyBudget, fitToTokens, withShrinkingBody } from "./fit.js";
 import { generateReply } from "./model.js";
 import type { ModelTrace } from "./model.js";
 
@@ -21,6 +22,9 @@ export interface DraftInput {
   /** Receives a trace of the model call (timing, model, provider). */
   onTrace?: (trace: ModelTrace) => void;
 }
+
+/** Room kept for the reply itself. */
+const DRAFT_ANSWER_TOKENS = 800;
 
 const SYSTEM = `You are a professional assistant drafting replies on behalf of the message recipient.
 Follow the direction standard exactly. Be concise. Never commit to dates not given.
@@ -71,11 +75,16 @@ export async function draft(input: DraftInput): Promise<string | null> {
   }
 
   try {
-    const text = await generateReply({
-      system: SYSTEM,
-      prompt: buildPrompt(input),
-      operation: "draft",
-      ...(input.onTrace ? { onTrace: input.onTrace } : {}),
+    const budget = bodyBudget(contextTokens(), SYSTEM + buildPrompt({ ...input, senderBody: "" }), DRAFT_ANSWER_TOKENS);
+    const text = await withShrinkingBody(budget, (tokens) => {
+      const body = fitToTokens(input.senderBody, tokens);
+      return generateReply({
+        system: SYSTEM,
+        prompt: buildPrompt({ ...input, senderBody: body.text }),
+        operation: "draft",
+        omittedChars: body.omittedChars,
+        ...(input.onTrace ? { onTrace: input.onTrace } : {}),
+      });
     });
     return text.length > 0 ? text : null;
   } catch (err) {

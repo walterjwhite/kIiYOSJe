@@ -7,7 +7,11 @@ versions while the project is `0.x`).
 
 ## [Unreleased]
 
+### Fixed
+- A message larger than the model's context window no longer fails with "exceeds the available context size". Message text is condensed and cut to fit before every model call, with one retry at half size. Set the window with `contextTokens` in `ai.json`.
+
 ### Changed
+- Analytics replaces the "By channel" bars with a flow diagram (channel, Direction, outcome) whose nodes and lines list their signals when clicked.
 
 - Form controls follow the editor theme instead of the browser's light default.
 - Queue items can be multi-selected (Ctrl/Cmd+click, Shift+click) and planned, linked or dragged together.

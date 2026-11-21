@@ -99,3 +99,21 @@ keeping message bodies forever.
 3. WHEN an action is approved, discarded, or reclassified THEN the event SHALL
    distinguish an override (draft was wrong) from a reclassification (match was
    wrong).
+
+## Requirement 7 — Messages larger than the model's context window
+
+**User story:** As the operator, I want a very long message to be handled rather
+than fail, without sending more of it to the model than needed.
+
+**Acceptance criteria**
+
+1. WHEN a message plus instructions would exceed the configured context window
+   (`contextTokens`) THEN the message text sent to the model SHALL be condensed and,
+   if still too long, cut in the middle with the cut marked, and the stored signal
+   body SHALL be unchanged.
+2. WHEN a provider reports that the prompt exceeds its context window THEN the call
+   SHALL be retried once with half the message budget, and any other error SHALL not
+   be retried.
+3. WHEN a call used a shortened message THEN its trace SHALL record how many
+   characters were omitted, and SHALL NOT record the text.
+

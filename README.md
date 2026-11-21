@@ -164,7 +164,7 @@ Everything lives under `~/.config/kIiYOSJe/mind` (mode 600) and
 directories; `MIND_DB_PATH` relocates the database alone, which is how
 `demo:serve` points the server at `demo.db`.
 
-- `config/ai.json` — provider, models, base URL, API key
+- `config/ai.json` — provider, models, base URL, API key, and optionally `contextTokens` (see [Long messages](#long-messages))
 - `config/credentials.yml` — Google, Outlook, GitHub, and Google Messages
   bridge credentials, one or more accounts per source (mode 600, never
   committed)
@@ -180,9 +180,47 @@ directories; `MIND_DB_PATH` relocates the database alone, which is how
   summary (`summary.wav`) and the text it was made from
 
 Environment overrides: `MIND_AI_PROVIDER`, `MIND_AI_API_KEY`, `MIND_AI_BASE_URL`,
-`MIND_CLASSIFY_MODEL`, `MIND_DRAFT_MODEL`, `MIND_RETENTION_DAYS`,
+`MIND_CLASSIFY_MODEL`, `MIND_DRAFT_MODEL`, `MIND_CONTEXT_TOKENS`, `MIND_RETENTION_DAYS`,
 `MIND_SEND_ENABLED`, `MIND_LOG_LEVEL`, `MIND_DIRECTIONS_DIR`, `MIND_DB_PATH`,
 `MIND_CONFIG_DIR`, `MIND_DATA_DIR`, `MIND_TEST_TOKEN`.
+
+## Long messages
+
+A model reads a limited number of tokens at once, its context window, and the
+instructions, the message and the answer all share it. Ollama's default window is
+4096 tokens, so a newsletter or a long thread can be far bigger than the model can
+take. mind therefore fits the message to the window before every model call
+(classify, draft, rewrite and goal linking):
+
+1. It drops what costs tokens and says nothing: invisible padding characters,
+   tracking URLs (shown as `[link]`) and long encoded blobs.
+2. If it is still too long, it keeps the start (65%) and the end (35%) and marks the
+   cut, `[… N characters omitted to fit the model's context …]`. The first and last
+   paragraphs usually carry the question and the deadline.
+3. If the provider still says the prompt does not fit, it retries once with half as
+   much of the message.
+
+The full message is always kept in the database; only what is sent to the model is
+cut. Model Trace shows how much was omitted for each call (`omittedChars`).
+
+The window mind assumes is `contextTokens` in `ai.json` (or `MIND_CONTEXT_TOKENS`):
+4096 for Ollama, 32000 for other providers. **It does not change the model.** To
+let Ollama read more, raise its window first, then tell mind:
+
+```bash
+OLLAMA_CONTEXT_LENGTH=8192 ollama serve        # or set it in the Ollama service environment
+```
+
+```json
+{ "provider": "ollama", "contextTokens": 8192 }
+```
+
+Alternatively build a model variant with `PARAMETER num_ctx 8192` in a Modelfile
+(`ollama create`) and select that model. A larger window uses more memory (about
+150 KB per token for a 4B model such as `qwen3:4b-instruct`, so 8192 tokens is
+about 1.2 GB on top of the weights) and makes each call slower, because the model
+reads every token of the prompt. **Check Ollama** in Model Trace shows the window a
+loaded model is using.
 
 ## Behind a proxy
 
