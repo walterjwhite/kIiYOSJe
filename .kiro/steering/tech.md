@@ -44,8 +44,11 @@ inclusion: auto
 ```bash
 npm run dev      # build + start the server with --watch
 npm test         # vitest run
-npm run lint     # tsc --build (typecheck)
+npm run test:coverage   # vitest with v8 coverage and floors
+npm run lint     # tsc --build, then Biome on files changed vs origin/main
+npm run lint:all # Biome lint rules over the whole tree
+npm run format   # Biome formatter
 npm run license:check   # offline license audit of the lockfile
-sh build-server.sh
-bash build-extension.sh
+sh scripts/build-server.sh
+bash scripts/build-extension.sh
 ```

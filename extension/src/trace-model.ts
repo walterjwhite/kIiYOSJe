@@ -58,7 +58,21 @@ export interface EdgeStat {
   avgMs: number;
 }
 
+/** One processed signal, for the table behind the non-model nodes. */
+export interface ProcessedRecord {
+  at: string;
+  signalId: string | null;
+  adapter: string;
+  disposition: string;
+  directionId: string | null;
+  matchedBy: string | null;
+  calls: number;
+  modelMs: number;
+}
+
 export interface TraceSummary {
+  /** Newest first. */
+  records: ProcessedRecord[];
   signals: number;
   withModel: number;
   withoutModel: number;
@@ -101,6 +115,7 @@ function parseCall(raw: unknown, at: string, signalId: string | null): TraceCall
 
 export function summarize(evts: RawEvent[]): TraceSummary {
   const calls: TraceCall[] = [];
+  const records: ProcessedRecord[] = [];
   const skipped: Record<string, number> = {};
   let signals = 0;
   let withModel = 0;
@@ -118,14 +133,26 @@ export function summarize(evts: RawEvent[]): TraceSummary {
     const signalId = typeof p["signalId"] === "string" ? p["signalId"] : null;
     const list = Array.isArray(ai["calls"]) ? (ai["calls"] as unknown[]) : [];
     let any = false;
+    let made = 0;
     for (const raw of list) {
       const c = parseCall(raw, e.at, signalId);
       if (c) {
         calls.push(c);
         any = true;
+        made++;
       }
     }
     if (any) withModel++;
+    records.push({
+      at: e.at,
+      signalId,
+      adapter: str(p["adapter"], "unknown"),
+      disposition: str(p["disposition"], "unknown"),
+      directionId: typeof p["directionId"] === "string" ? p["directionId"] : null,
+      matchedBy: typeof p["matchedBy"] === "string" ? p["matchedBy"] : null,
+      calls: made,
+      modelMs: num(ai["modelMs"]),
+    });
     const sk = (ai["skipped"] ?? {}) as Record<string, unknown>;
     for (const [step, why] of Object.entries(sk)) {
       const k = `${step}: ${String(why)}`;
@@ -134,6 +161,7 @@ export function summarize(evts: RawEvent[]): TraceSummary {
   }
 
   calls.sort((a, b) => b.at.localeCompare(a.at));
+  records.sort((a, b) => b.at.localeCompare(a.at));
 
   const group = <T>(keyOf: (c: TraceCall) => string, make: (c: TraceCall) => T, add: (t: T, c: TraceCall) => void) => {
     const m = new Map<string, T>();
@@ -196,7 +224,7 @@ export function summarize(evts: RawEvent[]): TraceSummary {
     bump,
   ).map((e) => ({ operation: e.operation, modelKey: e.modelKey, count: e.count, errors: e.errors, avgMs: avg(e) }));
 
-  return { signals, withModel, withoutModel: signals - withModel, skipped, calls, ops, models, edges };
+  return { records, signals, withModel, withoutModel: signals - withModel, skipped, calls, ops, models, edges };
 }
 
 /**

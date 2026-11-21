@@ -17,10 +17,6 @@ interface AutolinkSettings {
 
 const SETTINGS_STYLE = `
   .form { display: grid; grid-template-columns: 160px minmax(0, 420px); gap: 8px 12px; align-items: center; margin: 8px 0 12px; }
-  .form input[type="text"], .form input[type="number"], .form select {
-    padding: 4px 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background);
-    border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); border-radius: 3px; font: inherit; min-width: 0;
-  }
   .form .hint { grid-column: 2; margin-top: -4px; }
 `;
 
@@ -180,37 +176,32 @@ export class SettingsPanel extends SectionPanel {
     const l = this.autolink;
     if (!s || !a || !l) return;
 
-    const row = (field: keyof DisplaySettings, label: string, hint: string) => `
+    const row = (field: keyof DisplaySettings, label: string) => `
       <tr>
         <td>${toggleSwitch(s[field], "toggleField", { field })}</td>
         <td>${esc(label)}</td>
-        <td class="meta">${esc(hint)}</td>
-      </tr>
+              </tr>
     `;
 
     const body = `
-      <p class="sub">What a Signal Detail screen shows by default. The data is always there; this controls what's rendered without opening it explicitly.</p>
       <table>
-        <thead><tr><th></th><th>Field</th><th></th></tr></thead>
+        <thead><tr><th></th><th>Field</th></tr></thead>
         <tbody>
-          ${row("showSubject", "Subject", "Mail signals' original subject line")}
-          ${row("showCc", "Cc", "Addresses copied on a mail signal")}
-          ${row("showBcc", "Bcc", "Addresses blind-copied, when visible to the account")}
-          ${row("preferHtmlBody", "Prefer HTML body", "Render the original HTML natively when the source provides one, instead of only the plain-text extract")}
+          ${row("showSubject", "Subject")}
+          ${row("showCc", "Cc")}
+          ${row("showBcc", "Bcc")}
+          ${row("preferHtmlBody", "Prefer HTML body")}
         </tbody>
       </table>
       <h2>Auto-link to goals</h2>
-      <p class="sub">When a new item reaches the Queue, the model can link it to one of your Goals. It only links when it is at least this sure; otherwise the item stays unlinked for you to place. Every automatic link is recorded in System Events and can be undone with Unlink.</p>
       <div class="form">
         <label>Automatic linking</label>
         <div>${toggleSwitch(l.enabled, "toggleAutolink", {})}</div>
         <label for="l-threshold">Minimum confidence</label>
         <div><input id="l-threshold" type="number" min="0.5" max="1" step="0.05" value="${l.threshold}" /> <button id="save-threshold">Save</button></div>
-        <span class="hint meta" style="grid-column: 2;">0.5 to 1. Higher links less often and gets it wrong less often.</span>
       </div>
 
       <h2>Audio summary</h2>
-      <p class="sub">The Queue's Audio button reads the day's summary aloud, rendered on this machine by <strong>Piper</strong>, which you install separately (for example <code>pip install piper-tts</code>). Voice gender is a property of the voice you choose; browse voices at rhasspy.github.io/piper-samples. Each voice has its own license, so check it before use.</p>
       <div class="form">
         <label for="a-voice">Voice</label>
         <input id="a-voice" type="text" value="${esc(a.voice)}" placeholder="en_US-lessac-medium" spellcheck="false" />
@@ -221,12 +212,11 @@ export class SettingsPanel extends SectionPanel {
           .map((t) => `<option value="${t}"${t === a.tone ? " selected" : ""}>${t}</option>`)
           .join("")}</select>
         <label for="a-speaker">Speaker number</label>
-        <input id="a-speaker" type="number" min="0" step="1" value="${a.speaker ?? ""}" placeholder="only for multi-speaker voices" />
+        <input id="a-speaker" type="number" min="0" step="1" value="${a.speaker ?? ""}"  />
         <label for="a-command">Piper command</label>
         <input id="a-command" type="text" value="${esc(a.piperCommand)}" spellcheck="false" />
-        <label>Download voices</label>
+        <label>Download voices (huggingface.co)</label>
         <div>${toggleSwitch(a.autoDownload, "toggleAutoDownload", {})}</div>
-        <span class="hint meta" style="grid-column: 2;">When on, a voice that is not on disk is fetched once from huggingface.co (rhasspy/piper-voices). That is the only network use audio adds. Turn it off to keep everything local and place voice files in the voices folder yourself.</span>
         <span></span>
         <div><button id="save-audio">Save audio settings</button></div>
       </div>

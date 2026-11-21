@@ -317,10 +317,6 @@ export class DirectionsPanel extends SectionPanel {
         : "";
 
     const body = `
-      <p class="sub">Each direction decides how a category of signal is handled. Click a name to open its
-      detail screen; flip the switch to enable or disable; click the signals-handled count for the signals
-      behind it. New directions are authored as YAML under <code>directions/</code>
-      (<strong>mind: Edit Directions</strong>) — this table edits an existing one's fields directly.</p>
       <div class="toolbar">
         <button data-action="refresh">↺ Refresh</button>
         <button data-action="newDirection">+ New direction</button>
@@ -361,7 +357,7 @@ export class DirectionsPanel extends SectionPanel {
         <tr><th>Response prompt</th><td>${esc((dir.responsePrompt ?? "—").slice(0, 90))} ${openInEditorLink("Open & edit", "openMarkdown", { id: dir.id, field: "responsePrompt" })}</td></tr>
         <tr><th>Transform prompt</th><td>${esc((dir.transformPrompt ?? "—").slice(0, 90))} ${openInEditorLink("Open & edit", "openMarkdown", { id: dir.id, field: "transformPrompt" })}</td></tr>
       </table>
-      <h2 class="clickable" data-action="drilldownSignals" data-id="${esc(dir.id)}">Signals handled — click to view</h2>
+      <h2 class="clickable" data-action="drilldownSignals" data-id="${esc(dir.id)}">Signals handled</h2>
       <p class="sub">${dir.signals} total, ${dir.absorbed} absorbed, ${dir.proposed} proposed, ${dir.discarded} discarded${dir.overrideRate != null ? ` (${(dir.overrideRate * 100).toFixed(0)}% override rate)` : ""}.</p>
       ${
         this.drilldownRows.length > 0

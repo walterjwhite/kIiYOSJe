@@ -14,7 +14,7 @@
   - [x] 3.3 Reclassify command (`PATCH /signals/:id`)
   - [x] 3.4 Journal tree, read-only, filtered by kind/actor/since
 - [x] 4. Webviews
-  - [x] 4.1 Today brief with Directions, Thoughts, actions, commitments
+  - [x] 4.1 ~~Today brief~~ removed; its content moved into the Queue (Requirement 6)
   - [x] 4.2 Analytics with clickable direction/channel/day drill-down
   - [x] 4.3 Devices placeholder with an explicit "not implemented" notice
   - [x] 4.4 Strict CSP with per-render nonce, no remote assets
@@ -25,3 +25,11 @@
 - [ ] 6. Interactive verification
   - [ ] 6.1 Load the VSIX and click every tree action and webview
   - [ ] 6.2 Record the result in `STATUS.md` "Not verified"
+- [ ] 6. Goals and summary (Requirement 6)
+  - [x] 6.1 `goal` Thought state; link and unlink through `PUT|DELETE /signals/:id/thought`
+  - [x] 6.2 Auto-link with confidence threshold (`link.ts`, ingest, `/admin/autolink`)
+  - [x] 6.3 `GET /summary`, `POST|GET /summary/audio`, Piper runner with injected I/O
+  - [x] 6.4 Voice, speed, tone, Piper command and download settings (`/admin/audio`)
+  - [x] 6.5 Queue two-column layout, compact items, drag to link, transcript and audio buttons
+  - [ ] 6.6 Click through the Queue, Settings and Model Trace in VS Code
+  - [ ] 6.7 Render audio with a real Piper install and confirm the CLI flags

@@ -28,10 +28,28 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: Typecheck
+      - name: Typecheck and Biome (files changed since the base branch)
         run: npm run lint
-      - name: Tests
-        run: npm test
+      - name: Tests with coverage floors
+        run: npm run test:coverage
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e '
+              const t = JSON.parse(require("fs").readFileSync("coverage/coverage-summary.json","utf8")).total;
+              const row = (k) => `| ${k} | ${t[k].pct}% |`;
+              console.log(["### Coverage","| Metric | Covered |","| --- | --- |",
+                row("statements"),row("branches"),row("functions"),row("lines")].join("\n"));
+            ' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: License audit
         run: npm run license:check
       - name: Secret scan

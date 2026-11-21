@@ -14,7 +14,11 @@ extension/
   src/thoughts-provider.ts  Thoughts tree
   src/signals-provider.ts   Signals tree + range + reclassify
   src/journal-provider.ts   Journal tree (read-only)
-  src/brief-panel.ts        Today webview
+  src/queue-panel.ts        Queue: goals column, unlinked column, summary strip
+  src/goals.ts              pure goal helpers (flags, sorting, splitting items)
+  src/model-trace-panel.ts  Model Trace graph (data from signal.processed events)
+  src/trace-model.ts        pure aggregation behind the graph
+  src/json-html.ts          pure JSON highlighter used by System Events and others
   src/analytics-panel.ts    drill-down webview
   src/devices-panel.ts      placeholder webview
   src/ai-config.ts          provider QuickPick + settings write

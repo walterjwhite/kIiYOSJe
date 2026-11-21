@@ -263,6 +263,23 @@ export abstract class SectionPanel {
 
     .danger { color: var(--mind-red); font-weight: 500; }
 
+    /* Form controls follow the editor theme; the browser default is a light box. */
+    body.vscode-dark { color-scheme: dark; }
+    body.vscode-light { color-scheme: light; }
+    input[type="text"], input[type="number"], input:not([type]), select, textarea {
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border, var(--vscode-widget-border));
+      border-radius: 3px;
+      padding: 4px 6px;
+      font: inherit;
+      min-width: 0;
+    }
+    input::placeholder, textarea::placeholder { color: var(--vscode-input-placeholderForeground); }
+    input:focus, select:focus, textarea:focus { outline: 1px solid var(--vscode-focusBorder, var(--mind-accent)); outline-offset: -1px; }
+    select option { background: var(--vscode-dropdown-background, var(--vscode-input-background)); color: var(--vscode-dropdown-foreground, var(--vscode-input-foreground)); }
+    [hidden] { display: none !important; }
+
     /* JSON syntax highlighting (see json-html.ts) */
     .json { font-family: var(--vscode-editor-font-family, monospace); font-size: 0.92em; white-space: pre-wrap; word-break: break-word; }
     summary.json { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60ch; cursor: pointer; }

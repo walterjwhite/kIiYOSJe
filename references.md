@@ -102,6 +102,13 @@ the data model rather than only the surface.
 | Morning brief *and* evening "what was handled for you" | OpenLoomi 9 AM to-do / 6 PM done | `/brief.handled` — absorbed, filed, sent, disputed, awaitingReply | `adopted` (2026-11-18) |
 | No counts, no badges, no inbox | — (every project above is inbox-shaped) | extension has no badge or status-bar counter | `independent` |
 
+### 2.7 Speech
+
+| concept | nearest prior art | in `mind` | status |
+| --- | --- | --- | --- |
+| Local neural text to speech, so the spoken summary needs no cloud service | [Piper](https://github.com/OHF-Voices/piper1-gpl) (Open Home Foundation; voices in [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices)) | `packages/server/src/piper.ts` runs the operator's installed `piper` as a child process, text on stdin, WAV out | `adopted` (2026-11-21), as an external program only |
+| Speed as a length-scale multiplier, tone as noise and noise-width scales | Piper CLI options (`--length-scale`, `--noise-scale`, `--noise-w-scale`) | `piperArgs()` maps the Speed and Tone settings onto them | `adopted` |
+
 ## 3. Projects, by what they are good at
 
 - **Inbox Zero** — `github.com/elie222/inbox-zero`, AGPL-3.0 (`apps/web/ee`
@@ -174,6 +181,12 @@ Concept overlap is not a licence problem; copied code would be.
   code. `mautrix-gmessages` runs as a separate service behind Matrix, so the
   bridge is a deployment dependency rather than linked code — if that ever
   changes to vendoring or bundling, revisit it.
+- Piper (`OHF-Voices/piper1-gpl`) is GPL-3.0. It is an external program the
+  operator installs; `mind` runs it as a separate process and contains none of
+  its code, the same boundary as `mautrix-gmessages`. Do not vendor, bundle or
+  link it. The voice files it uses carry their own licenses (see each voice's
+  model card in `rhasspy/piper-voices`); `mind` downloads one only when the
+  operator names it and leaves automatic download on.
 - BUSL-1.1 (Open Assistant) and n8n's Sustainable Use License are not open
   source in the OSI sense. Reference only, no code, no dependency.
 - `npm run license:check` audits the lockfile; this file covers the ideas in it.

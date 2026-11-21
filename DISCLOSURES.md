@@ -18,6 +18,16 @@ Only official, documented, user-authorized APIs, each with the operator's own cr
 The project does not claim provider verification, certification, or partnership.
 It does not support Teams.
 
+## External programs and downloaded files
+
+| Item | How it is used | Source | License |
+| --- | --- | --- | --- |
+| Piper text to speech | Run by the operator-installed `piper` command as a separate process to render the spoken summary. No Piper code is in this repository. Optional. | <https://github.com/OHF-Voices/piper1-gpl> | GPL-3.0 (program); not distributed with this project |
+| Piper voice files | Downloaded once, only when the operator names a voice and leaves "Download voices" on, from the public `rhasspy/piper-voices` repository. | <https://huggingface.co/rhasspy/piper-voices> | Per voice; see each voice's model card |
+
+The download is the only network use the audio feature adds. It is documented
+in README "Audio summary (Piper)" and can be turned off in Settings.
+
 ## Pre-existing code
 
 TODO: list any code, tooling, or content that existed before the submission

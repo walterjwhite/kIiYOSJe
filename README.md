@@ -18,6 +18,11 @@ the VS Code extension is the only client right now.
   no API key) — or an OpenAI/Anthropic/Google/Copilot API key, any
   OpenAI-compatible endpoint, or the Kiro/Copilot CLI over ACP
 
+- Optional: [Piper](https://github.com/OHF-Voices/piper1-gpl) for the spoken
+  daily summary (`pip install piper-tts`). Without it everything else works and
+  the Audio button explains what is missing. See
+  [Audio summary](#audio-summary-piper).
+
 Sources are optional and additive: Gmail, Outlook, Google Calendar, GitHub pull
 requests, and SMS via a self-hosted Google Messages bridge. Each one
 stays idle until its credentials exist, and each can hold several accounts
@@ -66,7 +71,8 @@ server from step 2 is running.
 ## 4. Use it
 
 Click the **mind** icon in the Activity Bar, then click a section to open
-it as its own panel:
+it as its own panel. [USAGE.md](USAGE.md) explains each one; the screens
+themselves carry no instructions.
 
 - **Queue** — two columns. Left: your **Goals** (Thoughts you are focusing
   on); drag an item onto one to link it, and new items are linked
@@ -88,28 +94,55 @@ it as its own panel:
   from override history, plus the reclassification log.
 - **Analytics** — volume, override rate, and time saved; click a row or
   bar to see the signals behind it.
-- **Journal** — a read-only audit log of everything the system did.
+- **Journal** — your own dated notes.
+- **System Events** — what mind itself did, in order. Click a column header
+  to sort; the Detail column is a highlighted one-line preview of the event's
+  JSON that expands to the full payload.
+- **Model Trace** — an interactive graph of every model call and where it went.
 - **Devices** — placeholder; device pairing isn't built yet.
+- **Settings** — which signal fields are shown, automatic goal linking (on or
+  off, and the minimum confidence), and the audio summary's voice, speed,
+  tone and Piper command.
 
-Commands (Cmd/Ctrl+Shift+P, type `mind:`):
+Each screen is explained in [USAGE.md](USAGE.md): goals, multi-select, the
+transcript and audio, auto-linking, and how to read Model Trace.
 
-- **mind: Capture Thought** — jot something down without opening a panel.
-- **mind: Configure AI Provider** — switch between Ollama, a cloud or
-  OpenAI-compatible endpoint, or the Kiro/Copilot CLI over ACP; change models.
-- **mind: Configure Notification Quiet Period** — restrict when the
-  system may proactively notify you (default Mon–Fri 08:00–15:00). This
-  doesn't affect asking it for something right now.
-- **mind: Pause Sends** / **Resume Sends** — kill switch for all outbound
-  sends.
+## Audio summary (Piper)
 
-There is also a small CLI, built with the rest of the workspace:
+The Queue's **Transcript** button shows the day's summary as text: your goals
+and what is linked to each, how many items are waiting and how urgent, the
+most pressing ones, and how many messages were handled without reaching you.
+**Audio** reads exactly that text aloud. The audio is rendered on your machine
+by [Piper](https://github.com/OHF-Voices/piper1-gpl), a separate program you
+install; mind runs it as a child process, sends the text on stdin, and keeps
+the result as a WAV under `data/audio/`. Nothing is uploaded.
+
+Setup:
 
 ```bash
-node packages/cli/dist/index.js doctor                # what is configured, what is missing
-node packages/cli/dist/index.js coverage              # absorb rate per week against coverage
-node packages/cli/dist/index.js preview <directionId> # dry-run a Direction; writes nothing
-node packages/cli/dist/index.js explain <signalId>    # why one decision happened
+pip install piper-tts      # or any install that gives you a `piper` command
 ```
+
+Then open **Settings → Audio summary**:
+
+| Setting | What it does |
+| --- | --- |
+| Voice | A Piper voice name such as `en_US-lessac-medium` (language_REGION-name-quality). Samples: <https://rhasspy.github.io/piper-samples/>. Gender and accent are properties of the voice. |
+| Speed | 0.5 to 2. 1 is the voice's natural pace. |
+| Tone | `calm`, `neutral` or `upbeat`. Changes the greeting and how varied Piper's delivery is. |
+| Speaker number | Only for multi-speaker voices. |
+| Piper command | Default `python3 -m piper`. Split on spaces and run without a shell, so use `piper` if that is on your PATH. |
+| Download voices | When on, a voice that is not in `data/voices/` is downloaded once from [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) on huggingface.co. |
+
+That download is the only network use audio adds, and it is off if you turn
+the setting off; then put the voice's `.onnx` and `.onnx.json` files in
+`data/voices/` yourself. Each voice has its own license on its model card,
+so read it before using a voice. If Piper is missing or exits with an error,
+the Audio button shows the reason. The rendered audio is re-made when the
+summary text changes.
+
+Piper's license is GPL-3.0. mind does not include, link or copy any Piper code;
+it only runs the program you installed (see [references.md](references.md) §5).
 
 ## Demo data
 
@@ -136,10 +169,15 @@ directories; `MIND_DB_PATH` relocates the database alone, which is how
   bridge credentials, one or more accounts per source (mode 600, never
   committed)
 - `config/notifications.json` — notification quiet period
+- `config/display.json` — which signal fields the extension shows
+- `config/autolink.json` — automatic goal linking: `enabled`, `threshold`
+- `config/audio.json` — voice, speed, tone, speaker, Piper command, voice download
 - `config/token` — API bearer token
 - `config/paused` — send kill-switch flag
 - `data/mind.db` — database; `data/demo.db` — demo database
 - `data/backups/`, `data/snapshots/` — rotating copies and named archives
+- `data/voices/` — downloaded Piper voices; `data/audio/` — the rendered
+  summary (`summary.wav`) and the text it was made from
 
 Environment overrides: `MIND_AI_PROVIDER`, `MIND_AI_API_KEY`, `MIND_AI_BASE_URL`,
 `MIND_CLASSIFY_MODEL`, `MIND_DRAFT_MODEL`, `MIND_RETENTION_DAYS`,
@@ -185,7 +223,13 @@ If outbound traffic goes through an HTTP/HTTPS proxy (`http_proxy`/
 `GET /proposals`, `POST /proposals/run`, `POST /admin/pause`,
 `POST /admin/resume`, `GET /admin/status`, `GET /admin/ai-config`,
 `PUT /admin/ai-config`, `GET /admin/notifications`,
-`PUT /admin/notifications`, `GET /events`.
+`PUT /admin/notifications`, `GET /events`, `GET /queue`, `PUT /queue/order`,
+`PUT /queue/plan`, `GET /queue/:id`, `PUT|DELETE /signals/:id/thought`
+(link a signal to a thought or goal, or unlink it),
+`GET|PUT /admin/display`, `GET|PUT /admin/autolink`, `GET|PUT /admin/audio`,
+`GET /summary` (the transcript), `POST /summary/audio` (render it with Piper),
+`GET /summary/audio` (the WAV). `POST /thoughts` accepts `"state": "goal"` to
+create a goal.
 
 `POST /signals` returns the full ingest result — `disposition`, `signalId`,
 `thoughtId`, `actionId`, and `reason` — so a caller can follow the ids without

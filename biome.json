@@ -1,6 +1,11 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.6.8/schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true,
+    "defaultBranch": "main"
+  },
   "files": {
     "includes": [
       "**",
@@ -9,7 +14,7 @@
       "!**/*.tsbuildinfo",
       "!**/*.vsix",
       "!package-lock.json",
-      "!packages/core/migrations/**",
+      "!packages/core/migrations",
       "!mockup",
       "!extension/media"
     ]
@@ -18,30 +23,32 @@
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2,
-    "lineWidth": 80,
+    "lineWidth": 100,
     "lineEnding": "lf"
   },
   "javascript": {
-    "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" }
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
   },
   "json": { "formatter": { "enabled": true } },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
-      "suspicious": {
-        "noExplicitAny": "error",
-        "noConsole": "off"
-      },
-      "style": {
-        "useImportType": "error",
-        "noNonNullAssertion": "warn"
-      },
+      "complexity": { "useLiteralKeys": "off" },
       "correctness": {
         "noUnusedVariables": "error",
         "noUnusedImports": "error"
       },
+      "style": {
+        "useImportType": "error",
+        "noNonNullAssertion": "warn",
+        "useTemplate": "off"
+      },
+      "suspicious": { "noExplicitAny": "error" },
       "nursery": {
         "noFloatingPromises": "error",
         "noMisusedPromises": "error"
@@ -52,6 +59,10 @@
     {
       "includes": ["**/*.test.ts"],
       "linter": { "rules": { "style": { "noNonNullAssertion": "off" } } }
+    },
+    {
+      "includes": ["extension/src/**"],
+      "linter": { "rules": { "nursery": { "noFloatingPromises": "warn" } } }
     }
   ]
 }

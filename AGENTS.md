@@ -20,7 +20,11 @@ git switch -c agent/<n>-<slug>
 - Write a failing test first. Then the change. Then docs, specs, `tasks.md`,
   and `CHANGELOG.md` (user-visible changes).
 - Run before pushing:
-  `npm run lint && npm test && npm run license:check && node scripts/check-secrets.mjs`
+  `npm run lint && npm run test:coverage && npm run license:check && node scripts/check-secrets.mjs`
+  (`npm run format` first if Biome reports formatting in files you touched).
+- GitHub Copilot cloud agent gets these same instructions through
+  `.github/copilot-instructions.md`. Copilot branches are named `copilot/...`;
+  other agents use `agent/<n>-<slug>`.
 - Open a PR with the template, `Closes #<n>`, and the `ai-generated` label.
   State what you verified and what you did not.
 

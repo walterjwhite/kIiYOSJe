@@ -43,7 +43,9 @@ fileMatchPattern: "**/*.test.ts"
 
 ## Gates
 
-`npm run lint`, `npm test`, `npm run license:check`, `node scripts/check-secrets.mjs`
-and `node scripts/check-migrations.mjs` must pass locally and in CI. Coverage
-floors apply once coverage reporting lands; `decide.ts` and `auth.ts` need full
-branch coverage.
+`npm run lint`, `npm run test:coverage`, `npm run license:check`,
+`node scripts/check-secrets.mjs` and `node scripts/check-migrations.mjs` must pass
+locally and in CI. Coverage floors live in `vitest.config.ts` (about two points
+under the measured baseline); raise them as coverage improves and never lower one
+to make a change pass. `decide.ts` and `auth.ts` need full branch coverage
+(tracked in an issue; both are below it today).

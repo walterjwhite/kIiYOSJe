@@ -18,14 +18,24 @@ agent judgment alone.
    was applied by a maintainer, that **Acceptance criteria** exist as checkboxes,
    and that the issue is not `security` or `needs-human-decision`. Otherwise it
    removes the label and says why.
-4. **Implement (agent).** Branch `agent/<issue>-<slug>`. Read the issue, the
-   linked specs, and the relevant steering files. Write the failing test first.
-   Keep to the issue's scope. Open a PR with `Closes #<n>` and the
-   `ai-generated` label, filling in the PR template.
-5. **Gates (automatic).** `ci-pass`, `agent-guard`, CodeQL, dependency review,
-   and secret scan must pass. Branch rules require them.
+4. **Implement (agent).** GitHub Copilot cloud agent is the wired-up agent. A
+   maintainer assigns Copilot to the issue (or `agent-intake.yml` does, when the
+   optional `COPILOT_ASSIGN_TOKEN` secret exists). Copilot works on a GitHub-hosted
+   runner prepared by `copilot-setup-steps.yml`, reads `.github/copilot-instructions.md`
+   and `AGENTS.md`, and opens a **draft** PR from a `copilot/` branch. Other agents
+   (Kiro, a local tool) use `agent/<issue>-<slug>`. Every agent reads the issue,
+   the linked specs, and the relevant steering files, writes the failing test
+   first, keeps to the issue's scope, and puts `Closes #<n>` in the PR description.
+   `agent-label.yml` adds `ai-generated`.
+5. **Gates (automatic).** Workflows do not run on a Copilot PR until a maintainer
+   reviews the diff and clicks **Approve and run workflows**. Then `ci-pass`
+   (typecheck, Biome on changed files, tests with coverage floors, license, secret
+   and migration checks), `agent-guard`, CodeQL, dependency review, and the secret
+   scan must pass. Branch rules require them.
 6. **Review (human).** At least one approval; CODEOWNERS paths need the owner.
-   The approver cannot be the person who pushed last.
+   Copilot cannot mark a PR ready, approve, or merge. The person who assigned
+   Copilot cannot approve its PR, so a second reviewer is needed, or the admin
+   bypass described in `scripts/setup-github.sh`.
 7. **Merge.** Squash merge. The issue closes. `tasks.md` is already updated.
 8. **Release.** See `release.md`.
 

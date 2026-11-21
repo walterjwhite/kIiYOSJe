@@ -183,14 +183,6 @@ export class LearningsPanel extends SectionPanel {
       .join("");
 
     const body = `
-      <p class="sub">The proposals below are rule-based and deterministic: a periodic pass scans the event
-      log — every decision made on every direction — counts how often a draft was overridden vs. approved
-      unedited, and proposes a narrow/widen only when that rate crosses a fixed threshold. Nothing here is
-      decided by a model. Running the loop also asks the configured model (Ollama by default) for a short
-      explanation of <em>why</em> the pattern is happening, shown below as an Insight — never a substitute
-      for the counted evidence, and skipped if no provider is configured. Accepted proposals update the
-      database; the YAML under <code>directions/</code> still needs the matching edit by hand, shown as a
-      notification when you accept.</p>
       <div class="toolbar">
         <button data-action="refresh">↺ Refresh</button>
         <button data-action="run">Run learning loop now</button>
@@ -200,7 +192,6 @@ export class LearningsPanel extends SectionPanel {
       <h2>Proposals (${this.proposals.length})</h2>
       ${proposalRows || '<p class="empty">No proposals yet.</p>'}
       <h2>Reclassifications</h2>
-      <p class="sub">Signals that were moved to a different direction after the initial match turned out to be wrong.</p>
       ${
         this.reclassifications.length > 0
           ? `<table>

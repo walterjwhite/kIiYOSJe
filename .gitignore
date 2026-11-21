@@ -27,3 +27,4 @@ ai.json
 .vscode/settings.json
 .vscode/.ropeproject
 .DS_Store
+coverage/

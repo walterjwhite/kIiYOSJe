@@ -6,6 +6,8 @@
 # Requires: gh (authenticated as a repo admin), node.
 # Usage:    scripts/setup-github.sh [owner/repo]    (default: origin remote)
 #           DRY_RUN=1 scripts/setup-github.sh        print the calls only
+#           ALLOW_ADMIN_BYPASS=1 scripts/setup-github.sh   solo maintainer: let admins merge
+#                                                    Copilot PRs they cannot approve
 #
 # This changes repository settings. Read it before running it.
 
@@ -15,11 +17,39 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="${1:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}"
 OWNER="${REPO%%/*}"
 
+WARNINGS=()
 run() {
   if [[ "${DRY_RUN:-0}" == "1" ]]; then printf 'DRY: %s\n' "$*"; else "$@"; fi
 }
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+  WARNINGS+=("$*")
+}
 
 echo "==> Repository: $REPO"
+
+echo "==> Preflight: admin permission"
+if [[ "${DRY_RUN:-0}" == "1" ]]; then
+  printf 'DRY: gh api repos/%s -q .permissions.admin\n' "$REPO"
+else
+  ACTOR="$(gh api user -q .login)"
+  ADMIN="$(gh api "repos/$REPO" -q '.permissions.admin // false')" || ADMIN=false
+  if [[ "$ADMIN" != "true" ]]; then
+    {
+      echo "error: gh is authenticated as $ACTOR, which does not have admin permission on $REPO."
+      echo
+      echo "This script changes repository settings (labels, security features, merge policy,"
+      echo "the release environment, and the main ruleset), so it must run as an admin of"
+      echo "$OWNER. GitHub answers 404 instead of 403 for that, which is why the call above"
+      echo "reports \"Not Found\". Nothing was changed."
+      echo
+      echo "Switch to an admin account (gh auth switch) or authenticate a token with admin"
+      echo "access to $REPO, then re-run this script."
+    } >&2
+    exit 1
+  fi
+  echo "admin: $ACTOR"
+fi
 
 echo "==> Labels"
 node --input-type=module -e '
@@ -44,14 +74,24 @@ node --input-type=module -e '
 done
 
 echo "==> Security features (secret scanning, push protection, Dependabot alerts)"
-run gh api -X PATCH "repos/$REPO" --input - <<'JSON'
+# security_and_analysis is not writable through the API for every repository type
+# (user-owned repositories expose it as null). Warn and continue instead of
+# leaving the rest of the setup unapplied.
+if ! run gh api -X PATCH "repos/$REPO" --input - <<'JSON'
 {"security_and_analysis":{
   "secret_scanning":{"status":"enabled"},
   "secret_scanning_push_protection":{"status":"enabled"}}}
 JSON
+then
+  warn "secret scanning / push protection not set via API; set them under Settings > Code security"
+fi
 run gh api -X PUT "repos/$REPO/vulnerability-alerts"
 run gh api -X PUT "repos/$REPO/automated-security-fixes"
-run gh api -X PUT "repos/$REPO/private-vulnerability-reporting"
+# Private vulnerability reporting is unavailable on some plans/repository
+# visibilities, and GitHub answers 404 instead of explaining why.
+if ! run gh api -X PUT "repos/$REPO/private-vulnerability-reporting"; then
+  warn "private vulnerability reporting not enabled (needs a public repository or GitHub Advanced Security)"
+fi
 
 echo "==> Merge settings: squash only, delete merged branches"
 run gh api -X PATCH "repos/$REPO" \
@@ -63,17 +103,52 @@ run gh api -X PUT "repos/$REPO/actions/permissions/workflow" \
   -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false
 
 echo "==> Environment: release (you are the required reviewer)"
-UID_NUM="$(gh api "users/$OWNER" -q .id)"
-run gh api -X PUT "repos/$REPO/environments/release" --input - <<JSON
+# users/<owner> only resolves for user-owned repositories; for an organization
+# the reviewer is the account running the script.
+if [[ "$(gh api "repos/$REPO" -q .owner.type)" == "Organization" ]]; then
+  UID_NUM="$(gh api user -q .id)"
+else
+  UID_NUM="$(gh api "users/$OWNER" -q .id)"
+fi
+# Required reviewers on an environment is a paid-plan feature for private
+# repositories; GitHub returns 422 and still creates the environment without
+# protection, so this must be a visible warning, not a silent success.
+if ! run gh api -X PUT "repos/$REPO/environments/release" --input - <<JSON
 {"reviewers":[{"type":"User","id":$UID_NUM}],"deployment_branch_policy":null}
 JSON
+then
+  warn "environment 'release' was created WITHOUT a required reviewer (that protection rule needs Pro/Team on a private repository): deploys to it are not gated"
+fi
 
-echo "==> Ruleset: main"
-run gh api -X POST "repos/$REPO/rulesets" --input - <<'JSON'
+echo "==> Ruleset: default branch"
+RULESET_METHOD=POST
+RULESET_URL="repos/$REPO/rulesets"
+if [[ "${DRY_RUN:-0}" != "1" ]]; then
+  RULESET_ID="$(gh api "repos/$REPO/rulesets" -q '.[] | select(.name == "main protection") | .id' 2>/dev/null || true)"
+  # A failed list call prints its error body to stdout; only a numeric id counts.
+  if [[ "$RULESET_ID" =~ ^[0-9]+$ ]]; then
+    RULESET_METHOD=PUT
+    RULESET_URL="repos/$REPO/rulesets/$RULESET_ID"
+    echo "updating existing ruleset $RULESET_ID"
+  fi
+fi
+
+# Copilot cloud agent PRs cannot be approved by the person who assigned the
+# issue. On a one-maintainer repository that makes every agent PR unmergeable
+# unless a second reviewer exists. ALLOW_ADMIN_BYPASS=1 lets repository admins
+# merge through a pull request without the approval (checks still run, but an
+# admin can merge past them). Prefer a second reviewer where you can.
+BYPASS_JSON='[]'
+if [[ "${ALLOW_ADMIN_BYPASS:-0}" == "1" ]]; then
+  BYPASS_JSON='[{"actor_id":5,"actor_type":"RepositoryRole","bypass_mode":"pull_request"}]'
+  warn "ruleset allows admin bypass through pull requests (ALLOW_ADMIN_BYPASS=1)"
+fi
+if ! run gh api -X "$RULESET_METHOD" "$RULESET_URL" --input - <<JSON
 {
   "name": "main protection",
   "target": "branch",
   "enforcement": "active",
+  "bypass_actors": $BYPASS_JSON,
   "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
   "rules": [
     { "type": "deletion" },
@@ -96,5 +171,14 @@ run gh api -X POST "repos/$REPO/rulesets" --input - <<'JSON'
   ]
 }
 JSON
+then
+  warn "no branch ruleset applied: rulesets are unavailable for private repositories on a free plan (make the repository public or upgrade to Pro/Team), then re-run"
+fi
+
+if ((${#WARNINGS[@]})); then
+  echo
+  echo "Completed with warnings:"
+  for w in "${WARNINGS[@]}"; do echo "  - $w"; done
+fi
 
 echo "Done. Next: run scripts/seed-issues.sh to create the launch backlog."

@@ -19,6 +19,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/github-script@v7
+        env:
+          # Optional. A fine-grained PAT (actions, contents, issues, pull requests: write,
+          # metadata: read) owned by a maintainer. Leave unset to assign Copilot by hand.
+          COPILOT_ASSIGN_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -48,10 +52,36 @@ jobs:
               return reject("issues labelled `needs-human-decision` or `security` are not eligible for an agent.");
             }
 
+            const token = process.env.COPILOT_ASSIGN_TOKEN;
+            let assigned = false;
+            if (token) {
+              // Assigning Copilot needs a user token; GITHUB_TOKEN cannot do it.
+              const user = github.getOctokit(token);
+              try {
+                await user.request("POST /repos/{owner}/{repo}/issues/{issue_number}/assignees", {
+                  owner, repo, issue_number: number,
+                  assignees: ["copilot-swe-agent[bot]"],
+                  agent_assignment: {
+                    target_repo: `${owner}/${repo}`,
+                    base_branch: context.payload.repository.default_branch,
+                    custom_instructions:
+                      "Follow AGENTS.md and .github/copilot-instructions.md. Put 'Closes #" + number + "' in the PR description. Stay within the issue's acceptance criteria.",
+                    custom_agent: "",
+                    model: "",
+                  },
+                });
+                assigned = true;
+              } catch (e) {
+                core.warning(`Could not assign Copilot: ${e.status ?? ""} ${e.message}`);
+              }
+            }
+
             await github.rest.issues.createComment({
               owner, repo, issue_number: number,
               body: [
-                "Ready for an agent. Work on a branch named `agent/<issue>-<slug>`, open a PR with `Closes #" + number + "`, and follow AGENTS.md.",
-                "Gates before merge: `ci-pass`, `agent-guard`, `Security`, and one human approval (two for CODEOWNERS paths).",
-              ].join("\n"),
+                assigned
+                  ? "Ready for an agent. Assigned to Copilot cloud agent; it will open a draft PR from a `copilot/` branch."
+                  : "Ready for an agent. Assign **Copilot** to this issue (Assignees, or the Agents tab) to start it. Automatic assignment is off until the `COPILOT_ASSIGN_TOKEN` secret is set.",
+                "Gates before merge: `ci-pass`, `agent-guard`, Security, a maintainer clicking **Approve and run workflows**, and a human approval (the person who assigned Copilot cannot approve its PR). See AGENTS.md.",
+              ].join("\n\n"),
             });

@@ -95,7 +95,7 @@ the extension mean there is no OS-level push to gate yet. It is built so
 that the one real candidate — PLAN §6's "notify when it is ready" for the
 morning brief, were it ever implemented — has a check to call before
 firing. It is explicitly **not** a send gate: `decide()` and the §7 send
-gates are untouched, and asking for something right now (`mind.brief`,
+gates are untouched, and asking for something right now (the Queue's summary,
 `mind.capture`) is never affected by this window.
 
 ## Implemented and tested
@@ -225,3 +225,28 @@ One person, several accounts per source. `credentials.yml` accepts an
 Verified: `npm run lint` and `npm test` — 38 files, 200 tests. Still
 unverified: no live multi-account credentials have been exercised, and the
 migration has not run against a populated existing `mind.db`.
+
+## Goals, audio summary, Model Trace
+
+Implemented, tested at the server and pure-function level, **not yet clicked
+through in VS Code**.
+
+- **Goals** are Thoughts in the new `goal` state (no migration; `thoughts.state`
+  is text). The Queue shows goals beside the items not linked to one. Linking
+  uses the existing `signals.thoughtId` and `PUT|DELETE /signals/:id/thought`.
+- **Auto-link** (`packages/pipeline/src/link.ts`): after ingest, the model may
+  link a queued item to a goal when its confidence meets the threshold in
+  `autolink.json` (on, 0.8 by default). The model call is a new `link`
+  operation, visible in Model Trace. Quality against a real model has not been
+  measured.
+- **Today screen removed.** Its content lives on the Queue. `GET /brief` stays.
+- **Audio summary**: `GET /summary`, `POST|GET /summary/audio`, `/admin/audio`.
+  Piper is run as an external process. Not verified against a real Piper: the
+  CLI flags in `piperArgs()` and the voice download URL layout were written from
+  Piper's documented options and the `rhasspy/piper-voices` layout, not run.
+- **Model Trace** and **System Events** sorting and JSON highlighting are new
+  extension screens and helpers.
+- The voice download is a new network use beyond the model provider (see
+  README "Audio summary (Piper)"). `.kiro/steering/privacy-data.md` and
+  `product.md` still describe the model provider as the only egress; updating
+  them needs a maintainer decision.

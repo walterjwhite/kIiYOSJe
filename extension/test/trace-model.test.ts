@@ -57,6 +57,32 @@ describe("summarize", () => {
   });
 });
 
+describe("summarize records", () => {
+  it("keeps one record per processed signal with its direction, outcome and model time", () => {
+    const s = summarize([
+      {
+        at: "2026-01-01T10:00:00Z",
+        kind: "signal.processed",
+        payload: JSON.stringify({
+          signalId: "s1",
+          adapter: "gmail",
+          disposition: "promoted",
+          directionId: "work/boss",
+          matchedBy: "scope:person",
+          ai: { calls: [call("classify", 100), call("draft", 50)], modelMs: 150 },
+        }),
+      },
+      ev("2026-01-01T11:00:00Z", { calls: [] }, "s2"),
+    ]);
+    expect(s.records).toHaveLength(2);
+    expect(s.records[1]).toMatchObject({
+      signalId: "s1", adapter: "gmail", disposition: "promoted", directionId: "work/boss",
+      matchedBy: "scope:person", calls: 2, modelMs: 150,
+    });
+    expect(s.records[0]).toMatchObject({ signalId: "s2", calls: 0, directionId: null, matchedBy: null });
+  });
+});
+
 describe("localOllamaRoot", () => {
   it("maps an OpenAI-compatible base URL to the Ollama root on local hosts", () => {
     expect(localOllamaRoot("http://localhost:11434/v1")).toBe("http://localhost:11434");

@@ -8,8 +8,10 @@ full in `.kiro/steering/workflow.md`.
 ```bash
 nvm use            # Node 24, see .nvmrc
 npm ci
-npm run lint       # typecheck
+npm run lint       # typecheck, then Biome on files changed vs origin/main
 npm test
+npm run test:coverage
+npm run format     # Biome formatter
 npm run license:check
 ```
 

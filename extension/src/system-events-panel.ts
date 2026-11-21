@@ -106,7 +106,6 @@ export class SystemEventsPanel extends SectionPanel {
       .join("");
 
     const body = `
-      <p class="sub">What mind itself did, in order — matching, classification, drafts, sends, and every decision in between. Your own notes live in the <strong>Journal</strong> screen instead.</p>
       <div class="toolbar">
         ${rangeButtons}
         <button data-action="refresh">↺ Refresh</button>

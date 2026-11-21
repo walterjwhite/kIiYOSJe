@@ -128,15 +128,25 @@ issue "Record prompt and model version on every action" "ai-quality" \
   "Each actions row stores promptVersion and model id|Prompt text lives in versioned constants|Test asserts both are written"
 
 # ---- Tooling and CI -------------------------------------------------------
-issue "Add ESLint and Prettier with a license-checked dependency set" "ci,docs" \
-  "npm run lint only typechecks. Style and common bugs are unchecked." \
-  "Adds devDependencies (needs deps-approved). Includes .editorconfig alignment." \
-  "ESLint with typescript-eslint, no-floating-promises, no-explicit-any|Prettier config committed|npm run lint runs tsc and eslint; npm run format:check exists|CI runs both|license:check passes"
+issue "Fix the existing Biome lint errors" "ci" \
+  "Biome is configured and CI checks changed files only, because 18 errors predate it: unused imports and unused-import-in-test cases, three explicit any in tests, three implicit any lets in routes, two import-type fixes, and one shadowed global in extension/src/json-html.ts. decide.ts is among them and is a protected path." \
+  "Run npm run lint:all. Fix without behavior changes. decide.ts needs human-approved-scope." \
+  "npm run lint:all reports zero errors|No behavior change (tests unchanged apart from lint fixes)|CI switches from changed-files to full-tree lint in the same PR"
 
-issue "Add test coverage reporting with a floor" "ci" \
-  "No coverage data exists." \
-  "Adds @vitest/coverage-v8 as a devDependency (needs deps-approved)." \
-  "npm run test:coverage prints per-package coverage|CI fails below a floor set at the current value minus 2 points|Pipeline decide and auth have 100% branch coverage"
+issue "Format the tree once with Biome" "ci" \
+  "biome format reports about 167 files that differ from the configured style. Until they are formatted, any PR touching an old file carries unrelated formatting noise or fails the changed-file check." \
+  "One mechanical commit: npm run format. Do it when no other branch has uncommitted work. Add the commit to .git-blame-ignore-revs." \
+  "npm run format:check passes on the whole tree|The commit changes no behavior (tests pass, build output identical)|Commit SHA is listed in .git-blame-ignore-revs"
+
+issue "Handle floating promises in the extension" "ci" \
+  "The Biome noFloatingPromises rule is an error in packages and a warning in extension/src, where about 80 fire-and-forget calls exist (panel load/refresh)." \
+  "In: extension/src. Await, void-mark with a catch that logs, or route through one helper." \
+  "Zero noFloatingPromises warnings in extension/src|Failures in refresh calls are logged without message content|Override in biome.json is removed"
+
+issue "Raise coverage floors and add per-file floors for gate code" "ci,safety-gate" \
+  "Global floors are set about two points under the baseline (statements 55.95, branches 47.69). decide.ts, autosend, and auth.ts need full branch coverage; auth.ts is at 76% and routes/actions.ts at 9%." \
+  "In: vitest.config.ts thresholds, and tests." \
+  "Per-file thresholds of 100% branches for decide.ts and auth.ts|routes/actions.ts above 70%|Global floors raised to the new baseline minus 2"
 
 issue "Pin GitHub Actions to commit SHAs" "ci,security" \
   "Workflows use version tags, which a compromised action repository can move." \

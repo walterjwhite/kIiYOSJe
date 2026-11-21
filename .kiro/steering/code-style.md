@@ -31,13 +31,24 @@ Follow `tech.md` and `structure.md` first. This file covers the rest.
 
 ## Formatting and linting
 
-Prettier and ESLint are planned (see the tooling issue). Until then, match the
-surrounding file. `.editorconfig` sets indentation and final newlines.
+Biome does both (`biome.json`). Prettier and ESLint are not used: `typescript-eslint`
+needs the TypeScript JavaScript API, which TypeScript 7 does not ship.
+
+- `npm run lint`: `tsc --build`, then Biome (lint, format, import order) on files
+  changed since `origin/main`. CI runs the same command.
+- `npm run lint:all`: lint rules over the whole tree, errors only.
+- `npm run format`: apply the formatter. `npm run format:check`: verify only.
+- Rules that fail the build: `noExplicitAny`, `noUnusedImports`,
+  `noUnusedVariables`, `useImportType`, `noFloatingPromises`, `noMisusedPromises`.
+  `extension/src` warns on floating promises until the debt issue is closed.
+- Fix what Biome reports in files you touch. Do not silence a rule with an ignore
+  comment unless you explain why on the same line.
+- `.editorconfig` sets indentation and final newlines.
 
 ## Git
 
 - Branches: `feat/<slug>`, `fix/<slug>`, `docs/<slug>`; agents use
-  `agent/<issue>-<slug>`.
+  `agent/<issue>-<slug>`, and Copilot cloud agent uses its own `copilot/` branches.
 - Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`,
   `ci:`, `perf:`, `refactor:`), imperative, under 72 chars on the first line,
   body explains why. Reference the issue.

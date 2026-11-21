@@ -90,7 +90,6 @@ export class JournalPanel extends SectionPanel {
       .join("");
 
     const body = `
-      <p class="sub">Dated automatically, append-only, not tied to any signal or direction — just something worth writing down. System activity lives in its own <strong>System Events</strong> screen.</p>
       <div class="toolbar">
         <textarea id="note-input" rows="3" style="flex: 1; min-width: 260px; font-family: var(--vscode-font-family); padding: 6px 8px; border-radius: 4px; border: 1px solid var(--vscode-widget-border); background: var(--vscode-input-background); color: var(--vscode-input-foreground); resize: vertical;" placeholder="What's worth remembering?"></textarea>
       </div>

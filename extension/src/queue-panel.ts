@@ -30,6 +30,9 @@ const QUEUE_STYLE = `
   .group-title { margin: 14px 0 6px; font-weight: 600; }
   .queue-item { cursor: grab; }
   .queue-item.dragging { opacity: 0.45; }
+  .queue-item.selected { outline: 2px solid var(--mind-accent); outline-offset: -2px; background: color-mix(in srgb, var(--mind-accent) 12%, var(--vscode-editor-background)); }
+  .item-line { user-select: none; }
+  #selbar { position: sticky; top: 0; z-index: 3; padding: 6px 8px; margin: 0 0 8px; border-radius: 6px; background: var(--vscode-editor-background); border: 1px solid var(--mind-accent); }
   .queue-item .handle { opacity: 0.5; margin-right: 6px; user-select: none; }
   .queue-item:focus-visible { outline: 2px solid var(--mind-accent); outline-offset: 2px; }
   .timing { font-size: 0.85em; padding: 1px 8px; border-radius: 10px; border: 1px solid currentColor; white-space: nowrap; }
@@ -68,9 +71,73 @@ const QUEUE_STYLE = `
  */
 const QUEUE_SCRIPT = `
 (function () {
+  // Selection follows the usual list conventions: Ctrl/Cmd+click toggles one
+  // card, Shift+click selects everything between the last clicked card and this
+  // one (added to the selection when Ctrl/Cmd is also held), and a plain click
+  // clears the selection and expands or collapses the card.
+  var selected = {};
+  var anchor = null;
+  function cards() {
+    var l = document.getElementById('queue-list');
+    return l ? Array.prototype.slice.call(l.querySelectorAll('.queue-item')) : [];
+  }
+  function selectedIds() {
+    return cards().filter(function (c) { return selected[c.dataset.itemId]; }).map(function (c) { return c.dataset.itemId; });
+  }
+  function paint() {
+    var n = 0;
+    cards().forEach(function (c) {
+      var on = !!selected[c.dataset.itemId];
+      c.classList.toggle('selected', on);
+      if (on) n++;
+    });
+    var bar = document.getElementById('selbar');
+    if (bar) {
+      bar.hidden = n === 0;
+      document.getElementById('selcount').textContent = n + ' selected';
+    }
+  }
+  function clearSelection() { selected = {}; paint(); }
+  document.addEventListener('mousedown', function (e) {
+    if (e.shiftKey && e.target.closest && e.target.closest('.item-line')) e.preventDefault();
+  });
   document.addEventListener('click', function (e) {
     var line = e.target.closest && e.target.closest('.item-line');
-    if (line) line.parentElement.classList.toggle('open');
+    if (!line) return;
+    var card = line.parentElement;
+    var id = card.dataset.itemId;
+    var all = cards();
+    var index = all.indexOf(card);
+    if (index < 0) { card.classList.toggle('open'); return; }
+    var additive = e.ctrlKey || e.metaKey;
+    if (e.shiftKey) {
+      var from = anchor === null ? -1 : all.findIndex(function (c) { return c.dataset.itemId === anchor; });
+      if (from < 0) from = index;
+      if (!additive) selected = {};
+      for (var i = Math.min(from, index); i <= Math.max(from, index); i++) selected[all[i].dataset.itemId] = true;
+    } else if (additive) {
+      if (selected[id]) delete selected[id]; else selected[id] = true;
+      anchor = id;
+    } else {
+      selected = {};
+      anchor = id;
+      card.classList.toggle('open');
+    }
+    paint();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') clearSelection();
+  });
+  [['sel-today', 'today'], ['sel-tomorrow', 'tomorrow'], ['sel-backlog', 'backlog']].forEach(function (pair) {
+    var b = document.getElementById(pair[0]);
+    if (b) b.addEventListener('click', function () { post({ command: 'plan', items: selectedIds(), when: pair[1] }); });
+  });
+  var clearButton = document.getElementById('sel-clear');
+  if (clearButton) clearButton.addEventListener('click', clearSelection);
+  var goalPicker = document.getElementById('sel-goal');
+  if (goalPicker) goalPicker.addEventListener('change', function () {
+    if (goalPicker.value) post({ command: 'link', items: selectedIds(), goal: goalPicker.value });
+    goalPicker.value = '';
   });
   var goalInput = document.getElementById('new-goal');
   if (goalInput) goalInput.addEventListener('keydown', function (e) {
@@ -101,6 +168,7 @@ const QUEUE_SCRIPT = `
   var list = document.getElementById('queue-list');
   if (!list) return;
   var dragged = null;
+  var dragIds = [];
   var droppedOnTab = false;
 
   document.querySelectorAll('[data-drop]').forEach(function (tab) {
@@ -115,7 +183,7 @@ const QUEUE_SCRIPT = `
       e.preventDefault();
       tab.classList.remove('drop-over');
       droppedOnTab = true;
-      post({ command: 'plan', item: dragged.dataset.itemId, when: tab.getAttribute('data-drop') });
+      post({ command: 'plan', items: dragIds, when: tab.getAttribute('data-drop') });
     });
   });
 
@@ -133,7 +201,7 @@ const QUEUE_SCRIPT = `
       e.preventDefault();
       goal.classList.remove('drop-over');
       droppedOnTab = true;
-      post({ command: 'link', item: dragged.dataset.itemId, goal: goal.getAttribute('data-goal') });
+      post({ command: 'link', items: dragIds, goal: goal.getAttribute('data-goal') });
     });
   });
 
@@ -157,12 +225,16 @@ const QUEUE_SCRIPT = `
     var card = e.target.closest && e.target.closest('.queue-item');
     if (!card) return;
     dragged = card;
-    card.classList.add('dragging');
+    // Dragging a selected card carries the whole selection; dragging any other card drags just that one.
+    if (selected[card.dataset.itemId] && selectedIds().length > 1) dragIds = selectedIds();
+    else { selected = {}; paint(); dragIds = [card.dataset.itemId]; }
+    cards().forEach(function (c) { if (dragIds.indexOf(c.dataset.itemId) >= 0) c.classList.add('dragging'); });
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', card.dataset.itemId);
+    e.dataTransfer.setData('text/plain', dragIds.join(','));
   });
   list.addEventListener('dragover', function (e) {
-    if (!dragged) return;
+    // Reordering moves one card; a multi-card drag only makes sense onto a goal or a tab.
+    if (!dragged || dragIds.length !== 1) return;
     e.preventDefault();
     var after = cardAfter(e.clientY);
     if (after) list.insertBefore(dragged, after); else list.appendChild(dragged);
@@ -170,10 +242,12 @@ const QUEUE_SCRIPT = `
   list.addEventListener('drop', function (e) { if (dragged) e.preventDefault(); });
   list.addEventListener('dragend', function () {
     if (!dragged) return;
-    dragged.classList.remove('dragging');
+    cards().forEach(function (c) { c.classList.remove('dragging'); });
+    var single = dragIds.length === 1;
     dragged = null;
+    dragIds = [];
     if (droppedOnTab) { droppedOnTab = false; return; }
-    save();
+    if (single) save();
   });
 
   list.addEventListener('keydown', function (e) {
@@ -241,22 +315,28 @@ export class QueuePanel extends SectionPanel {
       goal?: string;
       text?: string;
       state?: string;
+      items?: unknown;
     };
+    const itemIds = Array.isArray(m.items)
+      ? m.items.filter((v): v is string => typeof v === "string")
+      : m.item
+        ? [m.item]
+        : [];
     if (m.command === "refresh") this.load();
     else if (m.command === "view" && VIEWS.some((v) => v.id === m.view)) {
       QueuePanel.view = m.view as QueueView;
       this.load();
-    } else if (m.command === "plan" && m.item && m.when) this.plan(m.item, m.when);
+    } else if (m.command === "plan" && itemIds.length > 0 && m.when) this.plan(itemIds, m.when);
     else if (m.command === "planDue") this.planDue();
     else if (m.command === "itemAction" && m.item && m.act) this.runAction(m.item, m.act);
     else if (m.command === "details" && m.item) {
       vscode.commands.executeCommand("mind.queue.item", m.item);
     } else if (m.command === "open" && m.id) {
       vscode.commands.executeCommand("mind.signal.open", m.id);
-    } else if (m.command === "link" && m.item && m.goal) {
-      void this.link(m.item, m.goal);
-    } else if (m.command === "unlink" && m.item) {
-      void this.link(m.item, null);
+    } else if (m.command === "link" && itemIds.length > 0 && m.goal) {
+      void this.link(itemIds, m.goal);
+    } else if (m.command === "unlink" && itemIds.length > 0) {
+      void this.link(itemIds, null);
     } else if (m.command === "newGoal" && m.text?.trim()) {
       void this.newGoal(m.text.trim());
     } else if (m.command === "goalState" && m.goal && (m.state === "closed" || m.state === "parked")) {
@@ -295,9 +375,10 @@ export class QueuePanel extends SectionPanel {
     if (await runItemAction(item, action)) this.load();
   }
 
-  /** Plans one item: "today", "tomorrow", "backlog", or "choose" to pick. */
-  private async plan(itemId: string, when: string): Promise<void> {
-    if (!this.items.some((i) => i.id === itemId)) return;
+  /** Plans items: "today", "tomorrow", "backlog", or "choose" to pick a date (one item only). */
+  private async plan(requested: string[], when: string): Promise<void> {
+    const ids = requested.filter((id) => this.items.some((i) => i.id === id));
+    if (ids.length === 0 || (when === "choose" && ids.length > 1)) return;
     const today = localDate();
     let date: string | null | undefined;
     if (when === "today") date = today;
@@ -305,7 +386,7 @@ export class QueuePanel extends SectionPanel {
     else if (when === "backlog") date = null;
     else if (when === "choose") date = await this.pickDate(today);
     if (date === undefined) return;
-    await this.savePlan([itemId], date);
+    await this.savePlan(ids, date);
   }
 
   /** Plans every unplanned item that is already due, for today. */
@@ -357,17 +438,28 @@ export class QueuePanel extends SectionPanel {
     }
   }
 
-  private async link(itemId: string, goalId: string | null): Promise<void> {
-    const item = this.items.find((i) => i.id === itemId);
-    if (!item) return;
+  private async link(requested: string[], goalId: string | null): Promise<void> {
     if (goalId !== null && !this.goals.some((g) => g.id === goalId)) return;
-    try {
-      await apiFetch(`/signals/${encodeURIComponent(item.signalId)}/thought`, {
-        method: goalId === null ? "DELETE" : "PUT",
-        ...(goalId === null ? {} : { body: JSON.stringify({ thoughtId: goalId }) }),
-      });
-    } catch (err) {
-      vscode.window.showErrorMessage(`mind: could not ${goalId === null ? "unlink" : "link"} the item. ${String(err)}`);
+    const signalIds = [
+      ...new Set(
+        this.items.filter((i) => requested.includes(i.id)).map((i) => i.signalId),
+      ),
+    ];
+    const failures: string[] = [];
+    for (const signalId of signalIds) {
+      try {
+        await apiFetch(`/signals/${encodeURIComponent(signalId)}/thought`, {
+          method: goalId === null ? "DELETE" : "PUT",
+          ...(goalId === null ? {} : { body: JSON.stringify({ thoughtId: goalId }) }),
+        });
+      } catch (err) {
+        failures.push(String(err));
+      }
+    }
+    if (failures.length > 0) {
+      vscode.window.showErrorMessage(
+        `mind: could not ${goalId === null ? "unlink" : "link"} ${failures.length} of ${signalIds.length} items. ${failures[0]}`,
+      );
     }
     this.load();
   }
@@ -486,10 +578,6 @@ export class QueuePanel extends SectionPanel {
     const overdueGoals = goals.filter((g) => goalFlags(g, now).includes("overdue")).length;
     const reviewGoals = goals.filter((g) => goalFlags(g, now).includes("review")).length;
 
-    const hint =
-      view === "upcoming"
-        ? "grouped by planned day"
-        : "drag onto a goal to link · drag to reorder · drop on Today or Backlog to plan";
     const body = `
       <div class="strip">
         <span class="meta">${this.summary.absorbedToday} handled without reaching you today</span>
@@ -505,17 +593,28 @@ export class QueuePanel extends SectionPanel {
         <section>
           <h3 class="col-title">Goals</h3>
           <div class="new-goal">
-            <input id="new-goal" type="text" placeholder="What do you need to focus on?" aria-label="New goal" />
+            <input id="new-goal" type="text" placeholder="New goal" aria-label="New goal" />
             <button data-action="newGoal" data-value-from="#new-goal">Add</button>
           </div>
-          ${goalCards || '<p class="empty">No goals yet. Add one, then drag items onto it.</p>'}
+          ${goalCards || '<p class="empty">No goals yet.</p>'}
         </section>
         <section>
           <h3 class="col-title">Not linked to a goal</h3>
           <div class="tabs">${tabs}</div>
           <div class="toolbar">
             <button data-action="refresh">↺ Refresh</button>
-            <span class="meta">${shown.length} awaiting action · ${esc(hint)}</span>
+            <span class="meta">${shown.length} awaiting action</span>
+          </div>
+          <div id="selbar" class="toolbar" hidden>
+            <span id="selcount" class="meta"></span>
+            <button id="sel-today">Today</button>
+            <button id="sel-tomorrow">Tomorrow</button>
+            <button id="sel-backlog">Backlog</button>
+            <select id="sel-goal" aria-label="Link selected to a goal">
+              <option value="">Link to goal…</option>
+              ${goals.map((g) => `<option value="${esc(g.id)}">${esc(g.title)}</option>`).join("")}
+            </select>
+            <button id="sel-clear">Clear</button>
           </div>
           ${dueBanner}
           <div id="queue-list">${content}</div>
@@ -537,7 +636,7 @@ export class QueuePanel extends SectionPanel {
         <span>${flags} <span class="badge">${linked.length} linked</span></span>
       </div>
       ${goal.nextAction ? `<div class="meta">Next: ${esc(goal.nextAction)}</div>` : ""}
-      ${linked.map((i) => this.renderItem(i, today, false, false, true)).join("") || '<div class="meta">Drop items here to link them.</div>'}
+      ${linked.map((i) => this.renderItem(i, today, false, false, true)).join("") || '<div class="meta">Nothing linked.</div>'}
       <div class="toolbar" style="margin: 6px 0 0;">
         <button data-action="goalState" data-goal="${esc(goal.id)}" data-state="closed">Done</button>
         <button data-action="goalState" data-goal="${esc(goal.id)}" data-state="parked">Park</button>
@@ -571,7 +670,7 @@ export class QueuePanel extends SectionPanel {
     // you); line 2 is its summary. The rest opens on click.
     const timing = timingLabel(item.timing.bucket, item.timing.actBy);
     return `<div class="card queue-item${upNext ? " up-next" : ""}"${draggable ? ' draggable="true"' : ""} tabindex="0" data-item-id="${esc(item.id)}">
-      <div class="item-line clickable" title="Click to expand">
+      <div class="item-line clickable">
         <span class="who">${draggable ? '<span class="handle" aria-hidden="true">⠿</span>' : ""}${upNext ? '<span class="badge">Up next</span> ' : ""}<span class="badge">${esc(channelLabel(item.adapter, item.account))}</span> ${esc(item.sender)}</span>
         <span class="timing ${esc(item.timing.bucket)}" title="${esc(item.timing.reason)}">${esc(timing)}</span>
       </div>

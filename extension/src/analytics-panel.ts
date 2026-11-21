@@ -206,16 +206,16 @@ export class AnalyticsPanel extends SectionPanel {
       <p class="sub">Window: ${esc(m.window)} · ${m.signals} signals / ${m.thoughts} thoughts${m.ratio != null ? ` · ratio ${m.ratio}` : ""}</p>
       <div class="toolbar"><button data-action="refresh">↺ Refresh</button></div>
 
-      <h2>By direction — click a row for its signals</h2>
+      <h2>By direction</h2>
       <table>
         <thead><tr><th>Direction</th><th>Signals</th><th>Absorb rate</th><th>Override rate</th></tr></thead>
         <tbody>${directionRows}</tbody>
       </table>
 
-      <h2>By channel — click a bar for its signals</h2>
+      <h2>By channel</h2>
       ${channelBars || '<p class="empty">No signals yet.</p>'}
 
-      <h2>Daily volume — click a bar for that day's signals</h2>
+      <h2>Daily volume</h2>
       ${dayBars || '<p class="empty">No signals yet.</p>'}
 
       ${drilldown}

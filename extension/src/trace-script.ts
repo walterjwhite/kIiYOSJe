@@ -3,7 +3,7 @@
  * the webview, so it is plain ES5-style JavaScript with no template literals.
  * All text from events goes in through textContent, never innerHTML.
  *
- * Messages in:  {type:'data', summary, live}, {type:'ping', result}
+ * Messages in:  {type:'data', summary, signals, live}, {type:'ping', result}
  * Messages out: {command:'ready'}, {command:'open', id}
  */
 
@@ -39,9 +39,6 @@ export const TRACE_STYLE = `
   @media (prefers-reduced-motion: reduce) { .edge, .pipe { animation: none; } }
   .dot { pointer-events: none; }
   .chip { display: inline-block; margin-left: 8px; padding: 1px 10px; border-radius: 10px; background: var(--mind-accent); color: var(--mind-accent-fg); cursor: pointer; }
-  #detail { margin: 8px 0; }
-  tr.call-row { cursor: pointer; }
-  tr.call-row.sel { outline: 2px solid var(--mind-accent); }
   .ok { color: var(--mind-green); }
   .bad-text { color: var(--mind-red); }
   .live-on { background: var(--mind-green-fill) !important; color: #fff !important; }
@@ -54,7 +51,6 @@ export const TRACE_SCRIPT = `
   var filter = null;
   var seen = {};
   var firstLoad = true;
-  var selectedCall = null;
   var STEPS = [
     { id: 'signal', label: 'Signal', x: 70 },
     { id: 'match', label: 'Match', x: 195 },
@@ -105,7 +101,6 @@ export const TRACE_SCRIPT = `
 
   function setFilter(f) {
     filter = (filter && f && filter.type === f.type && filter.value === f.value) ? null : f;
-    selectedCall = null;
     draw();
   }
 
@@ -162,7 +157,7 @@ export const TRACE_SCRIPT = `
     // Step nodes.
     STEPS.forEach(function (st) {
       var o = st.op ? opStat(st.id) : null;
-      var cls = 'node' + (st.op && !o ? ' idle' : '') + (o && o.errors > 0 ? ' err' : '') + (filter && filter.type === 'op' && filter.value === st.id ? ' sel' : '');
+      var cls = 'node' + (st.op && !o ? ' idle' : '') + (o && o.errors > 0 ? ' err' : '') + (filter && (filter.type === 'op' || filter.type === 'node') && filter.value === st.id ? ' sel' : '');
       var g = mk('g', { 'class': cls, 'data-node': st.id }, graph);
       mk('rect', { x: st.x - W / 2, y: SY - H / 2, width: W, height: H, rx: 8 }, g);
       txt(g, st.x, SY - 4, 't1', st.label);
@@ -179,12 +174,12 @@ export const TRACE_SCRIPT = `
           var k = skippedFor(st.id);
           if (k) lines.push('skipped on ' + k + ' signals');
           lines.push('click to filter calls');
-        } else if (st.id === 'signal') lines.push(s.signals + ' signals processed', s.withoutModel + ' with no model call');
-        else if (st.id === 'match') lines.push('Direction matching runs locally, no model');
-        else lines.push(s.signals + ' signals reached a decision');
+        } else if (st.id === 'signal') lines.push(s.signals + ' signals processed', s.withoutModel + ' with no model call', 'click to list them');
+        else if (st.id === 'match') lines.push('Direction matching runs locally, no model', 'click to list matched signals');
+        else lines.push(s.signals + ' signals reached a decision', 'click to list them');
         return lines;
       });
-      if (st.op) g.addEventListener('click', function () { setFilter({ type: 'op', value: st.id }); });
+      g.addEventListener('click', function () { setFilter({ type: st.op ? 'op' : 'node', value: st.id }); });
     });
 
     // Model nodes.
@@ -226,80 +221,117 @@ export const TRACE_SCRIPT = `
     return td;
   }
 
-  function drawTable() {
-    var box = document.getElementById('calls');
-    box.textContent = '';
-    var calls = visibleCalls();
+  function who(signalId) {
+    var s = signalId && data.signals ? data.signals[signalId] : null;
+    if (!s) return signalId ? '(signal no longer stored)' : '';
+    return s.sender + (s.subject ? ' \u2014 ' + s.subject : '');
+  }
+
+  function filterLabel() {
+    if (!filter) return 'All model calls';
+    if (filter.type === 'op') return filter.value + ' calls';
+    if (filter.type === 'model') return 'Calls to ' + filter.value.split('|')[1];
+    return { signal: 'Signals processed', match: 'Signals matched to a direction', outcome: 'Signals by outcome' }[filter.value];
+  }
+
+  function header(box, count, noun) {
     var head = document.createElement('div');
     head.className = 'toolbar';
-    var count = document.createElement('span');
-    count.className = 'meta';
-    count.textContent = calls.length + ' model calls' + (calls.length > 300 ? ' (showing 300)' : '');
-    head.appendChild(count);
+    var title = document.createElement('strong');
+    title.textContent = filterLabel();
+    var n = document.createElement('span');
+    n.className = 'meta';
+    n.textContent = count + ' ' + noun + (count > 300 ? ' (showing 300)' : '');
+    head.appendChild(title);
+    head.appendChild(n);
     if (filter) {
       var chip = document.createElement('span');
       chip.className = 'chip';
-      chip.textContent = 'filter: ' + (filter.type === 'op' ? filter.value : filter.value.split('|')[1]) + ' \\u2715';
+      chip.textContent = 'clear \u2715';
       chip.addEventListener('click', function () { setFilter(filter); });
       head.appendChild(chip);
     }
     box.appendChild(head);
-    if (calls.length === 0) {
-      var p = document.createElement('p');
-      p.className = 'empty';
-      p.textContent = 'No model calls to show. If signals were processed but none called a model, the reasons are listed above.';
-      box.appendChild(p);
-      return;
-    }
-    var table = document.createElement('table');
-    table.className = 'sortable';
+  }
+
+  function table(box, columns) {
+    var t = document.createElement('table');
+    t.className = 'sortable';
     var thead = document.createElement('thead');
     var hr = document.createElement('tr');
-    [['When', 'text'], ['Step', 'text'], ['Model', 'text'], ['Time', 'num'], ['Tokens in / out', 'num'], ['Result', 'text']].forEach(function (h) {
+    columns.forEach(function (h) {
       var th = document.createElement('th');
       th.textContent = h[0];
       th.setAttribute('data-sort', h[1]);
       hr.appendChild(th);
     });
     thead.appendChild(hr);
-    table.appendChild(thead);
+    t.appendChild(thead);
     var tb = document.createElement('tbody');
-    calls.slice(0, 300).forEach(function (c) {
-      var tr = document.createElement('tr');
-      tr.className = 'call-row' + (selectedCall === callKey(c) ? ' sel' : '');
-      cell(tr, new Date(c.at).toLocaleString(), '', c.at);
-      cell(tr, c.operation);
-      cell(tr, c.provider + ' \\u00b7 ' + c.model);
-      cell(tr, fmtMs(c.durationMs), '', c.durationMs);
-      cell(tr, (c.inputTokens === undefined ? '\\u2014' : c.inputTokens) + ' / ' + (c.outputTokens === undefined ? '\\u2014' : c.outputTokens), '', (c.inputTokens || 0) + (c.outputTokens || 0));
-      cell(tr, c.ok ? 'ok' : 'failed', c.ok ? 'ok' : 'bad-text');
-      tr.addEventListener('click', function () { selectedCall = callKey(c); showDetail(c); drawTable(); });
-      tb.appendChild(tr);
-    });
-    table.appendChild(tb);
-    box.appendChild(table);
+    t.appendChild(tb);
+    box.appendChild(t);
+    return tb;
   }
 
-  function showDetail(c) {
-    var d = document.getElementById('detail');
-    d.textContent = '';
-    var card = document.createElement('div');
-    card.className = 'card';
-    var lines = [
-      c.operation + ' on ' + c.provider + ' ' + c.model + ' (' + c.transport + ')',
-      'endpoint: ' + (c.endpoint || 'none, agent over ACP'),
-      'took ' + fmtMs(c.durationMs) + ', prompt ' + c.promptChars + ' chars, response ' + c.responseChars + ' chars',
-      c.ok ? 'succeeded' : 'failed: ' + (c.error || 'unknown error')
-    ];
-    lines.forEach(function (l) { var div = document.createElement('div'); div.textContent = l; card.appendChild(div); });
-    if (c.signalId) {
-      var b = document.createElement('button');
-      b.textContent = 'Open signal';
-      b.setAttribute('data-action', 'open');
-      b.setAttribute('data-id', c.signalId);
-      card.appendChild(b);
-    }
-    d.appendChild(card);
+  function openOnClick(tr, signalId) {
+    if (!signalId) return;
+    tr.className = 'clickable';
+    tr.addEventListener('click', function () { post({ command: 'open', id: signalId }); });
+  }
+
+  function empty(box, text) {
+    var p = document.createElement('p');
+    p.className = 'empty';
+    p.textContent = text;
+    box.appendChild(p);
+  }
+
+  // Model calls, one row each. Clicking a row opens the signal behind it.
+  function drawCalls(box) {
+    var calls = visibleCalls();
+    header(box, calls.length, 'model calls');
+    if (calls.length === 0) return empty(box, 'No model calls in this range.');
+    var tb = table(box, [['When', 'text'], ['Signal', 'text'], ['Step', 'text'], ['Model', 'text'], ['Time', 'num'], ['Tokens in / out', 'num'], ['Result', 'text']]);
+    calls.slice(0, 300).forEach(function (c) {
+      var tr = document.createElement('tr');
+      openOnClick(tr, c.signalId);
+      cell(tr, new Date(c.at).toLocaleString(), '', c.at);
+      cell(tr, who(c.signalId));
+      cell(tr, c.operation);
+      cell(tr, c.provider + ' \u00b7 ' + c.model);
+      cell(tr, fmtMs(c.durationMs), '', c.durationMs);
+      cell(tr, (c.inputTokens === undefined ? '\u2014' : c.inputTokens) + ' / ' + (c.outputTokens === undefined ? '\u2014' : c.outputTokens), '', (c.inputTokens || 0) + (c.outputTokens || 0));
+      cell(tr, c.ok ? 'ok' : 'failed: ' + (c.error || 'unknown error').slice(0, 120), c.ok ? 'ok' : 'bad-text');
+      tb.appendChild(tr);
+    });
+  }
+
+  // Processed signals, one row each, for the nodes that are not model steps.
+  function drawRecords(box) {
+    var recs = data.summary.records.filter(function (r) {
+      return filter.value !== 'match' || (r.matchedBy && r.matchedBy !== 'fallback');
+    });
+    header(box, recs.length, 'signals');
+    if (recs.length === 0) return empty(box, 'No signals to show.');
+    var tb = table(box, [['When', 'text'], ['Signal', 'text'], ['Direction', 'text'], ['Matched by', 'text'], ['Outcome', 'text'], ['Model calls', 'num'], ['Model time', 'num']]);
+    recs.slice(0, 300).forEach(function (r) {
+      var tr = document.createElement('tr');
+      openOnClick(tr, r.signalId);
+      cell(tr, new Date(r.at).toLocaleString(), '', r.at);
+      cell(tr, who(r.signalId));
+      cell(tr, r.directionId || '\u2014');
+      cell(tr, r.matchedBy || '\u2014');
+      cell(tr, r.disposition);
+      cell(tr, String(r.calls), '', r.calls);
+      cell(tr, r.calls ? fmtMs(r.modelMs) : '\u2014', '', r.modelMs);
+      tb.appendChild(tr);
+    });
+  }
+
+  function drawTable() {
+    var box = document.getElementById('calls');
+    box.textContent = '';
+    if (filter && filter.type === 'node') drawRecords(box); else drawCalls(box);
   }
 
   function drawStats() {
@@ -380,7 +412,7 @@ export const TRACE_SCRIPT = `
   window.addEventListener('message', function (ev) {
     var m = ev.data;
     if (m.type === 'data') {
-      data = { summary: m.summary, ops: m.summary.ops };
+      data = { summary: m.summary, ops: m.summary.ops, signals: m.signals || {} };
       var fresh = m.summary.calls.filter(function (c) { return !seen[callKey(c)]; });
       m.summary.calls.forEach(function (c) { seen[callKey(c)] = true; });
       draw();

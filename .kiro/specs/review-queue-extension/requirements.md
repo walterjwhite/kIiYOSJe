@@ -35,18 +35,16 @@ evidence behind it, so I can judge without trusting a summary.
    Direction and log a `signal.reclassified` event, distinct from an override.
 4. WHEN I open the Journal THEN it SHALL be read-only.
 
-## Requirement 3 — Brief, Analytics, and Devices webviews
+## Requirement 3 — Analytics and Devices webviews
 
 **User story:** As the operator, I want the day's state and the numbers behind it
 in one click, without a dashboard I have to maintain.
 
 **Acceptance criteria**
 
-1. WHEN the brief opens THEN it SHALL show Directions in effect, Thoughts needing
-   a decision, proposed actions, commitments due, and a one-line absorb summary.
-2. WHEN I click an Analytics row or bar THEN it SHALL open the signals behind that
+1. WHEN I click an Analytics row or bar THEN it SHALL open the signals behind that
    number below the chart.
-3. WHEN the Devices view opens THEN it SHALL say pairing is not implemented; it
+2. WHEN the Devices view opens THEN it SHALL say pairing is not implemented; it
    SHALL NOT pretend to pair.
 
 ## Requirement 4 — Local-only connectivity
@@ -74,3 +72,30 @@ so that a local model and a cloud model are one command apart.
    model names, base URL, and key through `PUT /admin/ai-config`.
 2. WHEN the key is left blank THEN the existing configured key SHALL be kept.
 3. WHEN the provider changes THEN no server restart SHALL be required.
+
+## Requirement 6 — Goals, and a summary I can read or hear
+
+**User story:** As the operator, I want to name what I am focusing on and have
+the Queue organise itself around it, and to get the day's plan as text or as
+speech, so the Today screen is not needed.
+
+**Acceptance criteria**
+
+1. WHEN the Queue opens THEN it SHALL show Goals (Thoughts in the `goal` state)
+   in one column and the items not linked to a goal in the other.
+2. WHEN I drag an item onto a goal THEN it SHALL be linked to that goal, and
+   Unlink SHALL undo it.
+3. WHEN a new item reaches the Queue and automatic linking is on THEN the model
+   MAY link it to a goal, and it SHALL do so only when its confidence is at
+   least the configured threshold and the goal exists. Each automatic link
+   SHALL be recorded as an event with `auto: true`.
+4. WHEN a goal's deadline has passed or its review is due THEN the Queue SHALL
+   say so on the goal and in the strip at the top.
+5. WHEN I press Transcript THEN it SHALL show the summary text, and WHEN I press
+   Audio THEN it SHALL play that same text rendered locally by Piper in the
+   configured voice, speed and tone.
+6. WHEN Piper is missing, a voice is missing and downloading is off, or Piper
+   fails THEN Audio SHALL show the reason and SHALL NOT fail silently.
+7. WHEN a voice must be downloaded THEN it SHALL come only from the
+   `rhasspy/piper-voices` repository, only if "Download voices" is on, and the
+   voice name SHALL be validated so it cannot select another path or host.

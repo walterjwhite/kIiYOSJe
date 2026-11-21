@@ -6,8 +6,8 @@ Closes #
 
 ## How it was verified
 
-- [ ] `npm run lint`
-- [ ] `npm test` (new or changed behavior has a test that fails without the change)
+- [ ] `npm run lint` (typecheck plus Biome on changed files)
+- [ ] `npm run test:coverage` (new or changed behavior has a test that fails without the change)
 - [ ] `npm run license:check` (required if any manifest or lockfile changed)
 - [ ] `node scripts/check-secrets.mjs`
 

@@ -73,11 +73,24 @@ export class ModelTracePanel extends SectionPanel {
         `/events?kind=signal.processed&range=${this.range}&limit=1000`,
       );
       this.summary = summarize(events);
+      const signals = await this.signalLookup();
       this.loadError = undefined;
-      void this.panel.webview.postMessage({ type: "data", summary: this.summary, live: this.live });
+      void this.panel.webview.postMessage({ type: "data", summary: this.summary, signals, live: this.live });
     } catch (err) {
       this.loadError = String(err);
       void this.panel.webview.postMessage({ type: "ping", result: { lines: [{ text: this.loadError, bad: true }] } });
+    }
+  }
+
+  /** Who and what each processed signal was, so a row can say more than an id. Never blocks the graph. */
+  private async signalLookup(): Promise<Record<string, { sender: string; subject: string | null }>> {
+    try {
+      const rows = await apiFetch<{ id: string; sender: string; subject: string | null }[]>(
+        `/signals?range=${this.range}`,
+      );
+      return Object.fromEntries(rows.map((r) => [r.id, { sender: r.sender, subject: r.subject }]));
+    } catch {
+      return {};
     }
   }
 
@@ -125,7 +138,6 @@ export class ModelTracePanel extends SectionPanel {
       )
       .join("");
     const body = `
-      <p class="sub">Every model call mind made, drawn from the audit log. Hover a node or line for numbers, click to filter the calls below. Line thickness is call count, line speed is latency, red means failures.</p>
       <div class="toolbar">
         ${rangeButtons}
         <button data-action="refresh">↺ Refresh</button>
@@ -140,7 +152,6 @@ export class ModelTracePanel extends SectionPanel {
         <div id="tip"></div>
       </div>
       <div id="ping" class="meta"></div>
-      <div id="detail"></div>
       <div id="calls"></div>
       <noscript>${esc("Scripts are disabled.")}</noscript>
     `;
