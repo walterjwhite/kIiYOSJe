@@ -116,7 +116,7 @@
         {
           "id": "mind.nav",
           "name": "mind",
-          "type": "tree"
+          "type": "webview"
         }
       ]
     },

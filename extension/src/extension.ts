@@ -30,10 +30,9 @@ import { SystemEventsPanel } from "./system-events-panel.js";
  * incidental side effect of how VS Code happens to lay out tree views.
  */
 export function activate(context: vscode.ExtensionContext): void {
-  const navTreeView = vscode.window.createTreeView("mind.nav", {
-    treeDataProvider: new NavProvider(),
-  });
-  context.subscriptions.push(navTreeView);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider("mind.nav", new NavProvider()),
+  );
 
   // Status indicator: blue+spinning while any apiFetch call is in flight,
   // green briefly on success, red on failure, yellow for a flagged warning.

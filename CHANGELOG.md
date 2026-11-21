@@ -11,6 +11,11 @@ versions while the project is `0.x`).
 
 - Sidebar: links show only their name. The grey text after each one ("goals, and
   what needs action" and the rest) is gone.
+- Sidebar: a link takes an accent color (background, left edge and icon) on hover
+  and keyboard focus, and none at rest. This needed the sidebar to become a
+  webview in place of a tree view, because VS Code does not let an extension
+  style tree rows. Up and Down move between links, and the Developer group is
+  still collapsed by default.
 - Queue: goal cards are clean. There is no "N linked" badge and no **Rename**,
   **+ Sub-goal**, **Done** or **Park** button. Double-click a goal name to rename
   it in place, drag a goal onto another goal to make it a sub-goal (or onto the
