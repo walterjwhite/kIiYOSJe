@@ -44,7 +44,7 @@ const STYLE = `
   .nav-row:hover, .nav-row:focus-visible { background: color-mix(in srgb, var(--mind-accent) 16%, transparent); border-left-color: var(--mind-accent); }
   .nav-row:hover svg, .nav-row:focus-visible svg { color: var(--mind-accent); }
   .nav-row:focus-visible { outline: 1px solid var(--vscode-focusBorder, var(--mind-accent)); outline-offset: -1px; }
-  .chevron { width: 12px; height: 12px; transition: transform 120ms ease; }
+  .nav-row .chevron { width: 12px; height: 12px; margin-left: auto; transition: transform 120ms ease; }
   details[open] > summary .chevron { transform: rotate(90deg); }
   .nav-children .nav-row { padding-left: 34px; }
 `;
@@ -92,7 +92,7 @@ export function navHtml(nonce: string): string {
       if (row.kind === "item") return link(row.item);
       const { group } = row;
       return `<details class="nav-group">
-        <summary class="nav-row">${icon("chevron", "chevron")}${icon(group.icon)}<span>${esc(group.label)}</span></summary>
+        <summary class="nav-row">${icon(group.icon)}<span>${esc(group.label)}</span>${icon("chevron", "chevron")}</summary>
         <div class="nav-children">${navChildren(group.id).map(link).join("")}</div>
       </details>`;
     })

@@ -21,6 +21,14 @@ describe("sidebar view", () => {
     expect(group).toContain(NAV_GROUPS[0]?.label ?? "Developer");
   });
 
+  it("lines the Developer icon up with the other links, indenting only its children", () => {
+    const summary = html.slice(html.indexOf("<summary"), html.indexOf("</summary>"));
+    // The expand arrow sits after the label, so it does not push the icon right.
+    expect(summary.indexOf('class="chevron"')).toBeGreaterThan(summary.indexOf("<span>"));
+    const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+    expect(css).toMatch(/\.nav-children \.nav-row\s*\{[^}]*padding-left/);
+  });
+
   it("has an icon for every item and group", () => {
     for (const entry of [...NAV_ITEMS, ...NAV_GROUPS]) expect(NAV_ICONS[entry.icon]).toBeTruthy();
   });
