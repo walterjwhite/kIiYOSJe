@@ -9,6 +9,8 @@ versions while the project is `0.x`).
 
 ### Changed
 
+- Sidebar: links show only their name. The grey text after each one ("goals, and
+  what needs action" and the rest) is gone.
 - Queue: goal cards are clean. There is no "N linked" badge and no **Rename**,
   **+ Sub-goal**, **Done** or **Park** button. Double-click a goal name to rename
   it in place, drag a goal onto another goal to make it a sub-goal (or onto the

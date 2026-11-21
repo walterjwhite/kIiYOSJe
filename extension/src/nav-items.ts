@@ -32,7 +32,6 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     id: "developer",
     label: "Developer",
-    description: "the machine's own view",
     icon: "beaker",
   },
 ];
@@ -41,49 +40,42 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     id: "queue",
     label: "Queue",
-    description: "goals, and what needs action",
     icon: "inbox",
     command: "mind.queue",
   },
   {
     id: "signals",
     label: "Signals",
-    description: "every signal, in and out",
     icon: "rss",
     command: "mind.signals",
   },
   {
     id: "directions",
     label: "Directions",
-    description: "the rules mind matches against",
     icon: "compass",
     command: "mind.directions",
   },
   {
     id: "learnings",
     label: "Learnings",
-    description: "policy proposals and reclassifications",
     icon: "lightbulb",
     command: "mind.learnings",
   },
   {
     id: "analytics",
     label: "Analytics",
-    description: "absorb rate against Directions",
     icon: "graph",
     command: "mind.analytics",
   },
   {
     id: "journal",
     label: "Journal",
-    description: "your own dated notes",
     icon: "book",
     command: "mind.journal",
   },
   {
     id: "systemEvents",
     label: "System Events",
-    description: "what mind itself did, with the same filters as Signals",
     icon: "list-unordered",
     command: "mind.systemEvents",
     group: "developer",
@@ -91,7 +83,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     id: "modelTrace",
     label: "Model Trace",
-    description: "where model calls go, as a graph",
     icon: "type-hierarchy",
     command: "mind.modelTrace",
     group: "developer",
@@ -99,14 +90,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     id: "devices",
     label: "Devices",
-    description: "paired clients, and pairing a new one",
     icon: "device-desktop",
     command: "mind.devices",
   },
   {
     id: "settings",
     label: "Settings",
-    description: "audio, auto-linking, what is shown",
     icon: "gear",
     command: "mind.settings",
   },

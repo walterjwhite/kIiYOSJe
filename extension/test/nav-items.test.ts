@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NAV_ITEMS, navChildren, navTopLevel } from "../src/nav-items.js";
+import { NAV_GROUPS, NAV_ITEMS, navChildren, navTopLevel } from "../src/nav-items.js";
 
 describe("nav structure", () => {
   it("keeps the operator's path first and the machine's screens behind a group", () => {
@@ -34,9 +34,9 @@ describe("nav structure", () => {
     }
   });
 
-  it("describes Analytics by what it measures, not by time saved", () => {
-    const analytics = NAV_ITEMS.find((i) => i.id === "analytics");
-    expect(analytics?.description).toBe("absorb rate against Directions");
+  it("shows only the link name, with no trailing description", () => {
+    expect(NAV_ITEMS.every((i) => i.description === undefined)).toBe(true);
+    expect(NAV_GROUPS.every((g) => g.description === undefined)).toBe(true);
     expect(JSON.stringify(NAV_ITEMS)).not.toContain("time saved");
   });
 });
