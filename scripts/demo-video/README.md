@@ -67,8 +67,28 @@ node scripts/demo-video/pass1-video.mjs          # silent video + captions.srt
 node scripts/demo-video/pass2-audio.mjs --download-voice
 ```
 
-Output: `out/demo.mp4` (H.264/AAC, captions burned in and attached as a soft
-subtitle track), `out/captions.srt`, `out/manifest.json`.
+## One command
+
+On this workstation the dotfiles install `demo-video-env` (see
+`~/.data/configuration/modules/demo-video.nix`), which carries the ffmpeg,
+Chromium, Piper, Xvfb and Android tools. Elsewhere use `nix-shell
+scripts/demo-video/shell.nix`. Then:
+
+```bash
+./scripts/demo-video/make-demo-video.sh
+```
+
+It seeds `demo.db` if missing, starts the demo server itself, builds the
+extension and cards, captures VS Code (and Android when a device is attached),
+mask + PII gate, then both passes. It **refuses** if something already listens
+on 8787, because that may be the real database; stop it, or pass
+`--use-running-server` after checking the Queue. Missing manual beats become
+slates unless `--strict`, and the run ends with a `DRAFT` line. `--help` lists
+the rest (`--skip-android`, `--no-audio`, `--espeak`, `--music`, `--dry-run`).
+
+Output: `<repo-root>/out/demo.mp4` (H.264/AAC, captions burned in and attached
+as a soft subtitle track), `<repo-root>/out/captions.srt`,
+`<repo-root>/out/manifest.json`. The root `out/` directory is git-ignored.
 
 The capture scripts record whatever is running on the server they are pointed
 at, and `127.0.0.1:8787` is just as likely to be a real instance as the demo

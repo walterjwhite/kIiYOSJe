@@ -30,7 +30,7 @@ const flag = (name) => argv.includes(name);
 const shotsPath = path.resolve(value("--shots", path.join(here, "shots.json")));
 const project = JSON.parse(readFileSync(shotsPath, "utf8"));
 const shots = project.shots;
-const outDir = path.resolve(value("--out", path.join(here, "out")));
+const outDir = path.resolve(value("--out", path.join(here, "..", "..", "out")));
 const workDir = path.join(outDir, "work");
 const ttsDir = path.join(workDir, "tts");
 const video = path.resolve(value("--video", path.join(outDir, "video-silent.mp4")));

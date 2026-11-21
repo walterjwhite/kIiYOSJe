@@ -7,9 +7,9 @@
  * Input is one PNG per shot in shots.json, named <shot id>.png, normally in
  * frames/masked/ (the output of mask.mjs). Output:
  *
- *   out/video-silent.mp4   H.264, 30 fps, captions burned in
- *   out/captions.srt       the same captions as a sidecar
- *   out/manifest.json      shot start times, for pass 2
+ *   <repo-root>/out/video-silent.mp4   H.264, 30 fps, captions burned in
+ *   <repo-root>/out/captions.srt       the same captions as a sidecar
+ *   <repo-root>/out/manifest.json      shot start times, for pass 2
  *
  * Pass 1 never touches audio: pass 2 adds it. A missing frame fails the run
  * unless --allow-missing is given, which inserts a plain slate so an early
@@ -29,7 +29,7 @@ const flag = (name) => argv.includes(name);
 
 const shotsPath = path.resolve(value("--shots", path.join(here, "shots.json")));
 const frameDir = path.resolve(value("--frames", path.join(here, "frames", "masked")));
-const outDir = path.resolve(value("--out", path.join(here, "out")));
+const outDir = path.resolve(value("--out", path.join(here, "..", "..", "out")));
 const workDir = path.join(outDir, "work");
 const ffmpeg = process.env.FFMPEG || "ffmpeg";
 const allowMissing = flag("--allow-missing");

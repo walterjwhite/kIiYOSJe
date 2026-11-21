@@ -157,9 +157,9 @@ jobs:
         with:
           name: demo-video-draft
           path: |
-            scripts/demo-video/out/demo.mp4
-            scripts/demo-video/out/captions.srt
-            scripts/demo-video/out/manifest.json
+            out/demo.mp4
+            out/captions.srt
+            out/manifest.json
             scripts/demo-video/frames/
           if-no-files-found: warn
           retention-days: 14

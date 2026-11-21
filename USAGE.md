@@ -10,17 +10,27 @@ Open a screen from the **mind** icon in the Activity Bar.
 Two columns.
 
 - **Goals (left).** A Goal is a Thought you have decided to focus on. Type a
-  name in the box and press Enter or **Add**. **Done** closes a goal and **Park**
-  sets it aside. A goal shows a flag when its deadline has passed or its review
-  is due. **+ Sub-goal** adds a goal under it; sub-goals are indented below
-  their parent and can have sub-goals of their own.
+  name in the box and press Enter or **Add**. Double-click a goal's name to
+  rename it; click it to open its details (an editable name, and a **Signals**
+  tab with every signal linked to it). A goal shows a flag when its deadline has
+  passed or its review is due. Drag a goal onto another goal to make it a
+  sub-goal, or onto the **Goals** heading to make it top-level; sub-goals are
+  indented below their parent. **Show linked** shows or hides the records linked
+  to every goal at once; they are hidden by default.
 - **Not linked to a goal (right).** Everything awaiting action that is not
   linked to a goal. The tabs (Today, Upcoming, Backlog, All) are your plan for
   the day. The **Filter signals** box narrows the current tab to items that
   contain every word you type, in any text the item shows (channel, sender,
   summary, timing, Direction, draft, plan, age). Escape clears it.
 
-The two columns scroll separately.
+The two columns scroll separately, and each keeps its place when you move a
+signal.
+
+**Goals in both columns** (the switch at the top) trades the signal list for a
+second list of goals. The left column shows every goal with its linked records;
+the right column shows the goals alone, as places to drop records. Select records
+as described below and drag them from one goal to another. Switch it off to get
+the signal list back.
 
 Each item is two lines: the channel, sender and when it needs you, then its
 summary. Click the first line to open the item and see its draft, the reason it
@@ -38,13 +48,13 @@ is authorized.
 
 Selection follows the usual list conventions.
 
-| Action               | Result                                                            |
-| -------------------- | ----------------------------------------------------------------- |
-| Click                | Clears the selection and opens or closes that item                |
-| Ctrl/Cmd+click       | Adds or removes that one item                                     |
-| Shift+click          | Selects every item between the last item you clicked and this one |
-| Ctrl/Cmd+Shift+click | Adds that range to the current selection                          |
-| Esc                  | Clears the selection                                              |
+| Action               | Result                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| Click                | Clears the selection and opens or closes that item                                    |
+| Ctrl/Cmd+click       | Adds or removes that one item                                                         |
+| Shift+click          | Selects every item between the last item you clicked and this one (within one column) |
+| Ctrl/Cmd+Shift+click | Adds that range to the current selection                                              |
+| Esc                  | Clears the selection                                                                  |
 
 When anything is selected, a bar appears above the list. Use it to plan the
 selected items for Today, Tomorrow or the Backlog, or to link them to a goal from
@@ -199,13 +209,24 @@ A graph of every model call, drawn from the audit log.
 
 The clients paired to this server, and pairing a new one.
 
-**Paired clients** lists each device's name, kind, when it was paired, when it
-was last seen, and its permissions. **Revoke** locks that device out on its next
-request; every other client keeps working. A revoked row stays in the list so
-the history is visible.
+A paired device is another client for you, not a second account. It gets its own
+credential and the permissions chosen here, and it shares this server's
+settings, Queue and Journal. Revoking it locks it out on its next request and
+leaves every other client alone.
 
-**Show pairing code** picks a name and permissions here, then shows a QR code
-and a six-digit code for ten minutes. The QR code carries both the server
+**Paired clients** lists each device's name, kind, when it was paired, when it
+was last seen, and its permissions. Double-click a name to rename it. Double-click
+a device's permissions to show a toggle for each one, then **Save**; the change
+applies on that device's next request. **Revoke** locks that device out on its
+next request; every other client keeps working. A revoked row stays in the list
+so the history is visible.
+
+**+ Add new Device** opens a form with a name and permission toggles and shows a
+QR code and a six-digit code straight away. A bar counts down the ten minutes
+the code lasts; when it runs out the screen fetches a new code by itself, and it
+fetches one again when you change the name or a permission, because a code is
+issued for exactly those, and the earlier code stops working. The form closes
+when a device pairs. The QR code carries both the server
 address and the code, so the Android app fills in both from one scan; the digits
 can also be typed, and any client speaking `POST /devices/pair` can use them.
 The address encoded there is `mind.pairingServerUrl` if set, otherwise this

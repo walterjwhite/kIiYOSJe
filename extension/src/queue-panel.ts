@@ -27,7 +27,7 @@ import {
   VIEWS,
   viewCounts,
 } from "./queue-view.js";
-import { esc, SectionPanel } from "./webview-base.js";
+import { esc, SectionPanel, toggleSwitch } from "./webview-base.js";
 
 const QUEUE_STYLE = `
   .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
@@ -69,6 +69,7 @@ const QUEUE_STYLE = `
   .col-title.drop-over { outline: 2px dashed var(--mind-accent); outline-offset: 2px; }
   .linked { display: none; }
   .show-linked .linked { display: block; }
+  .strip-toggle { display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
   .goal-title { flex: 1; min-width: 0; cursor: pointer; }
   .goal-title input { font: inherit; }
   .goal-card.sub { border-left-color: var(--mind-accent); }
@@ -107,13 +108,20 @@ const QUEUE_SCRIPT = `
     var l = document.getElementById('queue-list');
     return l ? Array.prototype.slice.call(l.querySelectorAll('.queue-item')) : [];
   }
-  function visibleCards() { return cards().filter(function (c) { return !c.hidden; }); }
+  // Selection covers every record card: unlinked signals in the list and the
+  // records shown under goals. A card that is filtered out or collapsed away
+  // (display: none) is not part of the selection a click or drag acts on.
+  function allCards() { return Array.prototype.slice.call(document.querySelectorAll('.queue-item')); }
+  function isShown(c) { return !c.hidden && c.offsetParent !== null; }
+  function visibleCards(scope) {
+    return Array.prototype.filter.call((scope || document).querySelectorAll('.queue-item'), isShown);
+  }
   function selectedIds() {
-    return cards().filter(function (c) { return selected[c.dataset.itemId]; }).map(function (c) { return c.dataset.itemId; });
+    return allCards().filter(function (c) { return selected[c.dataset.itemId] && isShown(c); }).map(function (c) { return c.dataset.itemId; });
   }
   function paint() {
     var n = 0;
-    cards().forEach(function (c) {
+    allCards().forEach(function (c) {
       var on = !!selected[c.dataset.itemId];
       c.classList.toggle('selected', on);
       if (on) n++;
@@ -133,7 +141,8 @@ const QUEUE_SCRIPT = `
     if (!line) return;
     var card = line.parentElement;
     var id = card.dataset.itemId;
-    var all = visibleCards();
+    // Shift selects a range within one column, in the order the cards appear.
+    var all = visibleCards(card.closest('section'));
     var index = all.indexOf(card);
     if (index < 0) { card.classList.toggle('open'); return; }
     var additive = e.ctrlKey || e.metaKey;
@@ -157,13 +166,13 @@ const QUEUE_SCRIPT = `
   });
   [['sel-today', 'today'], ['sel-tomorrow', 'tomorrow'], ['sel-backlog', 'backlog']].forEach(function (pair) {
     var b = document.getElementById(pair[0]);
-    if (b) b.addEventListener('click', function () { post({ command: 'plan', items: selectedIds(), when: pair[1] }); });
+    if (b) b.addEventListener('click', function () { flushScroll(); post({ command: 'plan', items: selectedIds(), when: pair[1] }); });
   });
   var clearButton = document.getElementById('sel-clear');
   if (clearButton) clearButton.addEventListener('click', clearSelection);
   var goalPicker = document.getElementById('sel-goal');
   if (goalPicker) goalPicker.addEventListener('change', function () {
-    if (goalPicker.value) post({ command: 'link', items: selectedIds(), goal: goalPicker.value });
+    if (goalPicker.value) { flushScroll(); post({ command: 'link', items: selectedIds(), goal: goalPicker.value }); }
     goalPicker.value = '';
   });
   // Search: every word must appear in the card's data-search text, which holds
@@ -237,8 +246,24 @@ const QUEUE_SCRIPT = `
       a.play().catch(function () {});
     }
   });
+  // The signal list is absent when goals fill both columns; goal and linked-record
+  // drag and drop still work then, only reordering needs the list.
   var list = document.getElementById('queue-list');
-  if (!list) return;
+
+  // Each column scrolls on its own, and the page is rebuilt after every change
+  // (a link, a plan). The extension keeps the scroll positions and hands them
+  // back, so the list stays where it was instead of jumping to the top.
+  var columns = Array.prototype.slice.call(document.querySelectorAll('.queue-cols > section'));
+  function tops() { return columns.map(function (c) { return Math.round(c.scrollTop); }); }
+  function flushScroll() { clearTimeout(scrollTimer); post({ command: 'scroll', tops: tops() }); }
+  var scrollTimer = null;
+  document.addEventListener('scroll', function () {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(flushScroll, 150);
+  }, true);
+  function restoreScroll() { columns.forEach(function (c, i) { c.scrollTop = INITIAL_SCROLL[i] || 0; }); }
+  restoreScroll();
+  requestAnimationFrame(restoreScroll);
   var dragged = null;
   var dragIds = [];
   var droppedOnTab = false;
@@ -248,8 +273,8 @@ const QUEUE_SCRIPT = `
   // at once. The extension remembers the choice so a refresh keeps it.
   var linkedToggle = document.getElementById('toggle-linked');
   if (linkedToggle) linkedToggle.addEventListener('click', function () {
-    var col = document.getElementById('goals-col');
-    var on = col.classList.toggle('show-linked');
+    var on = false;
+    document.querySelectorAll('.goals-col').forEach(function (col) { on = col.classList.toggle('show-linked'); });
     linkedToggle.textContent = on ? 'Hide linked' : 'Show linked';
     post({ command: 'linkedOpen', open: on });
   });
@@ -311,8 +336,7 @@ const QUEUE_SCRIPT = `
       document.querySelectorAll('.drop-over').forEach(function (el) { el.classList.remove('drop-over'); });
     });
   });
-  var goalRoot = document.querySelector('[data-goal-root]');
-  if (goalRoot) {
+  document.querySelectorAll('[data-goal-root]').forEach(function (goalRoot) {
     goalRoot.addEventListener('dragover', function (e) {
       if (!draggedGoal) return;
       e.preventDefault();
@@ -323,9 +347,10 @@ const QUEUE_SCRIPT = `
       if (!draggedGoal) return;
       e.preventDefault();
       goalRoot.classList.remove('drop-over');
+      flushScroll();
       post({ command: 'moveGoal', goal: draggedGoal, parent: null });
     });
-  }
+  });
 
   document.querySelectorAll('[data-drop]').forEach(function (tab) {
     tab.addEventListener('dragover', function (e) {
@@ -339,6 +364,7 @@ const QUEUE_SCRIPT = `
       e.preventDefault();
       tab.classList.remove('drop-over');
       droppedOnTab = true;
+      flushScroll();
       post({ command: 'plan', items: dragIds, when: tab.getAttribute('data-drop') });
     });
   });
@@ -357,6 +383,7 @@ const QUEUE_SCRIPT = `
       if (draggedGoal) {
         e.preventDefault();
         goal.classList.remove('drop-over');
+        flushScroll();
         post({ command: 'moveGoal', goal: draggedGoal, parent: goal.getAttribute('data-goal') });
         return;
       }
@@ -364,6 +391,7 @@ const QUEUE_SCRIPT = `
       e.preventDefault();
       goal.classList.remove('drop-over');
       droppedOnTab = true;
+      flushScroll();
       post({ command: 'link', items: dragIds, goal: goal.getAttribute('data-goal') });
     });
   });
@@ -384,34 +412,37 @@ const QUEUE_SCRIPT = `
     return best;
   }
 
-  list.addEventListener('dragstart', function (e) {
+  document.addEventListener('dragstart', function (e) {
     var card = e.target.closest && e.target.closest('.queue-item');
-    if (!card) return;
+    if (!card || card.getAttribute('draggable') !== 'true') return;
     dragged = card;
     // Dragging a selected card carries the whole selection; dragging any other card drags just that one.
     if (selected[card.dataset.itemId] && selectedIds().length > 1) dragIds = selectedIds();
     else { selected = {}; paint(); dragIds = [card.dataset.itemId]; }
     cards().forEach(function (c) { if (dragIds.indexOf(c.dataset.itemId) >= 0) c.classList.add('dragging'); });
+    card.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', dragIds.join(','));
   });
+  document.addEventListener('dragend', function () {
+    if (!dragged) return;
+    document.querySelectorAll('.queue-item.dragging').forEach(function (c) { c.classList.remove('dragging'); });
+    var reorder = dragIds.length === 1 && !!list && list.contains(dragged);
+    dragged = null;
+    dragIds = [];
+    document.querySelectorAll('.drop-over').forEach(function (el) { el.classList.remove('drop-over'); });
+    if (droppedOnTab) { droppedOnTab = false; return; }
+    if (reorder) save();
+  });
+  if (list) {
   list.addEventListener('dragover', function (e) {
     // Reordering moves one card; a multi-card drag only makes sense onto a goal or a tab.
-    if (!dragged || dragIds.length !== 1) return;
+    if (!dragged || dragIds.length !== 1 || !list.contains(dragged)) return;
     e.preventDefault();
     var after = cardAfter(e.clientY);
     if (after) list.insertBefore(dragged, after); else list.appendChild(dragged);
   });
   list.addEventListener('drop', function (e) { if (dragged) e.preventDefault(); });
-  list.addEventListener('dragend', function () {
-    if (!dragged) return;
-    cards().forEach(function (c) { c.classList.remove('dragging'); });
-    var single = dragIds.length === 1;
-    dragged = null;
-    dragIds = [];
-    if (droppedOnTab) { droppedOnTab = false; return; }
-    if (single) save();
-  });
 
   list.addEventListener('keydown', function (e) {
     if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
@@ -424,6 +455,7 @@ const QUEUE_SCRIPT = `
     card.focus();
     save();
   });
+  }
 })();
 `;
 
@@ -442,6 +474,10 @@ export class QueuePanel extends SectionPanel {
   private static search = "";
   /** Whether linked records show under their goals (all goals at once). */
   private static showLinked = false;
+  /** Goals in both columns, so a record can be dragged from one goal to another. */
+  private static goalsBothSides = false;
+  /** Scroll offset of each column, kept so a re-render does not send them back to the top. */
+  private static scroll: number[] = [0, 0];
   private items: QueueItem[] = [];
   private goals: Goal[] = [];
   private summary: { absorbedToday: number } = { absorbedToday: 0 };
@@ -485,6 +521,7 @@ export class QueuePanel extends SectionPanel {
       text?: string;
       state?: string;
       items?: unknown;
+      tops?: unknown[];
     };
     const itemIds = Array.isArray(m.items)
       ? m.items.filter((v): v is string => typeof v === "string")
@@ -500,8 +537,20 @@ export class QueuePanel extends SectionPanel {
     } else if (m.command === "moveGoal" && m.goal && m.parent !== undefined) {
       void this.moveGoal(m.goal, m.parent);
     } else if (m.command === "linkedOpen") QueuePanel.showLinked = m.open === true;
-    else if (m.command === "view" && VIEWS.some((v) => v.id === m.view)) {
+    else if (m.command === "toggleGoalsBothSides") {
+      QueuePanel.goalsBothSides = !QueuePanel.goalsBothSides;
+      QueuePanel.scroll = [0, 0];
+      this.render();
+    } else if (m.command === "scroll" && Array.isArray(m.tops)) {
+      QueuePanel.scroll = m.tops
+        .slice(0, 2)
+        .map((v) =>
+          typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(v, 1e7)) : 0,
+        );
+    } else if (m.command === "view" && VIEWS.some((v) => v.id === m.view)) {
       QueuePanel.view = m.view as QueueView;
+      // A different list starts at its top; the goals column keeps its place.
+      QueuePanel.scroll = [QueuePanel.scroll[0] ?? 0, 0];
       this.load();
     } else if (m.command === "plan" && itemIds.length > 0 && m.when) this.plan(itemIds, m.when);
     else if (m.command === "planDue") this.planDue();
@@ -777,8 +826,39 @@ export class QueuePanel extends SectionPanel {
 
     const tree = goalTree(this.goals, now);
     const goalCards = tree.map((n) => this.renderGoal(n.goal, n.depth, today, now)).join("");
+    // The second goals column is only somewhere to drop records, so it shows no records.
+    const dropGoalCards = tree
+      .map((n) => this.renderGoal(n.goal, n.depth, today, now, false))
+      .join("");
     const overdueGoals = goals.filter((g) => goalFlags(g, now).includes("overdue")).length;
     const reviewGoals = goals.filter((g) => goalFlags(g, now).includes("review")).length;
+
+    const both = QueuePanel.goalsBothSides;
+    // With goals on both sides every goal must show its records, or there is
+    // nothing to drag between them.
+    const linkedShown = both || QueuePanel.showLinked;
+    const goalsColumn = (primary: boolean) => `
+        <section class="goals-col${primary && linkedShown ? " show-linked" : ""}">
+          ${
+            primary
+              ? '<h3 class="col-title" data-goal-root title="Drop a goal here to make it top-level">Goals</h3>'
+              : '<h3 class="col-title">Move to goal</h3>'
+          }
+          ${
+            primary && !both && this.items.some((i) => i.goalId !== null)
+              ? `<div class="toolbar"><button id="toggle-linked">${QueuePanel.showLinked ? "Hide linked" : "Show linked"}</button></div>`
+              : ""
+          }
+          ${
+            primary
+              ? `<div class="new-goal">
+            <input id="new-goal" type="text" placeholder="New goal" aria-label="New goal" />
+            <button data-action="newGoal" data-value-from="#new-goal">Add</button>
+          </div>`
+              : ""
+          }
+          ${(primary ? goalCards : dropGoalCards) || '<p class="empty">No goals yet.</p>'}
+        </section>`;
 
     const body = `
       <div class="strip">
@@ -788,24 +868,16 @@ export class QueuePanel extends SectionPanel {
         <button data-action="transcript">Transcript</button>
         <button data-action="audio">▶ Audio</button>
         <span id="audio-status" class="meta"></span>
+        <span class="strip-toggle">${toggleSwitch(both, "toggleGoalsBothSides", {})} <span>Goals in both columns</span></span>
       </div>
       <div id="transcript-box" hidden><pre id="transcript"></pre></div>
       <div id="audio-box"></div>
       <div class="queue-cols">
-        <section id="goals-col"${QueuePanel.showLinked ? ' class="show-linked"' : ""}>
-          <h3 class="col-title" data-goal-root title="Drop a goal here to make it top-level">Goals</h3>
-          ${
-            this.items.some((i) => i.goalId !== null)
-              ? `<div class="toolbar"><button id="toggle-linked">${QueuePanel.showLinked ? "Hide linked" : "Show linked"}</button></div>`
-              : ""
-          }
-          <div class="new-goal">
-            <input id="new-goal" type="text" placeholder="New goal" aria-label="New goal" />
-            <button data-action="newGoal" data-value-from="#new-goal">Add</button>
-          </div>
-          ${goalCards || '<p class="empty">No goals yet.</p>'}
-        </section>
-        <section>
+        ${goalsColumn(true)}
+        ${
+          both
+            ? goalsColumn(false)
+            : `<section>
           <h3 class="col-title">Not linked to a goal</h3>
           <div class="tabs">${tabs}</div>
           <div class="search">
@@ -830,13 +902,25 @@ export class QueuePanel extends SectionPanel {
           <div id="queue-list">${content}</div>
           ${shown.length === 0 ? `<p class="empty">${empty[view]}</p>` : ""}
           <p id="no-match" class="empty" hidden>No signals match this search.</p>
-        </section>
+        </section>`
+        }
       </div>
     `;
-    this.panel.webview.html = this.shell("Queue", body, QUEUE_STYLE, QUEUE_SCRIPT);
+    this.panel.webview.html = this.shell(
+      "Queue",
+      body,
+      QUEUE_STYLE,
+      `var INITIAL_SCROLL = ${JSON.stringify(QueuePanel.scroll)};\n${QUEUE_SCRIPT}`,
+    );
   }
 
-  private renderGoal(goal: Goal, depth: number, today: string, now: Date): string {
+  private renderGoal(
+    goal: Goal,
+    depth: number,
+    today: string,
+    now: Date,
+    withRecords = true,
+  ): string {
     const linked = itemsForGoal(this.items, goal.id);
     const flags = goalFlags(goal, now)
       .map((f) => `<span class="flag ${f}">${f === "overdue" ? "Overdue" : "Review due"}</span>`)
@@ -850,7 +934,7 @@ export class QueuePanel extends SectionPanel {
         <span>${flags}</span>
       </div>
       ${goal.nextAction ? `<div class="meta">Next: ${esc(goal.nextAction)}</div>` : ""}
-      ${linked.length > 0 ? `<div class="linked">${linked.map((i) => this.renderItem(i, today, false, false, true)).join("")}</div>` : ""}
+      ${withRecords && linked.length > 0 ? `<div class="linked">${linked.map((i) => this.renderItem(i, today, true, false, true)).join("")}</div>` : ""}
     </div>`;
   }
 

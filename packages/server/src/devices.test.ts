@@ -219,6 +219,97 @@ describe("device pairing", () => {
     expect(stillWorks.status).toBe(200);
   });
 
+  it("renames a device, rejects an empty name, and keeps its token working", async () => {
+    const app = buildApp(openTestDb(), new AdapterRegistry());
+    const device = await completePairing(app, (await startPairing(app)).code);
+    const patch = (headers: Record<string, string>, name: string) =>
+      app.request(`/devices/${device.deviceId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ name }),
+      });
+
+    expect((await patch(masterHeaders(), "  Kitchen tablet ")).status).toBe(200);
+    const list = (await (await app.request("/devices", { headers: masterHeaders() })).json()) as {
+      id: string;
+      name: string;
+    }[];
+    expect(list.find((d) => d.id === device.deviceId)?.name).toBe("Kitchen tablet");
+
+    expect((await patch(masterHeaders(), "   ")).status).toBe(400);
+    const own = { Authorization: `Bearer ${device.token}`, "Content-Type": "application/json" };
+    expect((await patch(own, "Hijacked")).status).toBe(403);
+    const missing = await app.request("/devices/nope", {
+      method: "PATCH",
+      headers: masterHeaders(),
+      body: JSON.stringify({ name: "x" }),
+    });
+    expect(missing.status).toBe(404);
+    expect(
+      (await app.request("/queue", { headers: { Authorization: `Bearer ${device.token}` } }))
+        .status,
+    ).toBe(200);
+  });
+
+  it("changes a device's permissions and applies them on its next request", async () => {
+    const app = buildApp(openTestDb(), new AdapterRegistry());
+    const device = await completePairing(app, (await startPairing(app, ["read"])).code);
+    const own = { Authorization: `Bearer ${device.token}`, "Content-Type": "application/json" };
+    const capture = () =>
+      app.request("/thoughts", {
+        method: "POST",
+        headers: own,
+        body: JSON.stringify({ title: "From the phone", body: "", directionId: null }),
+      });
+    const patch = (body: unknown, headers: Record<string, string> = masterHeaders()) =>
+      app.request(`/devices/${device.deviceId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(body),
+      });
+
+    expect((await capture()).status).toBe(403);
+    expect((await patch({ scopes: ["read", "capture"] })).status).toBe(200);
+    expect((await capture()).status).toBe(201);
+
+    const list = (await (await app.request("/devices", { headers: masterHeaders() })).json()) as {
+      id: string;
+      scopes: string[];
+    }[];
+    expect(list.find((d) => d.id === device.deviceId)?.scopes).toEqual(["read", "capture"]);
+
+    expect((await patch({ scopes: [] })).status).toBe(400);
+    expect((await patch({})).status).toBe(400);
+    expect((await patch({ scopes: ["root"] })).status).toBe(400);
+    expect((await patch({ scopes: ["read", "settings"] }, own)).status).toBe(403);
+  });
+
+  it("cancels a pending pairing code so it can no longer be used", async () => {
+    const app = buildApp(openTestDb(), new AdapterRegistry());
+    const pairing = await startPairing(app, ["read", "settings"]);
+
+    const cancel = await app.request(`/devices/pairing/${pairing.pairingId}`, {
+      method: "DELETE",
+      headers: masterHeaders(),
+    });
+    expect(cancel.status).toBe(200);
+
+    const attempt = await app.request("/devices/pair", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: pairing.code }),
+    });
+    expect(attempt.status).toBeGreaterThanOrEqual(400);
+
+    const again = await app.request(`/devices/pairing/${pairing.pairingId}`, {
+      method: "DELETE",
+      headers: masterHeaders(),
+    });
+    expect(again.status).toBe(200);
+    const anon = await app.request(`/devices/pairing/${pairing.pairingId}`, { method: "DELETE" });
+    expect(anon.status).toBe(401);
+  });
+
   it("requires authentication to start pairing and at least one scope", async () => {
     const app = buildApp(openTestDb(), new AdapterRegistry());
 

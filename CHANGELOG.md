@@ -19,13 +19,34 @@ versions while the project is `0.x`).
   every signal linked to it. `GET /signals` accepts `thoughtId`, and
   `PATCH /thoughts/:id` accepts `title` and `parentId` (the parent must be an open
   goal and cannot be the goal itself or one of its descendants).
+- Queue: a **Goals in both columns** switch swaps the signal list for a second
+  list of goals, so linked records can be dragged from one goal to another. The
+  left column shows each goal with its records, the right column shows the goals
+  alone as drop targets. Ctrl/Cmd+click and Shift+click select several records
+  across goals, and a drag carries the whole selection. The default is goals on
+  the left and signals on the right.
+- Devices: double-click a device name to rename it in place, or its permissions
+  to show a toggle for each (`PATCH /devices/:id` accepts `name` and `scopes`;
+  the change applies on the device's next request). The **Paired** column now
+  shows the same relative time as **Last seen**, with the full timestamp on hover.
+- Devices: **+ Add new Device** opens the pairing form and shows the code at once,
+  with a countdown bar. The code is replaced when it runs out or when the name or
+  permissions change, and the form closes when a device pairs.
+  `DELETE /devices/pairing/:id` withdraws a pending code so a replaced code stops
+  working.
+- Devices: the explanatory paragraph above the table moved to `USAGE.md`.
+- Queue: each column keeps its scroll position when a record is moved, instead of
+  jumping to the top.
 
 ### Fixed
 
 - `GET /signals?range=all` returned only today's signals, so **All** on the
   Signals screen showed the same as **Today**.
+- Devices: the permission checkboxes in the pairing form are now the same toggle
+  switches the rest of the app uses.
 
 ### Added
+
 - Device pairing. **Devices** in the extension is a real registry: choose a
   name and scopes, show a six-digit code, and the new client exchanges it for
   its own token. Tokens and codes are stored hashed, codes expire in ten
@@ -34,7 +55,7 @@ versions while the project is `0.x`).
   others. `POST /devices/pairing`, `POST /devices/pair`, `GET /devices`,
   `DELETE /devices/:id`. Migration `0014_devices`.
 - Pairing is a scan. The Devices panel shows a QR code that carries the server
-  address *and* the six-digit code, and the Android app's **Scan pairing QR
+  address _and_ the six-digit code, and the Android app's **Scan pairing QR
   code** fills in both fields (they stay editable, and typing still works). The
   encoder is in `extension/src/qr.ts`, so the extension keeps no runtime
   dependencies. `mind.pairingServerUrl` chooses the encoded address; the

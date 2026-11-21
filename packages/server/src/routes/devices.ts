@@ -7,6 +7,8 @@
  *                         (the only unauthenticated route in the app)
  * GET  /devices           list paired devices (never their token or hash)
  * DELETE /devices/:id     revoke one device; effective on its next request
+ * PATCH /devices/:id      rename a device and/or change its permissions
+ * DELETE /devices/pairing/:id  withdraw a pending pairing code
  *
  * The token is returned exactly once, by POST /devices/pair, and only its
  * SHA-256 hash is stored. The pairing code is likewise stored hashed. Both are
@@ -40,6 +42,15 @@ const StartPairingSchema = z.object({
   kind: z.enum(["android", "editor", "other"]).default("android"),
   scopes: z.array(DeviceScopeSchema).min(1),
 });
+
+const UpdateDeviceSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80).optional(),
+    scopes: z.array(DeviceScopeSchema).min(1).optional(),
+  })
+  .refine((v) => v.name !== undefined || v.scopes !== undefined, {
+    message: "give a name or permissions to change",
+  });
 
 const CompletePairingSchema = z.object({
   code: z.string().regex(/^\d{6}$/, "expected the six-digit code"),
@@ -218,6 +229,45 @@ export function devicesRouter(db: Db) {
   app.get("/", (c) => {
     const rows = db.select().from(devices).orderBy(desc(devices.pairedAt)).all();
     return c.json(rows.map(publicDevice));
+  });
+
+  // PATCH /devices/:id — change the name and/or permissions. The token does not
+  // change, and auth reads the stored scopes on every request, so a permission
+  // change applies to the device's next request.
+  app.patch("/:id", zValidator("json", UpdateDeviceSchema), (c) => {
+    const { id } = c.req.param();
+    const body = c.req.valid("json");
+    const existing = db.select().from(devices).where(eq(devices.id, id)).get();
+    if (!existing) return c.json({ error: "Not found" }, 404);
+    if (existing.revokedAt) return c.json({ error: "device is revoked" }, 409);
+
+    const scopes = body.scopes ? normalizeScopes(body.scopes) : undefined;
+    db.update(devices)
+      .set({
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(scopes ? { scopes: JSON.stringify(scopes) } : {}),
+      })
+      .where(eq(devices.id, id))
+      .run();
+    // Names are operator-chosen text, so the audit row records only what kind of change it was.
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "user",
+        kind: scopes ? "device.scopes_changed" : "device.renamed",
+        payload: JSON.stringify({ deviceId: id, ...(scopes ? { scopes } : {}) }),
+      })
+      .run();
+    return c.json({ ok: true, ...(body.name !== undefined ? { name: body.name } : {}), scopes });
+  });
+
+  // DELETE /devices/pairing/:id — withdraw a pending code, so a code issued with
+  // wider permissions than the operator then chose cannot linger until it expires.
+  app.delete("/pairing/:id", (c) => {
+    db.delete(pairingCodes)
+      .where(eq(pairingCodes.id, c.req.param("id")))
+      .run();
+    return c.json({ ok: true });
   });
 
   app.delete("/:id", (c) => {

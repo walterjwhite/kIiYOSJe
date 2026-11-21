@@ -41,3 +41,5 @@ scripts/demo-video/work/
 scripts/demo-video/out/
 scripts/demo-video/frames/
 scripts/demo-video/models/
+# Repo-root output of make-demo-video.sh: demo.mp4, captions, intermediates.
+/out/
