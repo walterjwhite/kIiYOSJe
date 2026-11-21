@@ -31,7 +31,10 @@ function loadProposals(db: Db): StoredProposal[] {
   const resolved = new Map<string, "accepted" | "rejected">();
   for (const e of all) {
     if (e.kind !== "direction.proposal.resolved") continue;
-    const p = JSON.parse(e.payload) as { proposalEventId: string; resolution: "accepted" | "rejected" };
+    const p = JSON.parse(e.payload) as {
+      proposalEventId: string;
+      resolution: "accepted" | "rejected";
+    };
     resolved.set(p.proposalEventId, p.resolution);
   }
   return all
@@ -86,7 +89,11 @@ export function proposalsRouter(db: Db) {
           id: newId(),
           actor: "system",
           kind: "learning.insight",
-          payload: JSON.stringify({ at: new Date().toISOString(), insight, proposalCount: proposals.length }),
+          payload: JSON.stringify({
+            at: new Date().toISOString(),
+            insight,
+            proposalCount: proposals.length,
+          }),
         })
         .run();
     }

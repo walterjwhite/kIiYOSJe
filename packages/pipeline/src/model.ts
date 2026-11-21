@@ -157,11 +157,7 @@ export async function generateReply(request: ModelRequest): Promise<string> {
   });
 }
 
-async function cliComplete(
-  request: ModelRequest,
-  model: string,
-  hint = "",
-): Promise<string> {
+async function cliComplete(request: ModelRequest, model: string, hint = ""): Promise<string> {
   return acpPrompt({
     agent: acpAgent(aiProvider()),
     cwd: process.cwd(),
@@ -207,7 +203,6 @@ function jsonHint(schema: z.ZodType<unknown>): string {
 function parseJson(text: string): unknown {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
-  const candidate =
-    start >= 0 && end > start ? text.slice(start, end + 1) : text;
+  const candidate = start >= 0 && end > start ? text.slice(start, end + 1) : text;
   return JSON.parse(candidate);
 }

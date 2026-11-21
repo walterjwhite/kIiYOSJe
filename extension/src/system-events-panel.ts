@@ -63,9 +63,7 @@ export class SystemEventsPanel extends SectionPanel {
 
   private async load(): Promise<void> {
     try {
-      const all = await apiFetch<JournalEvent[]>(
-        `/events?range=${this.range}&limit=500`,
-      );
+      const all = await apiFetch<JournalEvent[]>(`/events?range=${this.range}&limit=500`);
       this.events = all.filter((e) => e.kind !== "journal.note");
       this.loadError = undefined;
     } catch (err) {

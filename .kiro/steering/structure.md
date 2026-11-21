@@ -1,6 +1,6 @@
 ---
-inclusion: auto
----
+
+## inclusion: auto
 
 # Structure
 

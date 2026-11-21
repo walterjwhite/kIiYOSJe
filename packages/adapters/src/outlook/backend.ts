@@ -13,11 +13,7 @@ import { credentialString } from "@mind/core";
 export type OutlookBackendName = "graph";
 
 export function outlookBackend(): OutlookBackendName {
-  const configured = credentialString(
-    "outlook",
-    "backend",
-    "MIND_OUTLOOK_BACKEND",
-  );
+  const configured = credentialString("outlook", "backend", "MIND_OUTLOOK_BACKEND");
   if (configured?.trim().toLowerCase() === "owa") {
     throw new AdapterNotConfiguredError(
       "outlook",

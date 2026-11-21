@@ -41,12 +41,13 @@ switch (command) {
       );
       process.exit(1);
     }
-    console.log(`Using provider: ${aiProvider()}. This calls a real model for every signal — expect this to take a while.\n`);
+    console.log(
+      `Using provider: ${aiProvider()}. This calls a real model for every signal — expect this to take a while.\n`,
+    );
 
     resetDemoDb();
-    const requested = args.length > 0
-      ? ALL_PERSONAS.filter((p) => args.includes(p.id))
-      : ALL_PERSONAS;
+    const requested =
+      args.length > 0 ? ALL_PERSONAS.filter((p) => args.includes(p.id)) : ALL_PERSONAS;
 
     if (requested.length === 0) {
       console.error(`No matching persona. Choices: ${ALL_PERSONAS.map((p) => p.id).join(", ")}`);
@@ -92,9 +93,21 @@ switch (command) {
       .from(signals)
       .where(sql`${signals.disposition} = 'escalated'`)
       .get();
-    const sent = db.select({ count: sql<number>`count(*)` }).from(actions).where(sql`${actions.status} = 'sent'`).get();
-    const discarded = db.select({ count: sql<number>`count(*)` }).from(actions).where(sql`${actions.status} = 'discarded'`).get();
-    const disabledDirs = db.select({ id: directions.id, name: directions.name }).from(directions).where(sql`${directions.enabled} = 0`).all();
+    const sent = db
+      .select({ count: sql<number>`count(*)` })
+      .from(actions)
+      .where(sql`${actions.status} = 'sent'`)
+      .get();
+    const discarded = db
+      .select({ count: sql<number>`count(*)` })
+      .from(actions)
+      .where(sql`${actions.status} = 'discarded'`)
+      .get();
+    const disabledDirs = db
+      .select({ id: directions.id, name: directions.name })
+      .from(directions)
+      .where(sql`${directions.enabled} = 0`)
+      .all();
 
     const s = signalCount?.count ?? 0;
     const t = thoughtCount?.count ?? 0;
@@ -106,7 +119,9 @@ switch (command) {
     console.log(`Escalated:          ${escalated?.count ?? 0}`);
     console.log(`Actions sent:       ${sent?.count ?? 0}`);
     console.log(`Actions discarded:  ${discarded?.count ?? 0}`);
-    console.log(`Auto-disabled directions: ${disabledDirs.map((d) => d.name).join(", ") || "none"}`);
+    console.log(
+      `Auto-disabled directions: ${disabledDirs.map((d) => d.name).join(", ") || "none"}`,
+    );
     break;
   }
 

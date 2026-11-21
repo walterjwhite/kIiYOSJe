@@ -55,10 +55,7 @@ export class MatrixClient {
     userId?: string,
   ): MatrixClient {
     if (!homeserverUrl || !accessToken) {
-      throw new AdapterNotConfiguredError(
-        "gmessages",
-        "homeserverUrl/accessToken",
-      );
+      throw new AdapterNotConfiguredError("gmessages", "homeserverUrl/accessToken");
     }
     return new MatrixClient({
       homeserverUrl: homeserverUrl.replace(/\/$/, ""),
@@ -77,11 +74,7 @@ export class MatrixClient {
     return { nextBatch: raw.next_batch, rooms: mapRooms(raw) };
   }
 
-  sendText(
-    roomId: string,
-    body: string,
-    transactionId: string,
-  ): Promise<{ event_id: string }> {
+  sendText(roomId: string, body: string, transactionId: string): Promise<{ event_id: string }> {
     return this.call(
       `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${encodeURIComponent(transactionId)}`,
       { method: "PUT", json: { msgtype: "m.text", body } },
@@ -119,16 +112,11 @@ function mapRooms(raw: RawSync): MatrixRoom[] {
     const nameEvent = stateEvents.find((event) => event.type === "m.room.name");
     return {
       roomId,
-      name:
-        typeof nameEvent?.content?.["name"] === "string"
-          ? nameEvent.content["name"]
-          : "",
+      name: typeof nameEvent?.content?.["name"] === "string" ? nameEvent.content["name"] : "",
       isDirect:
         stateEvents.some((event) => event.type === "m.direct") ||
         stateEvents.some(
-          (event) =>
-            event.type === "m.room.member" &&
-            event.content?.["is_direct"] === true,
+          (event) => event.type === "m.room.member" && event.content?.["is_direct"] === true,
         ),
       stateEvents,
       timeline: room.timeline?.events ?? [],

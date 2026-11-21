@@ -50,18 +50,13 @@ function collect(previous: string | undefined, value: string): string {
   return `${previous}\n${value}`;
 }
 
-function toEvent(
-  fields: Record<string, string>,
-  calendarId: string,
-): CalendarEvent | null {
+function toEvent(fields: Record<string, string>, calendarId: string): CalendarEvent | null {
   const start = parseIcsDate(fields["DTSTART"]);
   if (!start) return null;
   const end = parseIcsDate(fields["DTEND"]);
 
   return {
-    id:
-      fields["UID"] ??
-      `${calendarId}:${start.toISOString()}:${fields["SUMMARY"] ?? ""}`,
+    id: fields["UID"] ?? `${calendarId}:${start.toISOString()}:${fields["SUMMARY"] ?? ""}`,
     calendarId,
     title: decodeText(fields["SUMMARY"]) ?? "(untitled)",
     description: decodeText(fields["DESCRIPTION"]) ?? "",
@@ -84,9 +79,7 @@ export function parseIcsDate(value: string | undefined): Date | null {
     const [, year, month, day] = dateOnly;
     return new Date(Number(year), Number(month) - 1, Number(day));
   }
-  const dateTime = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z?)$/.exec(
-    value,
-  );
+  const dateTime = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z?)$/.exec(value);
   if (!dateTime) return null;
   const [, year, month, day, hour, minute, second, zulu] = dateTime;
   if (zulu === "Z") {

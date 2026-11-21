@@ -152,12 +152,7 @@ function assessmentFor(db: Db, signalId: string): Assessment | null {
 type SignalRow = typeof signals.$inferSelect;
 type ActionRow = typeof actions.$inferSelect;
 
-function buildItem(
-  db: Db,
-  signal: SignalRow,
-  action: ActionRow | null,
-  now: Date,
-): QueueItem {
+function buildItem(db: Db, signal: SignalRow, action: ActionRow | null, now: Date): QueueItem {
   const direction = signal.directionId
     ? (db.select().from(directions).where(eq(directions.id, signal.directionId)).get() ?? null)
     : null;
@@ -193,7 +188,11 @@ function buildItem(
 
   const body = action ? draftBody(action.payload) : "";
   const linkedThought = signal.thoughtId
-    ? db.select({ state: thoughts.state }).from(thoughts).where(eq(thoughts.id, signal.thoughtId)).get()
+    ? db
+        .select({ state: thoughts.state })
+        .from(thoughts)
+        .where(eq(thoughts.id, signal.thoughtId))
+        .get()
     : undefined;
   return {
     id: action ? `action:${action.id}` : `signal:${signal.id}`,
@@ -206,10 +205,7 @@ function buildItem(
     account: signal.account,
     sender: signal.sender,
     subject: signal.subject,
-    summary:
-      signal.transformedSummary ??
-      signal.subject ??
-      oneLine(signal.body, 140),
+    summary: signal.transformedSummary ?? signal.subject ?? oneLine(signal.body, 140),
     draftPreview: body ? oneLine(body, 200) : null,
     receivedAt: signal.receivedAt,
     queuedAt: action?.createdAt ?? signal.receivedAt,
@@ -264,12 +260,20 @@ export function buildQueue(db: Db, now = new Date()): QueueItem[] {
   }
 
   const positions = new Map(
-    db.select().from(queueOrder).all().map((r) => [r.itemId, r.position] as const),
+    db
+      .select()
+      .from(queueOrder)
+      .all()
+      .map((r) => [r.itemId, r.position] as const),
   );
   for (const item of items) item.position = positions.get(item.id) ?? null;
 
   const plans = new Map(
-    db.select().from(queuePlan).all().map((r) => [r.itemId, r.plannedDate] as const),
+    db
+      .select()
+      .from(queuePlan)
+      .all()
+      .map((r) => [r.itemId, r.plannedDate] as const),
   );
   for (const item of items) item.plannedFor = plans.get(item.id) ?? null;
 
@@ -331,7 +335,8 @@ export function queueRouter(db: Db) {
       }
       // Plans for items that have left the queue are no longer meaningful.
       for (const row of tx.select().from(queuePlan).all()) {
-        if (!current.has(row.itemId)) tx.delete(queuePlan).where(eq(queuePlan.itemId, row.itemId)).run();
+        if (!current.has(row.itemId))
+          tx.delete(queuePlan).where(eq(queuePlan.itemId, row.itemId)).run();
       }
     });
     return c.json({ ok: true, planned: targets.length, date });
@@ -392,9 +397,7 @@ export function queueRouter(db: Db) {
       .all();
 
     const allActions = db.select().from(actions).where(eq(actions.signalId, signal.id)).all();
-    const proposed = item.actionId
-      ? allActions.find((a) => a.id === item.actionId)
-      : undefined;
+    const proposed = item.actionId ? allActions.find((a) => a.id === item.actionId) : undefined;
 
     return c.json({
       item,

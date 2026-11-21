@@ -23,8 +23,15 @@ const ev = (at: string, ai: unknown, signalId = "s1"): RawEvent => ({
 describe("summarize", () => {
   it("counts signals with and without model calls and records skip reasons", () => {
     const s = summarize([
-      ev("2026-01-01T10:00:00Z", { calls: [call("classify", 100)], skipped: { draft: "no draft needed" } }),
-      ev("2026-01-01T11:00:00Z", { calls: [], skipped: { classify: "no AI provider configured" } }, "s2"),
+      ev("2026-01-01T10:00:00Z", {
+        calls: [call("classify", 100)],
+        skipped: { draft: "no draft needed" },
+      }),
+      ev(
+        "2026-01-01T11:00:00Z",
+        { calls: [], skipped: { classify: "no AI provider configured" } },
+        "s2",
+      ),
       { at: "2026-01-01T12:00:00Z", kind: "action.sent", payload: "{}" },
     ]);
     expect(s.signals).toBe(2);
@@ -48,7 +55,9 @@ describe("summarize", () => {
 
   it("sums tokens when present and tolerates malformed payloads", () => {
     const s = summarize([
-      ev("2026-01-01T10:00:00Z", { calls: [call("classify", 1, { inputTokens: 7, outputTokens: 3 })] }),
+      ev("2026-01-01T10:00:00Z", {
+        calls: [call("classify", 1, { inputTokens: 7, outputTokens: 3 })],
+      }),
       { at: "2026-01-01T10:01:00Z", kind: "signal.processed", payload: "not json" },
       ev("2026-01-01T10:02:00Z", undefined),
     ]);
@@ -76,10 +85,20 @@ describe("summarize records", () => {
     ]);
     expect(s.records).toHaveLength(2);
     expect(s.records[1]).toMatchObject({
-      signalId: "s1", adapter: "gmail", disposition: "promoted", directionId: "work/boss",
-      matchedBy: "scope:person", calls: 2, modelMs: 150,
+      signalId: "s1",
+      adapter: "gmail",
+      disposition: "promoted",
+      directionId: "work/boss",
+      matchedBy: "scope:person",
+      calls: 2,
+      modelMs: 150,
     });
-    expect(s.records[0]).toMatchObject({ signalId: "s2", calls: 0, directionId: null, matchedBy: null });
+    expect(s.records[0]).toMatchObject({
+      signalId: "s2",
+      calls: 0,
+      directionId: null,
+      matchedBy: null,
+    });
   });
 });
 

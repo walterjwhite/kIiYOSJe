@@ -17,7 +17,13 @@ process.env["MIND_TEST_TOKEN"] = "test-token";
 process.env["MIND_CONFIG_DIR"] = mkdtempSync(join(tmpdir(), "mind-goals-config-"));
 process.env["MIND_DATA_DIR"] = mkdtempSync(join(tmpdir(), "mind-goals-data-"));
 
-const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "core", "migrations");
+const MIGRATIONS_DIR = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "core",
+  "migrations",
+);
 
 function setup() {
   const sqlite = new Database(":memory:");
@@ -38,8 +44,16 @@ function addSignal(db: ReturnType<typeof setup>["db"]) {
   const id = `s${++n}`;
   db.insert(signals)
     .values({
-      id, adapter: "gmail", externalId: id, sender: "a@example.com", recipients: "[]", kind: "email",
-      body: "hello", receivedAt: new Date().toISOString(), disposition: "promoted", dedupeKey: id,
+      id,
+      adapter: "gmail",
+      externalId: id,
+      sender: "a@example.com",
+      recipients: "[]",
+      kind: "email",
+      body: "hello",
+      receivedAt: new Date().toISOString(),
+      disposition: "promoted",
+      dedupeKey: id,
     })
     .run();
   return id;
@@ -81,9 +95,13 @@ describe("linking a signal to a goal", () => {
 
     expect((await call(`/signals/${id}/thought`, { method: "DELETE" })).status).toBe(200);
     expect(db.select().from(signals).where(eq(signals.id, id)).get()?.thoughtId).toBeNull();
-    expect(db.select().from(events).all().map((e) => e.kind)).toEqual(
-      expect.arrayContaining(["signal.thought_linked", "signal.thought_unlinked"]),
-    );
+    expect(
+      db
+        .select()
+        .from(events)
+        .all()
+        .map((e) => e.kind),
+    ).toEqual(expect.arrayContaining(["signal.thought_linked", "signal.thought_unlinked"]));
   });
 });
 
@@ -97,7 +115,10 @@ describe("GET /queue goal link", () => {
     db.update(signals).set({ thoughtId: "g1" }).where(eq(signals.id, linked)).run();
     db.update(signals).set({ thoughtId: "t1" }).where(eq(signals.id, plain)).run();
 
-    const items = (await (await call("/queue")).json()) as { signalId: string; goalId: string | null }[];
+    const items = (await (await call("/queue")).json()) as {
+      signalId: string;
+      goalId: string | null;
+    }[];
     expect(items.find((i) => i.signalId === linked)?.goalId).toBe("g1");
     expect(items.find((i) => i.signalId === plain)?.goalId).toBeNull();
   });
@@ -107,12 +128,19 @@ describe("auto-link settings", () => {
   it("defaults to on at 0.8 and round-trips a change", async () => {
     const { call } = setup();
     expect(await (await call("/admin/autolink")).json()).toEqual({ enabled: true, threshold: 0.8 });
-    expect((await call("/admin/autolink", put({ enabled: false, threshold: 0.9 }))).status).toBe(200);
-    expect(await (await call("/admin/autolink")).json()).toEqual({ enabled: false, threshold: 0.9 });
+    expect((await call("/admin/autolink", put({ enabled: false, threshold: 0.9 }))).status).toBe(
+      200,
+    );
+    expect(await (await call("/admin/autolink")).json()).toEqual({
+      enabled: false,
+      threshold: 0.9,
+    });
   });
 
   it("rejects a threshold below 0.5", async () => {
     const { call } = setup();
-    expect((await call("/admin/autolink", put({ enabled: true, threshold: 0.2 }))).status).toBe(400);
+    expect((await call("/admin/autolink", put({ enabled: true, threshold: 0.2 }))).status).toBe(
+      400,
+    );
   });
 });

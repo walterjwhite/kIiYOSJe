@@ -339,7 +339,11 @@ export class QueuePanel extends SectionPanel {
       void this.link(itemIds, null);
     } else if (m.command === "newGoal" && m.text?.trim()) {
       void this.newGoal(m.text.trim());
-    } else if (m.command === "goalState" && m.goal && (m.state === "closed" || m.state === "parked")) {
+    } else if (
+      m.command === "goalState" &&
+      m.goal &&
+      (m.state === "closed" || m.state === "parked")
+    ) {
       void this.setGoalState(m.goal, m.state);
     } else if (m.command === "transcript") {
       void this.showTranscript();
@@ -399,21 +403,23 @@ export class QueuePanel extends SectionPanel {
   /** undefined = cancelled, null = backlog, otherwise a date. */
   private async pickDate(today: string): Promise<string | null | undefined> {
     const fmt = (d: string) => planLabel(d, today);
-    const choices: Array<{ label: string; description?: string; date: string | null | "custom" }> = [
-      { label: "Today", description: today, date: today },
-      { label: "Tomorrow", description: addDays(today, 1), date: addDays(today, 1) },
-      { label: "Next Monday", description: fmt(nextMonday(today)), date: nextMonday(today) },
-      { label: "In a week", description: fmt(addDays(today, 7)), date: addDays(today, 7) },
-      { label: "Pick a date…", date: "custom" },
-      { label: "Backlog", description: "no plan", date: null },
-    ];
+    const choices: Array<{ label: string; description?: string; date: string | null | "custom" }> =
+      [
+        { label: "Today", description: today, date: today },
+        { label: "Tomorrow", description: addDays(today, 1), date: addDays(today, 1) },
+        { label: "Next Monday", description: fmt(nextMonday(today)), date: nextMonday(today) },
+        { label: "In a week", description: fmt(addDays(today, 7)), date: addDays(today, 7) },
+        { label: "Pick a date…", date: "custom" },
+        { label: "Backlog", description: "no plan", date: null },
+      ];
     const picked = await vscode.window.showQuickPick(choices, { placeHolder: "Plan this for…" });
     if (!picked) return undefined;
     if (picked.date !== "custom") return picked.date;
     const typed = await vscode.window.showInputBox({
       prompt: "Date to deal with this (YYYY-MM-DD)",
       value: addDays(today, 2),
-      validateInput: (v) => (parsePlanDate(v, today) ? undefined : "Enter a real date, today or later: YYYY-MM-DD"),
+      validateInput: (v) =>
+        parsePlanDate(v, today) ? undefined : "Enter a real date, today or later: YYYY-MM-DD",
     });
     return typed === undefined ? undefined : parsePlanDate(typed, today);
   }
@@ -441,9 +447,7 @@ export class QueuePanel extends SectionPanel {
   private async link(requested: string[], goalId: string | null): Promise<void> {
     if (goalId !== null && !this.goals.some((g) => g.id === goalId)) return;
     const signalIds = [
-      ...new Set(
-        this.items.filter((i) => requested.includes(i.id)).map((i) => i.signalId),
-      ),
+      ...new Set(this.items.filter((i) => requested.includes(i.id)).map((i) => i.signalId)),
     ];
     const failures: string[] = [];
     for (const signalId of signalIds) {
@@ -479,7 +483,10 @@ export class QueuePanel extends SectionPanel {
   private async setGoalState(goalId: string, state: "closed" | "parked"): Promise<void> {
     if (!this.goals.some((g) => g.id === goalId)) return;
     try {
-      await apiFetch(`/thoughts/${encodeURIComponent(goalId)}`, { method: "PATCH", body: JSON.stringify({ state }) });
+      await apiFetch(`/thoughts/${encodeURIComponent(goalId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ state }),
+      });
     } catch (err) {
       vscode.window.showErrorMessage(`mind: could not update the goal. ${String(err)}`);
     }
@@ -504,11 +511,18 @@ export class QueuePanel extends SectionPanel {
     try {
       const meta = await apiFetch<{ audio: { stale: boolean } | null }>("/summary");
       if (!meta.audio || meta.audio.stale) {
-        this.post({ type: "audioStatus", text: "Rendering audio (the first run may download the voice)…" });
+        this.post({
+          type: "audioStatus",
+          text: "Rendering audio (the first run may download the voice)…",
+        });
         await apiFetch("/summary/audio", { method: "POST" });
       }
       const wav = await apiFetchBytes("/summary/audio");
-      this.post({ type: "audio", src: `data:audio/wav;base64,${wav.toString("base64")}`, text: "" });
+      this.post({
+        type: "audio",
+        src: `data:audio/wav;base64,${wav.toString("base64")}`,
+        text: "",
+      });
     } catch (err) {
       this.post({ type: "audioStatus", text: readableAudioError(err) });
     }
@@ -546,12 +560,16 @@ export class QueuePanel extends SectionPanel {
       // cross-day dragging is not offered, so cards are not draggable here.
       content = groupByDate(shown)
         .map(
-          (g) => `<div class="group-title">${esc(planLabel(g.date, today))} <span class="meta">${g.items.length}</span></div>
+          (
+            g,
+          ) => `<div class="group-title">${esc(planLabel(g.date, today))} <span class="meta">${g.items.length}</span></div>
             ${g.items.map((i) => this.renderItem(i, today, false)).join("")}`,
         )
         .join("");
     } else {
-      content = shown.map((i, n) => this.renderItem(i, today, true, view === "today" && n === 0)).join("");
+      content = shown
+        .map((i, n) => this.renderItem(i, today, true, view === "today" && n === 0))
+        .join("");
     }
 
     const due = view === "today" ? dueUnplanned(unlinked, today) : [];
@@ -644,7 +662,13 @@ export class QueuePanel extends SectionPanel {
     </div>`;
   }
 
-  private renderItem(item: QueueItem, today: string, draggable: boolean, upNext = false, linked = false): string {
+  private renderItem(
+    item: QueueItem,
+    today: string,
+    draggable: boolean,
+    upNext = false,
+    linked = false,
+  ): string {
     const buttons = item.actions
       // An open-link button only appears when the message contains that link.
       .filter((a) => a.kind !== "openLink" || a.linkAvailable !== false)

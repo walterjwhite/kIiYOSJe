@@ -35,11 +35,10 @@ const PROTECTED = [
   [/^\.gitignore$/, "ignore rules for secrets"],
 ];
 
-const changed = execFileSync(
-  "git",
-  ["diff", "--name-only", `${base}...HEAD`],
-  { cwd: ROOT, encoding: "utf8" },
-)
+const changed = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], {
+  cwd: ROOT,
+  encoding: "utf8",
+})
   .split("\n")
   .filter(Boolean);
 

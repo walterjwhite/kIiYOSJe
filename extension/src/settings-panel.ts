@@ -146,7 +146,12 @@ export class SettingsPanel extends SectionPanel {
   }
 
   private async saveAutolink(next: AutolinkSettings): Promise<void> {
-    await this.save("/admin/autolink", next, "Auto-link settings saved.", (v) => (this.autolink = v));
+    await this.save(
+      "/admin/autolink",
+      next,
+      "Auto-link settings saved.",
+      (v) => (this.autolink = v),
+    );
   }
 
   private async save<T>(path: string, next: T, ok: string, apply: (v: T) => void): Promise<void> {

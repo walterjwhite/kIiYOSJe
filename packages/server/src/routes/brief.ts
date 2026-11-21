@@ -1,12 +1,6 @@
 import { Hono } from "hono";
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
-import {
-  thoughts,
-  actions,
-  directions,
-  signals,
-  parseCommitment,
-} from "@mind/core";
+import { thoughts, actions, directions, signals, parseCommitment } from "@mind/core";
 import type { Db } from "@mind/core";
 
 export function briefRouter(db: Db) {
@@ -25,18 +19,10 @@ export function briefRouter(db: Db) {
     const now = new Date().toISOString();
 
     // Active thoughts: explicitly promoted by the escalation checker or by the user.
-    const activeThoughts = db
-      .select()
-      .from(thoughts)
-      .where(eq(thoughts.state, "active"))
-      .all();
+    const activeThoughts = db.select().from(thoughts).where(eq(thoughts.state, "active")).all();
 
     // Confident but blocked: something needs my judgement, not a draft.
-    const disputedThoughts = db
-      .select()
-      .from(thoughts)
-      .where(eq(thoughts.state, "disputed"))
-      .all();
+    const disputedThoughts = db.select().from(thoughts).where(eq(thoughts.state, "disputed")).all();
 
     // New seedlings created today (not yet overdue).
     const newSeedlings = db
@@ -78,27 +64,19 @@ export function briefRouter(db: Db) {
       )
       .all();
 
-    const proposed = db
-      .select()
-      .from(actions)
-      .where(eq(actions.status, "proposed"))
-      .all();
+    const proposed = db.select().from(actions).where(eq(actions.status, "proposed")).all();
 
     const absorbedToday = db
       .select({ count: sql<number>`count(*)` })
       .from(signals)
-      .where(
-        sql`${signals.receivedAt} >= ${since} and ${signals.disposition} = 'absorbed'`,
-      )
+      .where(sql`${signals.receivedAt} >= ${since} and ${signals.disposition} = 'absorbed'`)
       .get();
 
     const filedToday =
       db
         .select({ count: sql<number>`count(*)` })
         .from(signals)
-        .where(
-          sql`${signals.receivedAt} >= ${since} and ${signals.disposition} = 'filed'`,
-        )
+        .where(sql`${signals.receivedAt} >= ${since} and ${signals.disposition} = 'filed'`)
         .get()?.count ?? 0;
 
     const sentToday =
@@ -120,12 +98,7 @@ export function briefRouter(db: Db) {
     const commitments = db
       .select()
       .from(thoughts)
-      .where(
-        and(
-          isNotNull(thoughts.commitment),
-          sql`${thoughts.state} != 'closed'`,
-        ),
-      )
+      .where(and(isNotNull(thoughts.commitment), sql`${thoughts.state} != 'closed'`))
       .all()
       .map((thought) => ({
         thoughtId: thought.id,
@@ -146,12 +119,7 @@ export function briefRouter(db: Db) {
         awaitingReplyAt: signals.awaitingReplyAt,
       })
       .from(signals)
-      .where(
-        and(
-          isNotNull(signals.awaitingReplyAt),
-          isNull(signals.replyReceivedAt),
-        ),
-      )
+      .where(and(isNotNull(signals.awaitingReplyAt), isNull(signals.replyReceivedAt)))
       .all();
 
     // One entry per thread, dated from the oldest unanswered wait.
@@ -159,10 +127,7 @@ export function briefRouter(db: Db) {
     for (const row of awaitingRows) {
       const key = row.threadId ?? row.signalId;
       const existing = byThread.get(key);
-      if (
-        !existing ||
-        (existing.awaitingReplyAt ?? "") > (row.awaitingReplyAt ?? "")
-      ) {
+      if (!existing || (existing.awaitingReplyAt ?? "") > (row.awaitingReplyAt ?? "")) {
         byThread.set(key, row);
       }
     }

@@ -14,8 +14,6 @@ export class AdapterNotConfiguredError extends Error {
   }
 }
 
-export function isNotConfigured(
-  err: unknown,
-): err is AdapterNotConfiguredError {
+export function isNotConfigured(err: unknown): err is AdapterNotConfiguredError {
   return err instanceof AdapterNotConfiguredError;
 }

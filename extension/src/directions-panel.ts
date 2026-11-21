@@ -1,7 +1,13 @@
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
 import { editAsMarkdown } from "./markdown-editor.js";
-import { SectionPanel, esc, toggleSwitch, editableField, openInEditorLink } from "./webview-base.js";
+import {
+  SectionPanel,
+  esc,
+  toggleSwitch,
+  editableField,
+  openInEditorLink,
+} from "./webview-base.js";
 
 interface Direction {
   id: string;
@@ -184,7 +190,10 @@ export class DirectionsPanel extends SectionPanel {
     }
 
     try {
-      await apiFetch(`/directions/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) });
+      await apiFetch(`/directions/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
     } catch (err) {
       vscode.window.showErrorMessage(String(err));
     }

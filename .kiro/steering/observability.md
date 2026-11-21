@@ -1,6 +1,6 @@
 ---
-inclusion: auto
----
+
+## inclusion: auto
 
 # Observability
 
@@ -27,9 +27,9 @@ the Direction, posture, gate results, model id, and prompt version, not content.
 
 ## Endpoints
 
-| Route | Purpose |
-| --- | --- |
-| `GET /health` | process up, DB reachable, per adapter: id, account label, state (`not configured`, `observe`, `ok`, `failing`), last success time |
+| Route          | Purpose                                                                                                                                                                |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`  | process up, DB reachable, per adapter: id, account label, state (`not configured`, `observe`, `ok`, `failing`), last success time                                      |
 | `GET /metrics` | signals, Thoughts, and the weekly ratio (signals ÷ thoughts) with a trailing series; absorb rate per Direction; model latency percentiles; deferred count; token usage |
 
 Both require the bearer token. Neither exposes content.

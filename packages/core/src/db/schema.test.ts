@@ -66,7 +66,10 @@ describe("schema", () => {
     db.insert(signals).values(base).run();
 
     expect(() =>
-      db.insert(signals).values({ ...base, id: "s-2" }).run(),
+      db
+        .insert(signals)
+        .values({ ...base, id: "s-2" })
+        .run(),
     ).toThrow();
   });
 
@@ -76,8 +79,6 @@ describe("schema", () => {
     const db = drizzle(sqlite, { schema });
     migrate(db, { migrationsFolder: MIGRATIONS_DIR });
     // second run must be a no-op
-    expect(() =>
-      migrate(db, { migrationsFolder: MIGRATIONS_DIR }),
-    ).not.toThrow();
+    expect(() => migrate(db, { migrationsFolder: MIGRATIONS_DIR })).not.toThrow();
   });
 });

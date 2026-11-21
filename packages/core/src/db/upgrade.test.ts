@@ -9,14 +9,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  cpSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -63,10 +56,7 @@ function partialMigrationsDir(upTo: number): string {
   const entries = journal.entries.filter((entry) => entry.idx <= upTo);
 
   for (const entry of entries) {
-    cpSync(
-      join(MIGRATIONS_DIR, `${entry.tag}.sql`),
-      join(dir, `${entry.tag}.sql`),
-    );
+    cpSync(join(MIGRATIONS_DIR, `${entry.tag}.sql`), join(dir, `${entry.tag}.sql`));
   }
   writeFileSync(
     join(dir, "meta", "_journal.json"),
@@ -112,11 +102,7 @@ describe("migration upgrade on a populated database", () => {
     migrate(db, { migrationsFolder: MIGRATIONS_DIR });
 
     expect(columnNames(sqlite, "thoughts")).toEqual(
-      expect.arrayContaining([
-        "commitment",
-        "disputed_reason",
-        "awaiting_reply_at",
-      ]),
+      expect.arrayContaining(["commitment", "disputed_reason", "awaiting_reply_at"]),
     );
     expect(columnNames(sqlite, "signals")).toEqual(
       expect.arrayContaining(["awaiting_reply_at", "reply_received_at"]),

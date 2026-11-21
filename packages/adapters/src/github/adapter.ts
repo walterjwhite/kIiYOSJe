@@ -28,9 +28,7 @@ import { externalIdFor, repoFromApiUrl, toSignal } from "./mapper.js";
 
 const DEFAULT_POLL_MS = 5 * 60 * 1000;
 
-export function githubQueries(
-  login: string,
-): Array<{ query: string; reason: PullRequestReason }> {
+export function githubQueries(login: string): Array<{ query: string; reason: PullRequestReason }> {
   return [
     { query: `is:pr is:open review-requested:${login}`, reason: "review_requested" },
     { query: `is:pr is:open assignee:${login}`, reason: "assigned" },
@@ -76,14 +74,11 @@ export class GitHubAdapter implements Adapter {
         label: account.label,
         token: accountCredential(account, "token", "GITHUB_TOKEN"),
       }))
-      .filter((account): account is { label: string; token: string } =>
-        Boolean(account.token),
-      );
+      .filter((account): account is { label: string; token: string } => Boolean(account.token));
 
     if (accounts.length === 0) return [new GitHubAdapter()];
     return accounts.map(
-      (account) =>
-        new GitHubAdapter(account.token, pollInterval(), account.label),
+      (account) => new GitHubAdapter(account.token, pollInterval(), account.label),
     );
   }
 
@@ -103,11 +98,7 @@ export class GitHubAdapter implements Adapter {
         this.login ??= (await client.whoami()).login;
         for (const { query, reason } of githubQueries(this.login)) {
           for (const pr of await client.searchPullRequests(query)) {
-            const externalId = externalIdFor(
-              pr,
-              repoFromApiUrl(pr.repository_url),
-              reason,
-            );
+            const externalId = externalIdFor(pr, repoFromApiUrl(pr.repository_url), reason);
             if (this.emitted.has(externalId)) continue;
             this.emitted.add(externalId);
             sink(toSignal(pr, reason, this.login, this.account));

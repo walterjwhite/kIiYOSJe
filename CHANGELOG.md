@@ -8,15 +8,18 @@ versions while the project is `0.x`).
 ## [Unreleased]
 
 ### Changed
+
 - Form controls follow the editor theme instead of the browser's light default.
 - Queue items can be multi-selected (Ctrl/Cmd+click, Shift+click) and planned, linked or dragged together.
 - Model Trace lists the records behind any clicked node or line, with sender and subject, and opens the signal on click.
 - On-screen instructions removed throughout the extension; they now live in USAGE.md.
 
 ### Removed
+
 - The Today screen. Overdue and review-due goals, the absorbed count and the summary now live on the Queue. `GET /brief` is unchanged.
 
 ### Added
+
 - Biome for lint, format, and import order (`npm run lint`, `lint:all`, `format`); Vitest coverage with floors (`npm run test:coverage`)
 - Gemini agent: `gemini-agent.yml` (run-gemini-cli on GitHub-hosted runners) implements `ai-ready` issues and opens draft PRs; `GEMINI.md` carries the agent context
 - Queue is two columns: Goals (Thoughts in the new `goal` state) on the left, items not linked to a goal on the right. Drag an item onto a goal to link it; Unlink undoes it. Items show one identity line and expand on click.

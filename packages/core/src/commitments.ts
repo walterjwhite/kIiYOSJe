@@ -15,12 +15,12 @@
 import { z } from "zod";
 
 export const COMMITMENT_STATUSES = [
-  "proposed",   // found in a signal, not yet acted on
-  "accepted",   // the operator confirmed it
-  "changed",    // superseded by a later message; see previousStates
+  "proposed", // found in a signal, not yet acted on
+  "accepted", // the operator confirmed it
+  "changed", // superseded by a later message; see previousStates
   "done",
   "dropped",
-  "disputed",   // conflicting evidence, needs the operator to settle it
+  "disputed", // conflicting evidence, needs the operator to settle it
 ] as const;
 export type CommitmentStatus = (typeof COMMITMENT_STATUSES)[number];
 
@@ -73,10 +73,7 @@ export function newCommitment(input: NewCommitmentInput): Commitment {
 }
 
 /** A later message confirms the same promise with the same date. */
-export function verifyCommitment(
-  commitment: Commitment,
-  at: string,
-): Commitment {
+export function verifyCommitment(commitment: Commitment, at: string): Commitment {
   return { ...commitment, lastVerifiedAt: at };
 }
 
@@ -135,10 +132,7 @@ export function settleCommitment(
 }
 
 /** Conflicting evidence: say so instead of silently picking a side. */
-export function disputeCommitment(
-  commitment: Commitment,
-  at: string,
-): Commitment {
+export function disputeCommitment(commitment: Commitment, at: string): Commitment {
   if (commitment.status === "disputed") return commitment;
   return {
     ...commitment,
@@ -180,9 +174,7 @@ export function sameCommitmentText(a: string, b: string): boolean {
   return norm(a) === norm(b);
 }
 
-export function parseCommitment(
-  raw: string | null | undefined,
-): Commitment | null {
+export function parseCommitment(raw: string | null | undefined): Commitment | null {
   if (!raw) return null;
   try {
     const parsed = CommitmentSchema.safeParse(JSON.parse(raw));

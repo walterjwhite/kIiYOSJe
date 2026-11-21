@@ -72,16 +72,11 @@ export async function doctor(): Promise<void> {
 
   const provider = aiProvider();
   const configured = aiConfigured();
-  check(
-    "model provider",
-    configured,
-    `${provider}${configured ? "" : " — no API key configured"}`,
-  );
+  check("model provider", configured, `${provider}${configured ? "" : " — no API key configured"}`);
 
   const googleAccounts = credentialAccounts("google").filter(
     (account) =>
-      accountCredential(account, "refreshToken", "MIND_GOOGLE_REFRESH_TOKEN") !==
-      undefined,
+      accountCredential(account, "refreshToken", "MIND_GOOGLE_REFRESH_TOKEN") !== undefined,
   );
   const googleCount =
     googleAccounts.length > 0
@@ -102,9 +97,7 @@ export async function doctor(): Promise<void> {
   const listedCalendars = loadCredentials()["calendar"]?.["sources"];
   const calendarCount = Array.isArray(listedCalendars)
     ? listedCalendars.filter(
-        (entry) =>
-          typeof entry === "string" ||
-          (entry !== null && typeof entry === "object"),
+        (entry) => typeof entry === "string" || (entry !== null && typeof entry === "object"),
       ).length
     : 0;
   check(
@@ -120,14 +113,13 @@ export async function doctor(): Promise<void> {
   );
 
   const githubAccounts = credentialAccounts("github").filter(
-    (account) =>
-      accountCredential(account, "token", "GITHUB_TOKEN") !== undefined,
+    (account) => accountCredential(account, "token", "GITHUB_TOKEN") !== undefined,
   );
   const githubCount =
     githubAccounts.length > 0
       ? githubAccounts.length
-      : credentialString("github", "token", "GITHUB_TOKEN") ??
-          credentialString("github", "token", "MIND_GITHUB_TOKEN")
+      : (credentialString("github", "token", "GITHUB_TOKEN") ??
+          credentialString("github", "token", "MIND_GITHUB_TOKEN"))
         ? 1
         : 0;
   check(
@@ -140,17 +132,12 @@ export async function doctor(): Promise<void> {
 
   const smsAccounts = credentialAccounts("gmessages").filter(
     (account) =>
-      accountCredential(account, "accessToken", "MIND_GMESSAGES_ACCESS_TOKEN") !==
-      undefined,
+      accountCredential(account, "accessToken", "MIND_GMESSAGES_ACCESS_TOKEN") !== undefined,
   );
   const matrixToken =
     smsAccounts.length > 0
       ? "configured"
-      : credentialString(
-          "gmessages",
-          "accessToken",
-          "MIND_GMESSAGES_ACCESS_TOKEN",
-        );
+      : credentialString("gmessages", "accessToken", "MIND_GMESSAGES_ACCESS_TOKEN");
   const homeserver = credentialString(
     "gmessages",
     "homeserverUrl",
@@ -192,9 +179,7 @@ export async function doctor(): Promise<void> {
   check("server", serverDetail === "reachable", serverDetail);
 
   for (const entry of checks) {
-    console.log(
-      `${entry.ok ? "ok  " : "MISS"}  ${entry.label.padEnd(28)} ${entry.detail}`,
-    );
+    console.log(`${entry.ok ? "ok  " : "MISS"}  ${entry.label.padEnd(28)} ${entry.detail}`);
   }
 
   const missing = checks.filter((entry) => !entry.ok).length;

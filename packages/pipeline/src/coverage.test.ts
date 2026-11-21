@@ -13,9 +13,9 @@ describe("mondayOf", () => {
   });
 
   it("is stable for a Monday", () => {
-    expect(
-      mondayOf(new Date("2026-11-16T00:00:00.000Z")).toISOString().slice(0, 10),
-    ).toBe("2026-11-16");
+    expect(mondayOf(new Date("2026-11-16T00:00:00.000Z")).toISOString().slice(0, 10)).toBe(
+      "2026-11-16",
+    );
   });
 });
 

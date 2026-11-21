@@ -14,10 +14,7 @@ export class GraphMailSource implements OutlookMailSource {
   constructor(client?: OutlookClient, account = "default") {
     this.client =
       client ??
-      new OutlookClient(
-        () => outlookTokenFor(account),
-        outlookCredentials(account)?.user,
-      );
+      new OutlookClient(() => outlookTokenFor(account), outlookCredentials(account)?.user);
   }
 
   static forAccount(account: string): GraphMailSource {

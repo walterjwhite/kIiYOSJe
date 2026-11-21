@@ -1,10 +1,5 @@
 import { afterEach, describe, it, expect } from "vitest";
-import {
-  configDir,
-  dataDir,
-  isWithinNotificationWindow,
-  DEFAULT_QUIET_PERIOD,
-} from "./config.js";
+import { configDir, dataDir, isWithinNotificationWindow, DEFAULT_QUIET_PERIOD } from "./config.js";
 import type { QuietPeriodConfig } from "./config.js";
 
 // Nov 2026, local time: the 9th is a Monday, the 14th is a Saturday.

@@ -11,16 +11,14 @@ export const DirectionPosture = {
   surface: "surface",
   escalate: "escalate",
 } as const;
-export type DirectionPosture =
-  (typeof DirectionPosture)[keyof typeof DirectionPosture];
+export type DirectionPosture = (typeof DirectionPosture)[keyof typeof DirectionPosture];
 
 export const DirectionAutonomy = {
   observe: "observe",
   draft: "draft",
   send: "send",
 } as const;
-export type DirectionAutonomy =
-  (typeof DirectionAutonomy)[keyof typeof DirectionAutonomy];
+export type DirectionAutonomy = (typeof DirectionAutonomy)[keyof typeof DirectionAutonomy];
 
 export const SignalDisposition = {
   new: "new",
@@ -29,8 +27,7 @@ export const SignalDisposition = {
   promoted: "promoted",
   escalated: "escalated",
 } as const;
-export type SignalDisposition =
-  (typeof SignalDisposition)[keyof typeof SignalDisposition];
+export type SignalDisposition = (typeof SignalDisposition)[keyof typeof SignalDisposition];
 
 export const ThoughtState = {
   seedling: "seedling",
@@ -63,7 +60,12 @@ export const ScopeKind = {
 export type ScopeKind = (typeof ScopeKind)[keyof typeof ScopeKind];
 
 export type SignalKind =
-  "question" | "task" | "acknowledgement" | "information" | "event" | "other";
+  | "question"
+  | "task"
+  | "acknowledgement"
+  | "information"
+  | "event"
+  | "other";
 
 // ── Signals and outbound work ────────────────────────────────────────────────
 
@@ -170,7 +172,13 @@ export interface DirectionGuards {
 
 export type SignalAction =
   | { id: string; label: string; kind: "acknowledge" }
-  | { id: string; label: string; kind: "openLink"; linkPrefix: string; confirm?: string | undefined };
+  | {
+      id: string;
+      label: string;
+      kind: "openLink";
+      linkPrefix: string;
+      confirm?: string | undefined;
+    };
 
 export interface DirectionConfig {
   name: string;

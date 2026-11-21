@@ -125,9 +125,7 @@ export class AnalyticsPanel extends SectionPanel {
     }
 
     try {
-      this.drilldownRows = await apiFetch<SignalRow[]>(
-        `/metrics/signals?${params.toString()}`,
-      );
+      this.drilldownRows = await apiFetch<SignalRow[]>(`/metrics/signals?${params.toString()}`);
       this.drilldownLabel = `${label} (${this.drilldownRows.length})`;
     } catch (err) {
       vscode.window.showErrorMessage(String(err));
@@ -163,7 +161,9 @@ export class AnalyticsPanel extends SectionPanel {
     const maxChannel = Math.max(1, ...m.byChannel.map((c) => c.count));
     const channelBars = m.byChannel
       .map(
-        (ch) => `<div class="bar-row clickable" data-action="drilldown" data-adapter="${esc(ch.adapter)}">
+        (
+          ch,
+        ) => `<div class="bar-row clickable" data-action="drilldown" data-adapter="${esc(ch.adapter)}">
           <span class="bar-label">${esc(ch.adapter)}</span>
           <div class="bar-track"><div class="bar-fill" style="width:${(ch.count / maxChannel) * 100}%"></div></div>
           <span class="bar-value">${ch.count}</span>

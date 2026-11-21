@@ -60,14 +60,18 @@ const VOICE_REPO = "https://huggingface.co/rhasspy/piper-voices/resolve/main";
 export function parsePiperCommand(command: string): { file: string; args: string[] } {
   const parts = command.trim().split(/\s+/).filter(Boolean);
   const [file, ...args] = parts;
-  if (!file) throw new PiperError("piper_not_found", "The Piper command is empty. Set it in Settings.");
+  if (!file)
+    throw new PiperError("piper_not_found", "The Piper command is empty. Set it in Settings.");
   return { file, args };
 }
 
 /** Where a voice lives in rhasspy/piper-voices: en_US-lessac-medium -> en/en_US/lessac/medium/... */
 export function voiceUrls(voice: string): { onnx: string; config: string } {
   if (!VOICE_NAME_PATTERN.test(voice)) {
-    throw new PiperError("bad_voice_name", `"${voice}" is not a Piper voice name such as en_US-lessac-medium.`);
+    throw new PiperError(
+      "bad_voice_name",
+      `"${voice}" is not a Piper voice name such as en_US-lessac-medium.`,
+    );
   }
   const [langRegion, name, quality] = voice.split("-") as [string, string, string];
   const language = langRegion.split("_")[0]!;
@@ -104,13 +108,20 @@ export function piperArgs(settings: AudioSettings, modelPath: string, outFile: s
 
 export function voicePaths(voice: string, voiceDir: string): { onnx: string; config: string } {
   if (!VOICE_NAME_PATTERN.test(voice)) {
-    throw new PiperError("bad_voice_name", `"${voice}" is not a Piper voice name such as en_US-lessac-medium.`);
+    throw new PiperError(
+      "bad_voice_name",
+      `"${voice}" is not a Piper voice name such as en_US-lessac-medium.`,
+    );
   }
   return { onnx: join(voiceDir, `${voice}.onnx`), config: join(voiceDir, `${voice}.onnx.json`) };
 }
 
 /** Makes sure the voice files exist, downloading them first when allowed. Returns the model path. */
-export async function ensureVoice(settings: AudioSettings, voiceDir: string, io: PiperIo): Promise<string> {
+export async function ensureVoice(
+  settings: AudioSettings,
+  voiceDir: string,
+  io: PiperIo,
+): Promise<string> {
   const paths = voicePaths(settings.voice, voiceDir);
   if (io.exists(paths.onnx) && io.exists(paths.config)) return paths.onnx;
 
@@ -163,13 +174,19 @@ export async function renderSpeech(
         `Could not run "${file}". Install Piper (for example "pip install piper-tts") or set the command in Settings.`,
       );
     }
-    throw new PiperError("render_failed", `Piper did not finish: ${err instanceof Error ? err.message : String(err)}`);
+    throw new PiperError(
+      "render_failed",
+      `Piper did not finish: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   if (result.code !== 0 || !io.exists(tmp)) {
     io.remove(tmp);
     const detail = result.stderr.trim().split("\n").slice(-3).join(" ").slice(0, 300);
-    throw new PiperError("render_failed", `Piper exited with code ${result.code}. ${detail}`.trim());
+    throw new PiperError(
+      "render_failed",
+      `Piper exited with code ${result.code}. ${detail}`.trim(),
+    );
   }
   io.rename(tmp, outFile);
 }

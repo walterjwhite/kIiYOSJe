@@ -27,7 +27,10 @@ export class JsonRpcPeer {
   private buffer = "";
   private closed = false;
 
-  constructor(input: Readable, private readonly output: Writable) {
+  constructor(
+    input: Readable,
+    private readonly output: Writable,
+  ) {
     input.setEncoding("utf8");
     input.on("data", (chunk: string) => this.receive(chunk));
     input.on("end", () => this.failAll(new Error("ACP agent closed stdout")));
@@ -40,9 +43,7 @@ export class JsonRpcPeer {
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.output.write(
-        `${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`,
-      );
+      this.output.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
     });
   }
 

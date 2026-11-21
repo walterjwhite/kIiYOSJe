@@ -113,7 +113,9 @@ export class ServerController implements vscode.Disposable {
         work,
       );
     } catch (err) {
-      vscode.window.showErrorMessage(`mind: could not ${label} server: ${String(err instanceof Error ? err.message : err)}`);
+      vscode.window.showErrorMessage(
+        `mind: could not ${label} server: ${String(err instanceof Error ? err.message : err)}`,
+      );
     } finally {
       this.busy = false;
       await this.refreshContext();
@@ -155,7 +157,9 @@ export class ServerController implements vscode.Disposable {
     if (!up) {
       this.log.show(true);
       if (this.child === child) child.kill("SIGTERM");
-      throw new Error(exited ?? `no response within ${START_TIMEOUT_MS / 1000}s. See the "mind server" output.`);
+      throw new Error(
+        exited ?? `no response within ${START_TIMEOUT_MS / 1000}s. See the "mind server" output.`,
+      );
     }
     vscode.window.showInformationMessage("mind: server started.");
   }

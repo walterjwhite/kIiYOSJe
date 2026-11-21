@@ -22,7 +22,9 @@ export type SummaryTone = (typeof SUMMARY_TONES)[number];
 
 export const AudioSettingsSchema = z.object({
   /** Voice (model) name. The operator types this; the file is fetched on first use. */
-  voice: z.string().regex(VOICE_NAME_PATTERN, "expected a Piper voice name such as en_US-lessac-medium"),
+  voice: z
+    .string()
+    .regex(VOICE_NAME_PATTERN, "expected a Piper voice name such as en_US-lessac-medium"),
   /** Piper speaker id for multi-speaker voices; null for single-speaker ones. */
   speaker: z.number().int().min(0).nullable(),
   /** Speaking rate multiplier. 1 is the voice's natural pace. */
@@ -66,7 +68,10 @@ export function audioSettings(): AudioSettings {
   } catch {
     /* no file yet */
   }
-  const merged = { ...DEFAULT_AUDIO_SETTINGS, ...(typeof stored === "object" && stored ? stored : {}) };
+  const merged = {
+    ...DEFAULT_AUDIO_SETTINGS,
+    ...(typeof stored === "object" && stored ? stored : {}),
+  };
   const parsed = AudioSettingsSchema.safeParse(merged);
   return parsed.success ? parsed.data : DEFAULT_AUDIO_SETTINGS;
 }

@@ -71,9 +71,14 @@ export function buildSummary(input: SummaryInput, tone: SummaryTone): string {
   } else {
     lines.push(`You have ${plural(input.goals.length, "goal")}.`);
     for (const g of input.goals) {
-      const flags = [g.overdue ? "it is overdue" : "", g.reviewDue ? "it is due for review" : ""].filter(Boolean);
+      const flags = [
+        g.overdue ? "it is overdue" : "",
+        g.reviewDue ? "it is due for review" : "",
+      ].filter(Boolean);
       const items = g.linked === 0 ? "nothing linked yet" : `${plural(g.linked, "item")} linked`;
-      lines.push(`${oneSentence(g.title, 80)}: ${items}${flags.length ? `, and ${flags.join(" and ")}` : ""}.`);
+      lines.push(
+        `${oneSentence(g.title, 80)}: ${items}${flags.length ? `, and ${flags.join(" and ")}` : ""}.`,
+      );
     }
   }
 
@@ -90,7 +95,8 @@ export function buildSummary(input: SummaryInput, tone: SummaryTone): string {
     if (queue.unlinked > 0) lines.push(`${queue.unlinked} of them are not linked to a goal.`);
     if (input.top.length > 0) {
       lines.push("Most pressing first.");
-      for (const t of input.top) lines.push(`${t.sender}: ${oneSentence(t.summary)}.`.replace(/\.\.$/, "."));
+      for (const t of input.top)
+        lines.push(`${t.sender}: ${oneSentence(t.summary)}.`.replace(/\.\.$/, "."));
     }
   }
 

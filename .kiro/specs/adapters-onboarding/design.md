@@ -21,12 +21,12 @@ leaves the credentials file.
 
 ## Scopes (document and keep minimal)
 
-| Adapter | Read | Send | Notes |
-| --- | --- | --- | --- |
-| Gmail | `gmail.readonly` | `gmail.send` or `gmail.compose` only when send is enabled | request send scope only after live verification |
-| Outlook (Graph) | `Mail.Read` | `Mail.Send` or draft-only `Mail.ReadWrite` | draft-then-send flow |
-| Calendar | `calendar.readonly` | `calendar.events` only if write is enabled | ICS URL option needs no OAuth |
-| Google Messages | Matrix access token on operator's bridge | via bridge | operator installs and runs the bridge |
+| Adapter         | Read                                     | Send                                                      | Notes                                           |
+| --------------- | ---------------------------------------- | --------------------------------------------------------- | ----------------------------------------------- |
+| Gmail           | `gmail.readonly`                         | `gmail.send` or `gmail.compose` only when send is enabled | request send scope only after live verification |
+| Outlook (Graph) | `Mail.Read`                              | `Mail.Send` or draft-only `Mail.ReadWrite`                | draft-then-send flow                            |
+| Calendar        | `calendar.readonly`                      | `calendar.events` only if write is enabled                | ICS URL option needs no OAuth                   |
+| Google Messages | Matrix access token on operator's bridge | via bridge                                                | operator installs and runs the bridge           |
 
 Confirm against current provider docs when implementing; scopes change.
 

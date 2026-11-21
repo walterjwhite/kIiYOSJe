@@ -44,9 +44,7 @@ export class GoogleMessagesReader {
     return sync.rooms.filter(isGoogleMessagesRoom).map((room) => ({
       roomId: room.roomId,
       label: roomLabel(room),
-      isDirect:
-        room.isDirect ||
-        room.stateEvents.some((event) => event.type === "m.bridge"),
+      isDirect: room.isDirect || room.stateEvents.some((event) => event.type === "m.bridge"),
       lastMessageAt: lastTimestamp(room.timeline, self.user_id),
     }));
   }
@@ -54,37 +52,20 @@ export class GoogleMessagesReader {
   async messages(options: ListMessagesOptions): Promise<GoogleMessage[]> {
     const self = await this.client.whoami();
     const sync = await this.client.sync();
-    const room = sync.rooms.find(
-      (candidate) => candidate.roomId === options.roomId,
-    );
-    if (!room)
-      throw new AdapterNotConfiguredError(
-        "gmessages",
-        `unknown room ${options.roomId}`,
-      );
+    const room = sync.rooms.find((candidate) => candidate.roomId === options.roomId);
+    if (!room) throw new AdapterNotConfiguredError("gmessages", `unknown room ${options.roomId}`);
 
     const messages = room.timeline
       .filter(isTextMessage)
-      .filter(
-        (event) =>
-          !options.since || event.origin_server_ts >= options.since.getTime(),
-      )
-      .map((event) =>
-        this.toGoogleMessage(room.roomId, roomLabel(room), event, self.user_id),
-      );
+      .filter((event) => !options.since || event.origin_server_ts >= options.since.getTime())
+      .map((event) => this.toGoogleMessage(room.roomId, roomLabel(room), event, self.user_id));
 
-    messages.sort(
-      (left, right) => right.sentAt.getTime() - left.sentAt.getTime(),
-    );
+    messages.sort((left, right) => right.sentAt.getTime() - left.sentAt.getTime());
     return messages.slice(0, options.limit ?? 50);
   }
 
   async send(roomId: string, body: string): Promise<string> {
-    const response = await this.client.sendText(
-      roomId,
-      body,
-      crypto.randomUUID(),
-    );
+    const response = await this.client.sendText(roomId, body, crypto.randomUUID());
     return response.event_id;
   }
 

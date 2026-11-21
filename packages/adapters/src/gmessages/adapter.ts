@@ -7,18 +7,9 @@
  * received it.
  */
 
-import {
-  accountCredential,
-  adapterIdForAccount,
-  credentialAccounts,
-} from "@mind/core";
+import { accountCredential, adapterIdForAccount, credentialAccounts } from "@mind/core";
 import { logger } from "@mind/core";
-import type {
-  Adapter,
-  NewSignal,
-  OutboundDraft,
-  SendResult,
-} from "@mind/core";
+import type { Adapter, NewSignal, OutboundDraft, SendResult } from "@mind/core";
 import { AdapterNotConfiguredError, isNotConfigured } from "../errors.js";
 import { isGoogleMessagesRoom, isTextMessage, toSignal } from "./mapping.js";
 import { MatrixClient } from "./protocol.js";
@@ -35,11 +26,7 @@ export class GmessagesAdapter implements Adapter {
   private since: string | undefined;
   private selfUserId = "";
 
-  constructor(
-    client?: MatrixClient,
-    pollMs = DEFAULT_POLL_MS,
-    account = "default",
-  ) {
+  constructor(client?: MatrixClient, pollMs = DEFAULT_POLL_MS, account = "default") {
     this.account = account;
     this.id = adapterIdForAccount("gmessages", account);
     this.client = client;
@@ -50,11 +37,7 @@ export class GmessagesAdapter implements Adapter {
   static allFromConfig(pollMs?: number): GmessagesAdapter[] {
     const accounts = credentialAccounts("gmessages").filter(
       (account) =>
-        accountCredential(
-          account,
-          "accessToken",
-          "MIND_GMESSAGES_ACCESS_TOKEN",
-        ) !== undefined,
+        accountCredential(account, "accessToken", "MIND_GMESSAGES_ACCESS_TOKEN") !== undefined,
     );
     if (accounts.length === 0) {
       try {
@@ -65,11 +48,7 @@ export class GmessagesAdapter implements Adapter {
     }
     return accounts.map((account) => {
       try {
-        return new GmessagesAdapter(
-          configuredClient(account.label),
-          pollMs,
-          account.label,
-        );
+        return new GmessagesAdapter(configuredClient(account.label), pollMs, account.label);
       } catch {
         return new GmessagesAdapter(undefined, pollMs, account.label);
       }
@@ -116,10 +95,7 @@ export class GmessagesAdapter implements Adapter {
 
     await poll();
     this.timer = setInterval(() => void poll(), this.pollMs);
-    logger.info(
-      { adapter: this.id, account: this.account },
-      "gmessages adapter started",
-    );
+    logger.info({ adapter: this.id, account: this.account }, "gmessages adapter started");
   }
 
   async stop(): Promise<void> {
@@ -131,11 +107,7 @@ export class GmessagesAdapter implements Adapter {
     if (!this.client || !draft.threadId) {
       throw new AdapterNotConfiguredError("gmessages", "room for reply");
     }
-    const eventId = await this.client.sendText(
-      draft.threadId,
-      draft.body,
-      crypto.randomUUID(),
-    );
+    const eventId = await this.client.sendText(draft.threadId, draft.body, crypto.randomUUID());
     return { externalId: eventId.event_id };
   }
 }
@@ -143,28 +115,15 @@ export class GmessagesAdapter implements Adapter {
 function configuredClient(label = "default"): MatrixClient {
   const account =
     credentialAccounts("gmessages").find((entry) => entry.label === label) ??
-    (label === "default"
-      ? { label: "default", section: "gmessages", config: {} }
-      : undefined);
+    (label === "default" ? { label: "default", section: "gmessages", config: {} } : undefined);
   if (!account) {
     throw new AdapterNotConfiguredError("gmessages", `account '${label}'`);
   }
 
   const homeserverUrl =
-    accountCredential(
-      account,
-      "homeserverUrl",
-      "MIND_GMESSAGES_HOMESERVER_URL",
-    ) ?? "http://localhost:8008";
-  const accessToken = accountCredential(
-    account,
-    "accessToken",
-    "MIND_GMESSAGES_ACCESS_TOKEN",
-  );
-  const userId = accountCredential(
-    account,
-    "userId",
-    "MIND_GMESSAGES_USER_ID",
-  );
+    accountCredential(account, "homeserverUrl", "MIND_GMESSAGES_HOMESERVER_URL") ??
+    "http://localhost:8008";
+  const accessToken = accountCredential(account, "accessToken", "MIND_GMESSAGES_ACCESS_TOKEN");
+  const userId = accountCredential(account, "userId", "MIND_GMESSAGES_USER_ID");
   return MatrixClient.fromCredentials(homeserverUrl, accessToken, userId);
 }

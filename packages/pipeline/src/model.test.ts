@@ -7,12 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ClassifierOutputSchema, writeAiConfig } from "@mind/core";
 import { generateReply, generateStructured, type ModelTrace } from "./model.js";
 
-process.env["MIND_CONFIG_DIR"] = mkdtempSync(
-  join(tmpdir(), "mind-transport-"),
-);
-process.env["MIND_DATA_DIR"] = mkdtempSync(
-  join(tmpdir(), "mind-transport-data-"),
-);
+process.env["MIND_CONFIG_DIR"] = mkdtempSync(join(tmpdir(), "mind-transport-"));
+process.env["MIND_DATA_DIR"] = mkdtempSync(join(tmpdir(), "mind-transport-data-"));
 
 const CLASSIFICATION = {
   confidence: 0.83,
@@ -40,9 +36,10 @@ beforeAll(async () => {
     const chunks: Buffer[] = [];
     request.on("data", (chunk: Buffer) => chunks.push(chunk));
     request.on("end", () => {
-      const body = JSON.parse(
-        Buffer.concat(chunks).toString("utf8") || "{}",
-      ) as { model?: string; response_format?: unknown };
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as {
+        model?: string;
+        response_format?: unknown;
+      };
       calls.push({
         auth: String(request.headers.authorization ?? ""),
         ...(body.model ? { model: body.model } : {}),

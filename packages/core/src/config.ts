@@ -5,23 +5,24 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { mkdirSync, readFileSync, writeFileSync, unlinkSync, existsSync, renameSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+  existsSync,
+  renameSync,
+} from "node:fs";
 
 /** Repo name, so each tree's data stays apart in ~/.data/<repo>/mind. */
 const REPO_NAME = "kIiYOSJe";
 
 export function dataDir(): string {
-  return (
-    process.env["MIND_DATA_DIR"] ??
-    join(homedir(), ".data", REPO_NAME, "mind")
-  );
+  return process.env["MIND_DATA_DIR"] ?? join(homedir(), ".data", REPO_NAME, "mind");
 }
 
 export function configDir(): string {
-  return (
-    process.env["MIND_CONFIG_DIR"] ??
-    join(homedir(), ".config", REPO_NAME, "mind")
-  );
+  return process.env["MIND_CONFIG_DIR"] ?? join(homedir(), ".config", REPO_NAME, "mind");
 }
 
 export function dbPath(): string {
@@ -207,9 +208,7 @@ export function aiProvider(): AiProvider {
   const fromFile = readAiConfigFile().provider;
   const v = fromFile ?? process.env["MIND_AI_PROVIDER"] ?? "ollama";
   if (!AI_PROVIDERS.includes(v as AiProvider)) {
-    throw new Error(
-      `AI provider must be ${AI_PROVIDERS.join(" | ")}, got: ${v}`,
-    );
+    throw new Error(`AI provider must be ${AI_PROVIDERS.join(" | ")}, got: ${v}`);
   }
   return v as AiProvider;
 }
@@ -226,61 +225,62 @@ export function copilotIntegrationId(): string {
 
 export function classifyModel(): string {
   const fromFile = readAiConfigFile().classifyModel;
-  return (
-    fromFile ??
-    process.env["MIND_CLASSIFY_MODEL"] ??
-    defaultClassifyModel(aiProvider())
-  );
+  return fromFile ?? process.env["MIND_CLASSIFY_MODEL"] ?? defaultClassifyModel(aiProvider());
 }
 
 export function draftModel(): string {
   const fromFile = readAiConfigFile().draftModel;
-  return (
-    fromFile ??
-    process.env["MIND_DRAFT_MODEL"] ??
-    defaultDraftModel(aiProvider())
-  );
+  return fromFile ?? process.env["MIND_DRAFT_MODEL"] ?? defaultDraftModel(aiProvider());
 }
 
 /** Base URL for the provider; `openai-compatible` has no default. */
 export function aiBaseUrl(): string {
   const fromFile = readAiConfigFile().baseURL;
   const provider = aiProvider();
-  const value =
-    fromFile ??
-    process.env["MIND_AI_BASE_URL"] ??
-    DEFAULT_BASE_URLS[provider];
+  const value = fromFile ?? process.env["MIND_AI_BASE_URL"] ?? DEFAULT_BASE_URLS[provider];
   if (!value) {
-    throw new Error(
-      `provider '${provider}' needs a baseURL in ai.json or MIND_AI_BASE_URL`,
-    );
+    throw new Error(`provider '${provider}' needs a baseURL in ai.json or MIND_AI_BASE_URL`);
   }
   return value.replace(/\/$/, "");
 }
 
 function defaultClassifyModel(p: AiProvider): string {
   switch (p) {
-    case "ollama":            return "qwen2.5:3b-instruct";
-    case "openai":            return "gpt-4o-mini";
-    case "anthropic":         return "claude-haiku-4-5";
-    case "google":            return "gemini-2.0-flash";
-    case "openai-compatible": return "gpt-4o-mini";
-    case "copilot":           return "gpt-4o-mini";
+    case "ollama":
+      return "qwen2.5:3b-instruct";
+    case "openai":
+      return "gpt-4o-mini";
+    case "anthropic":
+      return "claude-haiku-4-5";
+    case "google":
+      return "gemini-2.0-flash";
+    case "openai-compatible":
+      return "gpt-4o-mini";
+    case "copilot":
+      return "gpt-4o-mini";
     case "kiro":
-    case "copilot-cli":       return "default";
+    case "copilot-cli":
+      return "default";
   }
 }
 
 function defaultDraftModel(p: AiProvider): string {
   switch (p) {
-    case "ollama":            return "qwen2.5:3b-instruct";
-    case "openai":            return "gpt-4o";
-    case "anthropic":         return "claude-sonnet-4-5";
-    case "google":            return "gemini-2.0-flash";
-    case "openai-compatible": return "gpt-4o";
-    case "copilot":           return "gpt-4o";
+    case "ollama":
+      return "qwen2.5:3b-instruct";
+    case "openai":
+      return "gpt-4o";
+    case "anthropic":
+      return "claude-sonnet-4-5";
+    case "google":
+      return "gemini-2.0-flash";
+    case "openai-compatible":
+      return "gpt-4o";
+    case "copilot":
+      return "gpt-4o";
     case "kiro":
-    case "copilot-cli":       return "default";
+    case "copilot-cli":
+      return "default";
   }
 }
 

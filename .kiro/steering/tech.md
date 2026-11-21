@@ -1,6 +1,6 @@
 ---
-inclusion: auto
----
+
+## inclusion: auto
 
 # Tech
 
@@ -14,15 +14,15 @@ inclusion: auto
 
 ## Stack
 
-| Concern | Choice |
-| --- | --- |
-| HTTP | `hono` + `@hono/node-server`, bound to `127.0.0.1` |
-| DB | `better-sqlite3` + `drizzle-orm`, plain SQL migrations |
-| Validation | `zod` — one schema for config, HTTP, and LLM structured output |
-| LLM | Vercel AI SDK (`ai`, `@ai-sdk/*`), plus ACP over stdio for `kiro-cli`/`copilot` |
-| Logging | `pino` (JSON; redact paths in `logger.ts` censor tokens, keys, cookies, and auth headers; never log message bodies) |
-| Tests | `vitest`, headless |
-| UI | VS Code extension: tree views + webviews, no framework |
+| Concern    | Choice                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| HTTP       | `hono` + `@hono/node-server`, bound to `127.0.0.1`                                                                  |
+| DB         | `better-sqlite3` + `drizzle-orm`, plain SQL migrations                                                              |
+| Validation | `zod` — one schema for config, HTTP, and LLM structured output                                                      |
+| LLM        | Vercel AI SDK (`ai`, `@ai-sdk/*`), plus ACP over stdio for `kiro-cli`/`copilot`                                     |
+| Logging    | `pino` (JSON; redact paths in `logger.ts` censor tokens, keys, cookies, and auth headers; never log message bodies) |
+| Tests      | `vitest`, headless                                                                                                  |
+| UI         | VS Code extension: tree views + webviews, no framework                                                              |
 
 ## Conventions
 

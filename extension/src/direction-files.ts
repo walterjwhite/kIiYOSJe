@@ -68,12 +68,15 @@ export async function editDirections(): Promise<void> {
     ...files.map((f) => ({ label: path.relative(dir, f), description: f })),
   ];
   const picked = await vscode.window.showQuickPick(items, {
-    placeHolder: files.length === 0 ? `No direction files in ${dir}` : "Select a direction file to edit",
+    placeHolder:
+      files.length === 0 ? `No direction files in ${dir}` : "Select a direction file to edit",
   });
   if (!picked) return;
   if (picked.label === NEW) return newDirection();
 
-  await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(picked.description!));
+  await vscode.window.showTextDocument(
+    await vscode.workspace.openTextDocument(picked.description!),
+  );
 }
 
 /** Saving a direction YAML file under the server's directory reloads it. */

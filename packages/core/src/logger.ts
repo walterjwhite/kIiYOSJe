@@ -51,9 +51,7 @@ const REDACT_OPTIONS: { paths: string[]; censor: string } = {
 };
 
 function buildLogger() {
-  const isDev =
-    process.env["NODE_ENV"] !== "production" &&
-    process.env["MIND_LOG_JSON"] !== "true";
+  const isDev = process.env["NODE_ENV"] !== "production" && process.env["MIND_LOG_JSON"] !== "true";
 
   if (isDev) {
     return pino({ level: "debug", redact: REDACT_OPTIONS });

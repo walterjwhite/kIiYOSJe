@@ -11,16 +11,12 @@ import { statusIndicator } from "./status-indicator.js";
 
 export function serverUrl(): string {
   return (
-    vscode.workspace
-      .getConfiguration("mind")
-      .get<string>("serverUrl") ?? "http://127.0.0.1:8787"
+    vscode.workspace.getConfiguration("mind").get<string>("serverUrl") ?? "http://127.0.0.1:8787"
   );
 }
 
 function tokenPath(): string {
-  const configured = vscode.workspace
-    .getConfiguration("mind")
-    .get<string>("tokenPath");
+  const configured = vscode.workspace.getConfiguration("mind").get<string>("tokenPath");
   if (configured) return configured;
   const configDir = process.env["MIND_CONFIG_DIR"];
   return configDir
@@ -47,10 +43,7 @@ function getToken(): string {
   }
 }
 
-export async function apiFetch<T>(
-  urlPath: string,
-  options: RequestInit = {},
-): Promise<T> {
+export async function apiFetch<T>(urlPath: string, options: RequestInit = {}): Promise<T> {
   statusIndicator.begin();
   try {
     const url = `${serverUrl()}${urlPath}`;

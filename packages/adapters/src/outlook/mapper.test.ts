@@ -3,9 +3,9 @@ import { fromGraph, stripHtml, toSignal } from "./mapper.js";
 
 describe("stripHtml", () => {
   it("flattens markup and entities", () => {
-    expect(
-      stripHtml("<p>Thanks &amp; regards</p><p>Alice<br>Sent from Outlook</p>"),
-    ).toBe("Thanks & regards\nAlice\nSent from Outlook");
+    expect(stripHtml("<p>Thanks &amp; regards</p><p>Alice<br>Sent from Outlook</p>")).toBe(
+      "Thanks & regards\nAlice\nSent from Outlook",
+    );
   });
 });
 

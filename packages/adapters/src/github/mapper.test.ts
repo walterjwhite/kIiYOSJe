@@ -58,11 +58,7 @@ describe("github mapper", () => {
   });
 
   it("truncates a very long PR body and tolerates a missing author", () => {
-    const signal = toSignal(
-      pr({ body: "x".repeat(5000), user: null, labels: [] }),
-      "assigned",
-      "",
-    );
+    const signal = toSignal(pr({ body: "x".repeat(5000), user: null, labels: [] }), "assigned", "");
 
     expect(signal.body.length).toBeLessThan(1600);
     expect(signal.sender).toBe("github");

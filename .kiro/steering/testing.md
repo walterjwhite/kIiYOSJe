@@ -1,4 +1,5 @@
 ---
+
 inclusion: fileMatch
 fileMatchPattern: "**/*.test.ts"
 ---
@@ -16,16 +17,16 @@ fileMatchPattern: "**/*.test.ts"
 
 ## Layers
 
-| Layer | What | Where |
-| --- | --- | --- |
-| Unit | pure functions: match, normalize, dedupe, mapping, config parsing | `*.test.ts` beside source |
-| Contract | every adapter satisfies `start`/`stop`/optional `send` and degrades to "not configured" | `packages/adapters` |
-| Pipeline | ingest end to end with a stub model and in-memory SQLite | `packages/pipeline` |
-| Safety | send gates, pause flag, empty draft, injection corpus | `decide.test.ts`, `autosend.test.ts`, `guards.test.ts` |
-| API | routes through `buildApp` with `MIND_TEST_TOKEN` | `packages/server` |
-| Migration | empty and populated upgrade, idempotent re-run | `packages/core` |
-| Eval | labelled signals, stub model in CI, live model manual | `packages/pipeline/eval` |
-| Extension | command wiring, CSP, escaping | `extension/test` |
+| Layer     | What                                                                                    | Where                                                  |
+| --------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Unit      | pure functions: match, normalize, dedupe, mapping, config parsing                       | `*.test.ts` beside source                              |
+| Contract  | every adapter satisfies `start`/`stop`/optional `send` and degrades to "not configured" | `packages/adapters`                                    |
+| Pipeline  | ingest end to end with a stub model and in-memory SQLite                                | `packages/pipeline`                                    |
+| Safety    | send gates, pause flag, empty draft, injection corpus                                   | `decide.test.ts`, `autosend.test.ts`, `guards.test.ts` |
+| API       | routes through `buildApp` with `MIND_TEST_TOKEN`                                        | `packages/server`                                      |
+| Migration | empty and populated upgrade, idempotent re-run                                          | `packages/core`                                        |
+| Eval      | labelled signals, stub model in CI, live model manual                                   | `packages/pipeline/eval`                               |
+| Extension | command wiring, CSP, escaping                                                           | `extension/test`                                       |
 
 ## Rules
 

@@ -67,10 +67,7 @@ export async function acpPrompt(options: AcpOptions): Promise<string> {
   }
 }
 
-async function converse(
-  peer: JsonRpcPeer,
-  options: AcpOptions,
-): Promise<string> {
+async function converse(peer: JsonRpcPeer, options: AcpOptions): Promise<string> {
   await peer.request("initialize", {
     protocolVersion: 1,
     clientCapabilities: {},
@@ -91,9 +88,7 @@ async function converse(
     text += chunkText(message);
   });
 
-  const prompt = options.system
-    ? `${options.system}\n\n${options.prompt}`
-    : options.prompt;
+  const prompt = options.system ? `${options.system}\n\n${options.prompt}` : options.prompt;
   await peer.request("session/prompt", {
     sessionId,
     prompt: [{ type: "text", text: prompt }],
@@ -102,11 +97,7 @@ async function converse(
 }
 
 /** Agents that do not support model switching simply keep their default. */
-async function selectModel(
-  peer: JsonRpcPeer,
-  sessionId: string,
-  model: string,
-): Promise<void> {
+async function selectModel(peer: JsonRpcPeer, sessionId: string, model: string): Promise<void> {
   try {
     await peer.request("session/set_model", { sessionId, modelId: model });
   } catch {
@@ -135,10 +126,7 @@ function withTimeout<T>(promise: Promise<T>, options: AcpOptions): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(
-      () =>
-        reject(
-          new Error(`ACP agent '${options.agent.command}' timed out after ${ms}ms`),
-        ),
+      () => reject(new Error(`ACP agent '${options.agent.command}' timed out after ${ms}ms`)),
       ms,
     );
   });

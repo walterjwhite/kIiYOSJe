@@ -7,9 +7,7 @@
  */
 export function channelLabel(adapter: string, account: string | null | undefined): string {
   if (!account) return adapter;
-  return adapter === account || adapter.endsWith(`:${account}`)
-    ? adapter
-    : `${adapter}:${account}`;
+  return adapter === account || adapter.endsWith(`:${account}`) ? adapter : `${adapter}:${account}`;
 }
 
 export type TimingBucket = "now" | "today" | "this-week" | "can-wait";

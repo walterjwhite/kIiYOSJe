@@ -22,23 +22,50 @@ function openTestDb() {
 type TestDb = ReturnType<typeof openTestDb>;
 
 function addDirection(db: TestDb, id: string, over: Partial<typeof directions.$inferInsert> = {}) {
-  db.insert(directions).values({
-    id, name: id, scopeKind: "person", scopeValue: `${id}@x.com`,
-    posture: "absorb", standard: "s", autonomy: "draft",
-    confidenceMin: 0.7, enabled: true, version: 1, ...over,
-  }).run();
+  db.insert(directions)
+    .values({
+      id,
+      name: id,
+      scopeKind: "person",
+      scopeValue: `${id}@x.com`,
+      posture: "absorb",
+      standard: "s",
+      autonomy: "draft",
+      confidenceMin: 0.7,
+      enabled: true,
+      version: 1,
+      ...over,
+    })
+    .run();
 }
 
 function addAction(db: TestDb, dirId: string, n: number, status: string) {
   const sid = `s-${dirId}-${n}-${status}`;
-  db.insert(signals).values({
-    id: sid, adapter: "t", externalId: sid, sender: "a@x.com", recipients: "[]",
-    kind: "m", body: "b", receivedAt: new Date().toISOString(),
-    disposition: "absorbed", directionId: dirId, dedupeKey: sid,
-  }).run();
-  db.insert(actions).values({
-    id: `a-${sid}`, signalId: sid, kind: "reply", payload: "{}", status, adapter: "t",
-  }).run();
+  db.insert(signals)
+    .values({
+      id: sid,
+      adapter: "t",
+      externalId: sid,
+      sender: "a@x.com",
+      recipients: "[]",
+      kind: "m",
+      body: "b",
+      receivedAt: new Date().toISOString(),
+      disposition: "absorbed",
+      directionId: dirId,
+      dedupeKey: sid,
+    })
+    .run();
+  db.insert(actions)
+    .values({
+      id: `a-${sid}`,
+      signalId: sid,
+      kind: "reply",
+      payload: "{}",
+      status,
+      adapter: "t",
+    })
+    .run();
 }
 
 describe("runLearningLoop", () => {
@@ -77,11 +104,21 @@ describe("runLearningLoop", () => {
   it("proposes a new direction for repeated unmatched senders", () => {
     const db = openTestDb();
     for (let i = 0; i < 3; i++) {
-      db.insert(signals).values({
-        id: `u-${i}`, adapter: "t", externalId: `u-${i}`, sender: "repeat@x.com",
-        recipients: "[]", kind: "m", body: "b", receivedAt: new Date().toISOString(),
-        disposition: "escalated", directionId: null, dedupeKey: `u-${i}`,
-      }).run();
+      db.insert(signals)
+        .values({
+          id: `u-${i}`,
+          adapter: "t",
+          externalId: `u-${i}`,
+          sender: "repeat@x.com",
+          recipients: "[]",
+          kind: "m",
+          body: "b",
+          receivedAt: new Date().toISOString(),
+          disposition: "escalated",
+          directionId: null,
+          dedupeKey: `u-${i}`,
+        })
+        .run();
     }
     const p = runLearningLoop(db).find((x) => x.kind === "new");
     expect(p?.proposedValue).toBe("repeat@x.com");
@@ -95,7 +132,11 @@ describe("runLearningLoop", () => {
 
     runLearningLoop(db);
 
-    const ev = db.select().from(events).all().filter((e) => e.kind === "direction.proposal");
+    const ev = db
+      .select()
+      .from(events)
+      .all()
+      .filter((e) => e.kind === "direction.proposal");
     expect(ev).toHaveLength(1);
     const dir = db.select().from(directions).all()[0];
     expect(dir?.confidenceMin).toBe(0.7);

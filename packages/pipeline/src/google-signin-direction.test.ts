@@ -34,17 +34,22 @@ describe("directions/work/google-signin.yaml", () => {
   migrate(db, { migrationsFolder: MIGRATIONS_DIR });
   loadDirections(db, EXAMPLES_DIR);
 
-  it.each(["Linux", "Windows", "Apple"])("matches a %s sign-in notice and carries a transformPrompt", (platform) => {
-    const m = matchSignal(
-      db,
-      signalWithBody(`We noticed a new sign-in to your Google Account on a ${platform} device. If this was you, you don't need to do anything.`),
-    );
-    expect(m?.direction.name).toBe("google-signin-notice");
-    expect(m?.direction.posture).toBe("surface");
-    expect(m?.direction.transformPrompt).toContain(
-      "account sign-in on <platform> - <email-address> - <recovery-email-address>",
-    );
-  });
+  it.each(["Linux", "Windows", "Apple"])(
+    "matches a %s sign-in notice and carries a transformPrompt",
+    (platform) => {
+      const m = matchSignal(
+        db,
+        signalWithBody(
+          `We noticed a new sign-in to your Google Account on a ${platform} device. If this was you, you don't need to do anything.`,
+        ),
+      );
+      expect(m?.direction.name).toBe("google-signin-notice");
+      expect(m?.direction.posture).toBe("surface");
+      expect(m?.direction.transformPrompt).toContain(
+        "account sign-in on <platform> - <email-address> - <recovery-email-address>",
+      );
+    },
+  );
 
   it("matches when the sentence wraps before the platform", () => {
     const m = matchSignal(

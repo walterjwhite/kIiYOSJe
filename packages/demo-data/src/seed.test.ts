@@ -2,22 +2,13 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  ALL_PERSONAS,
-  demoDbPath,
-  demoPersonas,
-  resetDemoDb,
-} from "./seed.js";
+import { ALL_PERSONAS, demoDbPath, demoPersonas, resetDemoDb } from "./seed.js";
 
 process.env["HOME"] = mkdtempSync(join(tmpdir(), "mind-demo-"));
 
 describe("ALL_PERSONAS", () => {
   it("covers engineer, pm and devsecops with scenario metadata", () => {
-    expect(ALL_PERSONAS.map((scenario) => scenario.id)).toEqual([
-      "engineer",
-      "pm",
-      "devsecops",
-    ]);
+    expect(ALL_PERSONAS.map((scenario) => scenario.id)).toEqual(["engineer", "pm", "devsecops"]);
     for (const scenario of ALL_PERSONAS) {
       expect(scenario.displayName.length).toBeGreaterThan(0);
       expect(scenario.pitch.length).toBeGreaterThan(0);
@@ -29,11 +20,7 @@ describe("ALL_PERSONAS", () => {
 
 describe("demoPersonas", () => {
   it("flattens every scenario into the shared persona shape", () => {
-    expect(Object.keys(demoPersonas).sort()).toEqual([
-      "devsecops",
-      "engineer",
-      "pm",
-    ]);
+    expect(Object.keys(demoPersonas).sort()).toEqual(["devsecops", "engineer", "pm"]);
     for (const scenario of ALL_PERSONAS) {
       const flat = demoPersonas[scenario.id] ?? [];
       expect(flat).toHaveLength(scenario.signals.length);

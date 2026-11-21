@@ -288,9 +288,7 @@ export class SignalDetailPanel extends SectionPanel {
     }
   }
 
-  private async putThoughtLink(
-    body: { thoughtId: string } | { title: string },
-  ): Promise<void> {
+  private async putThoughtLink(body: { thoughtId: string } | { title: string }): Promise<void> {
     try {
       await apiFetch(`/signals/${this.signalId}/thought`, {
         method: "PUT",
@@ -397,9 +395,16 @@ export class SignalDetailPanel extends SectionPanel {
           ? extractLink(signal.htmlBody, signal.body, a.linkPrefix) !== undefined
           : !signal.reviewedAt,
       )
-      .map((a) => `<button data-action="signalAction" data-id="${esc(a.id)}">${esc(a.label)}</button>`);
-    if (signal.reviewedAt && (direction?.signalActions ?? []).some((a) => a.kind === "acknowledge")) {
-      signalActionButtons.unshift(`<span class="badge">acknowledged ${esc(signal.reviewedAt)}</span>`);
+      .map(
+        (a) => `<button data-action="signalAction" data-id="${esc(a.id)}">${esc(a.label)}</button>`,
+      );
+    if (
+      signal.reviewedAt &&
+      (direction?.signalActions ?? []).some((a) => a.kind === "acknowledge")
+    ) {
+      signalActionButtons.unshift(
+        `<span class="badge">acknowledged ${esc(signal.reviewedAt)}</span>`,
+      );
     }
     const showingHtml = ds.preferHtmlBody && hasHtml && !this.showRawBody;
 
@@ -592,11 +597,13 @@ export function renderEventDetail(kind: string, payload: Record<string, unknown>
     const parts: string[] = [];
     if (payload["reason"]) parts.push(`<strong>Reason:</strong> ${esc(String(payload["reason"]))}`);
     if (payload["intent"]) parts.push(`<strong>Intent:</strong> ${esc(String(payload["intent"]))}`);
-    if (payload["matchedBy"]) parts.push(`<strong>Matched by:</strong> ${esc(String(payload["matchedBy"]))}`);
+    if (payload["matchedBy"])
+      parts.push(`<strong>Matched by:</strong> ${esc(String(payload["matchedBy"]))}`);
     if (payload["confidence"] !== undefined) {
       parts.push(`<strong>Confidence:</strong> ${esc(String(payload["confidence"]))}`);
     }
-    if (payload["urgency"]) parts.push(`<strong>Urgency:</strong> ${esc(String(payload["urgency"]))}`);
+    if (payload["urgency"])
+      parts.push(`<strong>Urgency:</strong> ${esc(String(payload["urgency"]))}`);
     if (payload["answerable"] !== undefined) {
       parts.push(`<strong>Answerable by AI:</strong> ${payload["answerable"] ? "yes" : "no"}`);
     }
@@ -619,7 +626,9 @@ export function renderEventDetail(kind: string, payload: Record<string, unknown>
   if (kind === "action.sent" || kind === "action.failed" || kind === "action.discarded") {
     const parts: string[] = [];
     if (payload["autonomous"] !== undefined) {
-      parts.push(`<strong>Sent automatically:</strong> ${payload["autonomous"] ? "yes" : "no, approved by you"}`);
+      parts.push(
+        `<strong>Sent automatically:</strong> ${payload["autonomous"] ? "yes" : "no, approved by you"}`,
+      );
     }
     if (payload["error"]) parts.push(`<strong>Error:</strong> ${esc(String(payload["error"]))}`);
     return parts.length > 0 ? `<div>${parts.join("<br/>")}</div>` : "";
@@ -685,7 +694,9 @@ function renderDebugDetail(e: JournalEvent, payload: Record<string, unknown>): s
       rows.push(`<tr><th>Total processing time</th><td>${esc(fmtMs(ai.totalMs))}</td></tr>`);
       rows.push(`<tr><th>Time in model calls</th><td>${esc(fmtMs(ai.modelMs))}</td></tr>`);
       if (calls.length === 0) {
-        rows.push(`<tr><th>Model calls</th><td><strong>none</strong> — no model was contacted for this signal.</td></tr>`);
+        rows.push(
+          `<tr><th>Model calls</th><td><strong>none</strong> — no model was contacted for this signal.</td></tr>`,
+        );
       }
       calls.forEach((c, i) => {
         const where =

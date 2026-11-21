@@ -14,19 +14,9 @@
  */
 
 import { credentialString, loadCredentials, logger } from "@mind/core";
-import type {
-  Adapter,
-  CalendarEvent,
-  NewSignal,
-  OutboundEvent,
-  TimeRange,
-} from "@mind/core";
+import type { Adapter, CalendarEvent, NewSignal, OutboundEvent, TimeRange } from "@mind/core";
 import { AdapterNotConfiguredError, isNotConfigured } from "../errors.js";
-import {
-  googleAccessTokenFor,
-  googleAccountLabels,
-  googleCredentials,
-} from "../google/auth.js";
+import { googleAccessTokenFor, googleAccountLabels, googleCredentials } from "../google/auth.js";
 import { GoogleCalendarClient } from "./google.js";
 import { parseIcs } from "./ics.js";
 
@@ -60,13 +50,8 @@ export function calendarSources(): CalendarSource[] {
     );
   }
 
-  const icsUrl = credentialString(
-    "calendar",
-    "icsUrl",
-    "MIND_CALENDAR_ICS_URL",
-  );
-  const calendarId =
-    credentialString("calendar", "calendarId", "MIND_CALENDAR_ID") ?? "primary";
+  const icsUrl = credentialString("calendar", "icsUrl", "MIND_CALENDAR_ICS_URL");
+  const calendarId = credentialString("calendar", "calendarId", "MIND_CALENDAR_ID") ?? "primary";
 
   // Every Google account gets its primary calendar. Without a configured
   // account this is the original single default source.
@@ -140,23 +125,18 @@ export function defaultWriteTarget(
 
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     const fields = raw as Record<string, unknown>;
-    calendarId =
-      nonEmptyString(fields["calendar"]) ?? nonEmptyString(fields["calendarId"]);
+    calendarId = nonEmptyString(fields["calendar"]) ?? nonEmptyString(fields["calendarId"]);
     account = nonEmptyString(fields["account"]);
   } else {
     calendarId = nonEmptyString(raw);
   }
 
   const explicitAccount =
-    credentialString(
-      "calendar",
-      "writeToAccount",
-      "MIND_CALENDAR_WRITE_TO_ACCOUNT",
-    ) ?? nonEmptyString(calendar["writeToAccount"]);
+    credentialString("calendar", "writeToAccount", "MIND_CALENDAR_WRITE_TO_ACCOUNT") ??
+    nonEmptyString(calendar["writeToAccount"]);
 
   const googleSources = sources.filter(
-    (source): source is Extract<CalendarSource, { kind: "google" }> =>
-      source.kind === "google",
+    (source): source is Extract<CalendarSource, { kind: "google" }> => source.kind === "google",
   );
   const chosen = calendarId
     ? googleSources.find((source) => source.calendarId === calendarId)
@@ -169,9 +149,7 @@ export function defaultWriteTarget(
 }
 
 /** Backward-compatible helper: only the calendar id of the write target. */
-export function defaultWriteCalendarId(
-  sources: CalendarSource[] = calendarSources(),
-): string {
+export function defaultWriteCalendarId(sources: CalendarSource[] = calendarSources()): string {
   return defaultWriteTarget(sources).calendarId;
 }
 
@@ -212,9 +190,7 @@ export class CalendarAdapter implements Adapter {
   static fromConfig(): CalendarAdapter {
     const clients: Record<string, GoogleCalendarClient> = {};
     for (const label of googleAccountLabels()) {
-      clients[label] = new GoogleCalendarClient(() =>
-        googleAccessTokenFor(label),
-      );
+      clients[label] = new GoogleCalendarClient(() => googleAccessTokenFor(label));
     }
     const sources = calendarSources();
     const target = defaultWriteTarget(sources);
@@ -240,16 +216,10 @@ export class CalendarAdapter implements Adapter {
         }
       } catch (err) {
         if (isNotConfigured(err)) {
-          logger.info(
-            { adapter: this.id },
-            "calendar: no credentials, adapter idle",
-          );
+          logger.info({ adapter: this.id }, "calendar: no credentials, adapter idle");
           return;
         }
-        logger.warn(
-          { adapter: this.id, err: String(err) },
-          "calendar: poll failed",
-        );
+        logger.warn({ adapter: this.id, err: String(err) }, "calendar: poll failed");
       }
     };
 
@@ -337,18 +307,12 @@ export class CalendarAdapter implements Adapter {
     if (!client) {
       // Never fall back to another account's token: that would silently read
       // or write the wrong mailbox's calendar.
-      throw new AdapterNotConfiguredError(
-        "calendar",
-        `Google account '${account}'`,
-      );
+      throw new AdapterNotConfiguredError("calendar", `Google account '${account}'`);
     }
     return client;
   }
 
-  private async fromSource(
-    source: CalendarSource,
-    range: TimeRange,
-  ): Promise<CalendarEvent[]> {
+  private async fromSource(source: CalendarSource, range: TimeRange): Promise<CalendarEvent[]> {
     const account = source.account ?? "default";
     let events: CalendarEvent[];
 
@@ -356,32 +320,21 @@ export class CalendarAdapter implements Adapter {
       events = await this.fromIcs(source.url, source.label, range);
     } else {
       try {
-        events = await this.clientFor(account).listEvents(
-          source.calendarId,
-          range,
-        );
+        events = await this.clientFor(account).listEvents(source.calendarId, range);
       } catch (err) {
         if (!source.fallbackIcsUrl) throw err;
         logger.info(
           { adapter: this.id, account, calendarId: source.calendarId },
           "calendar: falling back to iCal feed",
         );
-        events = await this.fromIcs(
-          source.fallbackIcsUrl,
-          source.calendarId,
-          range,
-        );
+        events = await this.fromIcs(source.fallbackIcsUrl, source.calendarId, range);
       }
     }
 
     return events.map((event) => ({ ...event, account }));
   }
 
-  private async fromIcs(
-    url: string,
-    label: string,
-    range: TimeRange,
-  ): Promise<CalendarEvent[]> {
+  private async fromIcs(url: string, label: string, range: TimeRange): Promise<CalendarEvent[]> {
     const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
     if (!response.ok) throw new Error(`iCal feed returned ${response.status}`);
     return parseIcs(await response.text(), label).filter(

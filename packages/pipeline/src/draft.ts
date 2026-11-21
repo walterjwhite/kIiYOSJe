@@ -32,7 +32,8 @@ function buildPrompt(input: DraftInput): string {
   // Vary the drafter instruction based on what the classifier found.
   let taskGuidance = "";
   if (co.signalKind === "question" && co.answerable) {
-    taskGuidance = "The classifier believes this question is answerable directly. Provide the answer.";
+    taskGuidance =
+      "The classifier believes this question is answerable directly. Provide the answer.";
   } else if (co.signalKind === "question" && !co.answerable) {
     taskGuidance = `This question requires human judgement. Acknowledge receipt and explain why a direct answer isn't available yet${co.answerBlocker ? `: ${co.answerBlocker}` : ""}.`;
   } else if (co.signalKind === "task") {

@@ -87,7 +87,10 @@ export function directionsRouter(db: Db) {
   app.delete("/:id", (c) => {
     const { id } = c.req.param();
     if (id === CATCH_ALL_ID) {
-      return c.json({ error: "the catch-all direction cannot be deleted; disable it instead" }, 400);
+      return c.json(
+        { error: "the catch-all direction cannot be deleted; disable it instead" },
+        400,
+      );
     }
     const existing = db.select().from(directions).where(eq(directions.id, id)).get();
     if (!existing) return c.json({ error: "Not found" }, 404);
@@ -131,9 +134,7 @@ export function directionsRouter(db: Db) {
         db
           .select({ count: sql<number>`count(*)` })
           .from(signals)
-          .where(
-            sql`${signals.directionId} = ${dir.id} and ${signals.disposition} = 'absorbed'`,
-          )
+          .where(sql`${signals.directionId} = ${dir.id} and ${signals.disposition} = 'absorbed'`)
           .get()?.count ?? 0;
 
       // Actions linked via signalId → signals → directionId
@@ -142,9 +143,7 @@ export function directionsRouter(db: Db) {
           .select({ count: sql<number>`count(*)` })
           .from(actions)
           .innerJoin(signals, eq(actions.signalId, signals.id))
-          .where(
-            sql`${signals.directionId} = ${dir.id} and ${actions.status} = 'proposed'`,
-          )
+          .where(sql`${signals.directionId} = ${dir.id} and ${actions.status} = 'proposed'`)
           .get()?.count ?? 0;
 
       const discardedActions =
@@ -152,9 +151,7 @@ export function directionsRouter(db: Db) {
           .select({ count: sql<number>`count(*)` })
           .from(actions)
           .innerJoin(signals, eq(actions.signalId, signals.id))
-          .where(
-            sql`${signals.directionId} = ${dir.id} and ${actions.status} = 'discarded'`,
-          )
+          .where(sql`${signals.directionId} = ${dir.id} and ${actions.status} = 'discarded'`)
           .get()?.count ?? 0;
 
       const totalDecidedActions =
@@ -174,9 +171,7 @@ export function directionsRouter(db: Db) {
         proposed: proposedActions,
         discarded: discardedActions,
         overrideRate:
-          totalDecidedActions > 0
-            ? +(discardedActions / totalDecidedActions).toFixed(4)
-            : null,
+          totalDecidedActions > 0 ? +(discardedActions / totalDecidedActions).toFixed(4) : null,
       };
     });
 
@@ -184,70 +179,54 @@ export function directionsRouter(db: Db) {
   });
 
   // PUT /directions/:id — update guarded fields, plus name/standard/prompts
-  app.put(
-    "/:id",
-    zValidator("json", UpdateDirectionRequestSchema),
-    (c) => {
-      const { id } = c.req.param();
-      const body = c.req.valid("json");
-      const now = new Date().toISOString();
+  app.put("/:id", zValidator("json", UpdateDirectionRequestSchema), (c) => {
+    const { id } = c.req.param();
+    const body = c.req.valid("json");
+    const now = new Date().toISOString();
 
-      const existing = db
-        .select()
-        .from(directions)
-        .where(eq(directions.id, id))
-        .get();
+    const existing = db.select().from(directions).where(eq(directions.id, id)).get();
 
-      if (!existing) return c.json({ error: "Not found" }, 404);
+    if (!existing) return c.json({ error: "Not found" }, 404);
 
-      db.update(directions)
-        .set({
-          ...(body.name !== undefined ? { name: body.name } : {}),
-          ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
-          ...(body.posture !== undefined ? { posture: body.posture } : {}),
-          ...(body.autonomy !== undefined ? { autonomy: body.autonomy } : {}),
-          ...(body.scopeKind !== undefined ? { scopeKind: body.scopeKind } : {}),
-          ...(body.scopeValue !== undefined ? { scopeValue: body.scopeValue } : {}),
-          ...(body.confidenceMin !== undefined
-            ? { confidenceMin: body.confidenceMin }
-            : {}),
-          ...(body.standard !== undefined ? { standard: body.standard } : {}),
-          ...(body.matchPrompt !== undefined
-            ? { matchPrompt: body.matchPrompt }
-            : {}),
-          ...(body.responsePrompt !== undefined
-            ? { responsePrompt: body.responsePrompt }
-            : {}),
-          ...(body.transformPrompt !== undefined
-            ? { transformPrompt: body.transformPrompt }
-            : {}),
-          version: existing.version + 1,
-          updatedAt: now,
-        })
-        .where(eq(directions.id, id))
-        .run();
+    db.update(directions)
+      .set({
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
+        ...(body.posture !== undefined ? { posture: body.posture } : {}),
+        ...(body.autonomy !== undefined ? { autonomy: body.autonomy } : {}),
+        ...(body.scopeKind !== undefined ? { scopeKind: body.scopeKind } : {}),
+        ...(body.scopeValue !== undefined ? { scopeValue: body.scopeValue } : {}),
+        ...(body.confidenceMin !== undefined ? { confidenceMin: body.confidenceMin } : {}),
+        ...(body.standard !== undefined ? { standard: body.standard } : {}),
+        ...(body.matchPrompt !== undefined ? { matchPrompt: body.matchPrompt } : {}),
+        ...(body.responsePrompt !== undefined ? { responsePrompt: body.responsePrompt } : {}),
+        ...(body.transformPrompt !== undefined ? { transformPrompt: body.transformPrompt } : {}),
+        version: existing.version + 1,
+        updatedAt: now,
+      })
+      .where(eq(directions.id, id))
+      .run();
 
-      // Write the edit back to directions/<id>.yaml, or the next restart or
-      // reload would overwrite it with the old file contents.
-      let fileUpdated = false;
-      try {
-        fileUpdated = patchDirectionFile(directionsRoot(), id, body);
-      } catch (err) {
-        logger.warn({ id, err: String(err) }, "direction: could not update YAML file");
-      }
+    // Write the edit back to directions/<id>.yaml, or the next restart or
+    // reload would overwrite it with the old file contents.
+    let fileUpdated = false;
+    try {
+      fileUpdated = patchDirectionFile(directionsRoot(), id, body);
+    } catch (err) {
+      logger.warn({ id, err: String(err) }, "direction: could not update YAML file");
+    }
 
-      db.insert(events)
-        .values({
-          id: newId(),
-          actor: "user",
-          kind: "direction.updated",
-          payload: JSON.stringify({ directionId: id, changes: body }),
-        })
-        .run();
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "user",
+        kind: "direction.updated",
+        payload: JSON.stringify({ directionId: id, changes: body }),
+      })
+      .run();
 
-      return c.json({ ok: true, fileUpdated });
-    },
-  );
+    return c.json({ ok: true, fileUpdated });
+  });
 
   /**
    * POST /directions/preview — dry run. Answers the author's real question
@@ -258,121 +237,112 @@ export function directionsRouter(db: Db) {
    * The Direction id arrives in the body: ids contain slashes
    * (`work/boss`, `system/catch-all`), so they cannot be a path segment.
    */
-  app.post(
-    "/preview",
-    zValidator("json", PreviewDirectionRequestSchema),
-    async (c) => {
-      const body = c.req.valid("json");
-      const id = body.directionId;
+  app.post("/preview", zValidator("json", PreviewDirectionRequestSchema), async (c) => {
+    const body = c.req.valid("json");
+    const id = body.directionId;
 
-      const dir = db
-        .select()
-        .from(directions)
-        .where(eq(directions.id, id))
-        .get();
-      if (!dir) return c.json({ error: "Not found" }, 404);
+    const dir = db.select().from(directions).where(eq(directions.id, id)).get();
+    if (!dir) return c.json({ error: "Not found" }, 404);
 
-      const limit = body.limit ?? 50;
-      const since =
-        body.since ?? new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const limit = body.limit ?? 50;
+    const since = body.since ?? new Date(Date.now() - 30 * 86_400_000).toISOString();
 
-      const rows = db
-        .select()
-        .from(signals)
-        .where(gte(signals.receivedAt, since))
-        .orderBy(desc(signals.receivedAt))
-        .limit(limit)
-        .all();
+    const rows = db
+      .select()
+      .from(signals)
+      .where(gte(signals.receivedAt, since))
+      .orderBy(desc(signals.receivedAt))
+      .limit(limit)
+      .all();
 
-      const evaluated = rows.map((row) => {
-        const candidate = toNewSignal(row);
-        const match = matchSignal(db, candidate);
-        return {
-          row,
-          candidate,
-          matchedDirectionId: match?.direction.id ?? null,
-          matchedByFallback: match?.isFallback ?? false,
-          wouldMatch: match?.direction.id === dir.id,
-          guardTriggered: evaluateGuards(dir, candidate, db).triggered,
-        };
-      });
+    const evaluated = rows.map((row) => {
+      const candidate = toNewSignal(row);
+      const match = matchSignal(db, candidate);
+      return {
+        row,
+        candidate,
+        matchedDirectionId: match?.direction.id ?? null,
+        matchedByFallback: match?.isFallback ?? false,
+        wouldMatch: match?.direction.id === dir.id,
+        guardTriggered: evaluateGuards(dir, candidate, db).triggered,
+      };
+    });
 
-      const wouldMatch = evaluated.filter((e) => e.wouldMatch);
+    const wouldMatch = evaluated.filter((e) => e.wouldMatch);
 
-      // Optionally ask the real classifier what it would make of the matches.
-      // Capped hard: this is a model call per sample, not a free query.
-      const classification: Array<{
-        signalId: string;
-        confidence: number;
-        signalKind: string;
-        answerable: boolean;
-        answerBlocker: string | null;
-        wouldEscalate: boolean;
-        wouldDispute: boolean;
-      }> = [];
-      if (body.classify) {
-        for (const sample of wouldMatch.slice(0, 10)) {
-          const output = await classify({
-            signalBody: sample.row.body,
-            sender: sample.row.sender,
-            standard: dir.standard,
-            receivedAt: new Date(sample.row.receivedAt),
-            matchPrompt: dir.matchPrompt,
-          });
-          classification.push({
-            signalId: sample.row.id,
-            confidence: output.confidence,
-            signalKind: output.signalKind,
-            answerable: output.answerable,
-            answerBlocker: output.answerBlocker,
-            wouldEscalate: output.confidence < dir.confidenceMin,
-            wouldDispute:
-              (output.signalKind === "question" || output.signalKind === "task") &&
-              !output.answerable &&
-              output.answerBlocker !== null,
-          });
-        }
+    // Optionally ask the real classifier what it would make of the matches.
+    // Capped hard: this is a model call per sample, not a free query.
+    const classification: Array<{
+      signalId: string;
+      confidence: number;
+      signalKind: string;
+      answerable: boolean;
+      answerBlocker: string | null;
+      wouldEscalate: boolean;
+      wouldDispute: boolean;
+    }> = [];
+    if (body.classify) {
+      for (const sample of wouldMatch.slice(0, 10)) {
+        const output = await classify({
+          signalBody: sample.row.body,
+          sender: sample.row.sender,
+          standard: dir.standard,
+          receivedAt: new Date(sample.row.receivedAt),
+          matchPrompt: dir.matchPrompt,
+        });
+        classification.push({
+          signalId: sample.row.id,
+          confidence: output.confidence,
+          signalKind: output.signalKind,
+          answerable: output.answerable,
+          answerBlocker: output.answerBlocker,
+          wouldEscalate: output.confidence < dir.confidenceMin,
+          wouldDispute:
+            (output.signalKind === "question" || output.signalKind === "task") &&
+            !output.answerable &&
+            output.answerBlocker !== null,
+        });
       }
+    }
 
-      db.insert(events)
-        .values({
-          id: newId(),
-          actor: "user",
-          kind: "direction.previewed",
-          payload: JSON.stringify({
-            directionId: id,
-            sampled: evaluated.length,
-            wouldMatch: wouldMatch.length,
-            guardsTriggered: wouldMatch.filter((e) => e.guardTriggered).length,
-            classified: classification.length,
-          }),
-        })
-        .run();
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "user",
+        kind: "direction.previewed",
+        payload: JSON.stringify({
+          directionId: id,
+          sampled: evaluated.length,
+          wouldMatch: wouldMatch.length,
+          guardsTriggered: wouldMatch.filter((e) => e.guardTriggered).length,
+          classified: classification.length,
+        }),
+      })
+      .run();
 
-      return c.json({
-        directionId: id,
-        name: dir.name,
-        sampleWindow: { since, limit },
-        sampled: evaluated.length,
-        wouldMatch: wouldMatch.length,
-        matchedByFallback: evaluated.filter((e) => e.matchedByFallback).length,
-        guardsTriggered: wouldMatch.filter((e) => e.guardTriggered).length,
-        classification,
-        samples: evaluated.map((e) => ({
-          signalId: e.row.id,
-          receivedAt: e.row.receivedAt,
-          adapter: e.row.adapter,
-          sender: e.row.sender,
-          kind: e.row.kind,
-          disposition: e.row.disposition,
-          matchedDirectionId: e.matchedDirectionId,
-          matchedByFallback: e.matchedByFallback,
-          wouldMatch: e.wouldMatch,
-          guardTriggered: e.guardTriggered,
-        })),
-      });
-    },
-  );
+    return c.json({
+      directionId: id,
+      name: dir.name,
+      sampleWindow: { since, limit },
+      sampled: evaluated.length,
+      wouldMatch: wouldMatch.length,
+      matchedByFallback: evaluated.filter((e) => e.matchedByFallback).length,
+      guardsTriggered: wouldMatch.filter((e) => e.guardTriggered).length,
+      classification,
+      samples: evaluated.map((e) => ({
+        signalId: e.row.id,
+        receivedAt: e.row.receivedAt,
+        adapter: e.row.adapter,
+        sender: e.row.sender,
+        kind: e.row.kind,
+        disposition: e.row.disposition,
+        matchedDirectionId: e.matchedDirectionId,
+        matchedByFallback: e.matchedByFallback,
+        wouldMatch: e.wouldMatch,
+        guardTriggered: e.guardTriggered,
+      })),
+    });
+  });
 
   return app;
 }

@@ -20,7 +20,8 @@ export interface Linkable {
 
 export type GoalFlag = "overdue" | "review";
 
-export const unlinkedItems = <T extends Linkable>(items: readonly T[]): T[] => items.filter((i) => i.goalId === null);
+export const unlinkedItems = <T extends Linkable>(items: readonly T[]): T[] =>
+  items.filter((i) => i.goalId === null);
 
 export const itemsForGoal = <T extends Linkable>(items: readonly T[], goalId: string): T[] =>
   items.filter((i) => i.goalId === goalId);
@@ -28,7 +29,8 @@ export const itemsForGoal = <T extends Linkable>(items: readonly T[], goalId: st
 /** What needs attention on a goal itself: its deadline passed, or it is due for review. */
 export function goalFlags(goal: Pick<Goal, "reviewAt" | "escalateBy">, now: Date): GoalFlag[] {
   const flags: GoalFlag[] = [];
-  const passed = (iso: string | null) => iso !== null && !Number.isNaN(Date.parse(iso)) && Date.parse(iso) <= now.getTime();
+  const passed = (iso: string | null) =>
+    iso !== null && !Number.isNaN(Date.parse(iso)) && Date.parse(iso) <= now.getTime();
   if (passed(goal.escalateBy)) flags.push("overdue");
   if (passed(goal.reviewAt)) flags.push("review");
   return flags;

@@ -21,11 +21,7 @@
  * The token cache is keyed per account, so two mailboxes never share a token.
  */
 
-import {
-  accountCredential,
-  credentialAccounts,
-  credentialString,
-} from "@mind/core";
+import { accountCredential, credentialAccounts, credentialString } from "@mind/core";
 import type { CredentialAccount } from "@mind/core";
 import { requestJson } from "@mind/core";
 import { AdapterNotConfiguredError } from "../errors.js";
@@ -43,13 +39,9 @@ const GRAPH = "https://graph.microsoft.com";
 const cachedTokens = new Map<string, { value: string; expiresAt: number }>();
 
 function outlookAccount(label = "default"): CredentialAccount | undefined {
-  const configured = credentialAccounts("outlook").find(
-    (account) => account.label === label,
-  );
+  const configured = credentialAccounts("outlook").find((account) => account.label === label);
   if (configured) return configured;
-  return label === "default"
-    ? { label: "default", section: "outlook", config: {} }
-    : undefined;
+  return label === "default" ? { label: "default", section: "outlook", config: {} } : undefined;
 }
 
 /** Labels of every Outlook account with enough credentials to poll. */
@@ -66,34 +58,16 @@ export function outlookAccountLabels(): string[] {
   return outlookCredentials("default") ? ["default"] : [];
 }
 
-export function outlookCredentials(
-  label = "default",
-): OutlookCredentials | undefined {
+export function outlookCredentials(label = "default"): OutlookCredentials | undefined {
   const account = outlookAccount(label);
   if (!account) return undefined;
 
-  const tenantId = accountCredential(
-    account,
-    "tenantId",
-    "MIND_OUTLOOK_TENANT_ID",
-  );
-  const clientId = accountCredential(
-    account,
-    "clientId",
-    "MIND_OUTLOOK_CLIENT_ID",
-  );
-  const clientSecret = accountCredential(
-    account,
-    "clientSecret",
-    "MIND_OUTLOOK_CLIENT_SECRET",
-  );
+  const tenantId = accountCredential(account, "tenantId", "MIND_OUTLOOK_TENANT_ID");
+  const clientId = accountCredential(account, "clientId", "MIND_OUTLOOK_CLIENT_ID");
+  const clientSecret = accountCredential(account, "clientSecret", "MIND_OUTLOOK_CLIENT_SECRET");
   if (!tenantId || !clientId || !clientSecret) return undefined;
 
-  const refreshToken = accountCredential(
-    account,
-    "refreshToken",
-    "MIND_OUTLOOK_REFRESH_TOKEN",
-  );
+  const refreshToken = accountCredential(account, "refreshToken", "MIND_OUTLOOK_REFRESH_TOKEN");
   const user = accountCredential(account, "user", "MIND_OUTLOOK_USER");
   return {
     tenantId,
@@ -104,14 +78,9 @@ export function outlookCredentials(
   };
 }
 
-export async function outlookToken(
-  credentials = outlookCredentials(),
-): Promise<string> {
+export async function outlookToken(credentials = outlookCredentials()): Promise<string> {
   if (!credentials) {
-    throw new AdapterNotConfiguredError(
-      "outlook",
-      "tenantId/clientId/clientSecret",
-    );
+    throw new AdapterNotConfiguredError("outlook", "tenantId/clientId/clientSecret");
   }
 
   const cacheKey = [

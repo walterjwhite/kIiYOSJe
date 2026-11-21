@@ -1,6 +1,6 @@
 ---
-inclusion: auto
----
+
+## inclusion: auto
 
 # Competition perspective
 
@@ -11,14 +11,14 @@ nothing it cannot show.
 
 ## What earns points
 
-| Criterion | Where it lives | How to strengthen it |
-| --- | --- | --- |
-| Originality | the Thought-vs-signal thesis; the ratio metric | keep the thesis in the first paragraph of the README; do not describe it as "an AI inbox" |
-| Depth of Kiro use | `.kiro/steering`, `.kiro/specs`, `.kiro/hooks` | specs must match shipped code; tasks must be honestly checked; hooks must run what the docs say |
-| Execution | 150 tests, typed boundaries, real SQLite, VS Code client | keep `npm test` and `npx tsc --build` green at all times |
-| Feasibility | single process, one SQLite file, local-first, Ollama default | state the resource footprint and the one egress path |
-| Demo | the seeded `demo-data` personas | demo the Queue, not the code; show a send being refused by a gate |
-| Honesty | non-goals, unverified adapters, open decisions | disclose gaps before a judge finds them |
+| Criterion         | Where it lives                                               | How to strengthen it                                                                            |
+| ----------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Originality       | the Thought-vs-signal thesis; the ratio metric               | keep the thesis in the first paragraph of the README; do not describe it as "an AI inbox"       |
+| Depth of Kiro use | `.kiro/steering`, `.kiro/specs`, `.kiro/hooks`               | specs must match shipped code; tasks must be honestly checked; hooks must run what the docs say |
+| Execution         | 150 tests, typed boundaries, real SQLite, VS Code client     | keep `npm test` and `npx tsc --build` green at all times                                        |
+| Feasibility       | single process, one SQLite file, local-first, Ollama default | state the resource footprint and the one egress path                                            |
+| Demo              | the seeded `demo-data` personas                              | demo the Queue, not the code; show a send being refused by a gate                               |
+| Honesty           | non-goals, unverified adapters, open decisions               | disclose gaps before a judge finds them                                                         |
 
 ## Rules that disqualify
 

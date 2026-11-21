@@ -7,8 +7,7 @@ import {
   toSignal,
 } from "./mapper.js";
 
-const encoded = (text: string): string =>
-  Buffer.from(text, "utf8").toString("base64url");
+const encoded = (text: string): string => Buffer.from(text, "utf8").toString("base64url");
 
 describe("extractBody", () => {
   it("finds a nested text/plain part", () => {
@@ -48,9 +47,10 @@ describe("extractHtmlBody", () => {
 
 describe("parseAddresses", () => {
   it("extracts bare and angled addresses, lower-cased", () => {
-    expect(parseAddresses("Alice <Alice@Example.com>, bob@example.com")).toEqual(
-      ["alice@example.com", "bob@example.com"],
-    );
+    expect(parseAddresses("Alice <Alice@Example.com>, bob@example.com")).toEqual([
+      "alice@example.com",
+      "bob@example.com",
+    ]);
   });
 });
 

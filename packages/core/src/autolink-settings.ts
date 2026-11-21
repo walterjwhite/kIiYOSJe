@@ -32,7 +32,10 @@ export function autolinkSettings(): AutolinkSettings {
   } catch {
     /* no file yet */
   }
-  const merged = { ...DEFAULT_AUTOLINK_SETTINGS, ...(typeof stored === "object" && stored ? stored : {}) };
+  const merged = {
+    ...DEFAULT_AUTOLINK_SETTINGS,
+    ...(typeof stored === "object" && stored ? stored : {}),
+  };
   const parsed = AutolinkSettingsSchema.safeParse(merged);
   return parsed.success ? parsed.data : DEFAULT_AUTOLINK_SETTINGS;
 }

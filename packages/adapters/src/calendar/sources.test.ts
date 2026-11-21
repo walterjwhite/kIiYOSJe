@@ -77,18 +77,19 @@ describe("parseCalendarSources", () => {
 
   it("accepts objects, keeping an ics label and dropping junk", () => {
     expect(
-      parseCalendarSources([      { google: "team@example.com", account: "work" },
-      {
-        ics: "https://example.com/a.ics",
-        label: "personal",
-        account: "home",
-      },
-      { google: "" },
-      { neither: "x" },
-      null,
-      42,
-      "",
-    ]),
+      parseCalendarSources([
+        { google: "team@example.com", account: "work" },
+        {
+          ics: "https://example.com/a.ics",
+          label: "personal",
+          account: "home",
+        },
+        { google: "" },
+        { neither: "x" },
+        null,
+        42,
+        "",
+      ]),
     ).toEqual([
       { kind: "google", calendarId: "team@example.com", account: "work" },
       {
@@ -104,9 +105,7 @@ describe("parseCalendarSources", () => {
 describe("calendarSources", () => {
   it("reads the list from credentials.yml", () => {
     writeCredentials(
-      ['calendar:', '  sources:', '    - primary', '    - "work@example.com"'].join(
-        "\n",
-      ),
+      ["calendar:", "  sources:", "    - primary", '    - "work@example.com"'].join("\n"),
     );
     expect(calendarSources()).toEqual([
       { kind: "google", calendarId: "primary" },
@@ -127,9 +126,7 @@ describe("calendarSources", () => {
 
   it("defaults to the primary Google calendar", () => {
     writeCredentials("google:\n  refreshToken: token\n");
-    expect(calendarSources()).toEqual([
-      { kind: "google", calendarId: "primary" },
-    ]);
+    expect(calendarSources()).toEqual([{ kind: "google", calendarId: "primary" }]);
   });
 
   it("gives every Google account a primary calendar", () => {
@@ -154,12 +151,7 @@ describe("calendarSources", () => {
 describe("defaultWriteTarget", () => {
   it("accepts an account and calendar pair", () => {
     writeCredentials(
-      [
-        "calendar:",
-        "  writeTo:",
-        "    account: work",
-        "    calendar: team@example.com",
-      ].join("\n"),
+      ["calendar:", "  writeTo:", "    account: work", "    calendar: team@example.com"].join("\n"),
     );
     expect(defaultWriteTarget([])).toEqual({
       account: "work",
@@ -171,9 +163,9 @@ describe("defaultWriteTarget", () => {
 describe("defaultWriteCalendarId", () => {
   it("prefers calendar.writeTo", () => {
     writeCredentials("calendar:\n  writeTo: team@example.com\n");
-    expect(
-      defaultWriteCalendarId([{ kind: "google", calendarId: "primary" }]),
-    ).toBe("team@example.com");
+    expect(defaultWriteCalendarId([{ kind: "google", calendarId: "primary" }])).toBe(
+      "team@example.com",
+    );
   });
 
   it("opts for the first Google source otherwise", () => {
@@ -241,11 +233,7 @@ describe("CalendarAdapter with several sources", () => {
 
     const events = await adapter.listEvents(range);
     expect(called).toEqual(["primary", "work@example.com"]);
-    expect(events.map((event) => event.title)).toEqual([
-      "Standup",
-      "1:1",
-      "Review",
-    ]);
+    expect(events.map((event) => event.title)).toEqual(["Standup", "1:1", "Review"]);
     expect(events.filter((event) => event.title === "1:1").length).toBe(1);
   });
 

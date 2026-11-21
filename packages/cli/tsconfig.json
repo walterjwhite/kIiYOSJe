@@ -10,10 +10,6 @@
       "@mind/demo-data": ["../demo-data/src/index.ts"]
     }
   },
-  "references": [
-    { "path": "../core" },
-    { "path": "../server" },
-    { "path": "../demo-data" }
-  ],
+  "references": [{ "path": "../core" }, { "path": "../server" }, { "path": "../demo-data" }],
   "include": ["src/**/*"]
 }

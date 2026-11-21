@@ -49,28 +49,22 @@ export class OutlookClient {
   }
 
   async send(draft: OutboundDraft): Promise<SendResult> {
-    const created = await requestJson<{ id: string }>(
-      `${this.baseUrl}${this.mailbox()}/messages`,
-      {
-        headers: await this.authHeaders(),
-        json: {
-          subject: draft.subject ?? "(no subject)",
-          body: { contentType: "Text", content: draft.body },
-          toRecipients: draft.to.map((address) => ({
-            emailAddress: { address },
-          })),
-          ...(draft.threadId ? { conversationId: draft.threadId } : {}),
-        },
+    const created = await requestJson<{ id: string }>(`${this.baseUrl}${this.mailbox()}/messages`, {
+      headers: await this.authHeaders(),
+      json: {
+        subject: draft.subject ?? "(no subject)",
+        body: { contentType: "Text", content: draft.body },
+        toRecipients: draft.to.map((address) => ({
+          emailAddress: { address },
+        })),
+        ...(draft.threadId ? { conversationId: draft.threadId } : {}),
       },
-    );
-    await requestJson<void>(
-      `${this.baseUrl}${this.mailbox()}/messages/${created.id}/send`,
-      {
-        headers: await this.authHeaders(),
-        method: "POST",
-        json: {},
-      },
-    );
+    });
+    await requestJson<void>(`${this.baseUrl}${this.mailbox()}/messages/${created.id}/send`, {
+      headers: await this.authHeaders(),
+      method: "POST",
+      json: {},
+    });
     return { externalId: created.id };
   }
 

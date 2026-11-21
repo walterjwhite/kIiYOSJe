@@ -17,10 +17,6 @@ export function dedupeKey(signal: NewSignal): string {
 }
 
 export function isDuplicate(db: Db, key: string): boolean {
-  const row = db
-    .select({ id: signals.id })
-    .from(signals)
-    .where(eq(signals.dedupeKey, key))
-    .get();
+  const row = db.select({ id: signals.id }).from(signals).where(eq(signals.dedupeKey, key)).get();
   return row !== undefined;
 }

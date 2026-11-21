@@ -70,4 +70,3 @@ describe("replayPersona", () => {
     expect(db.select().from(signals).all()).toHaveLength(2);
   });
 });
-

@@ -35,12 +35,11 @@ const RULES = [
   [/\bBearer\s+[A-Za-z0-9._~+/-]{40,}=*/, "bearer token literal"],
 ];
 
-const SKIP_PATH = /(^|\/)(node_modules|dist)\/|\.(vsix|png|jpg|jpeg|gif|ico|lock)$|package-lock\.json$/;
+const SKIP_PATH =
+  /(^|\/)(node_modules|dist)\/|\.(vsix|png|jpg|jpeg|gif|ico|lock)$|package-lock\.json$/;
 
 function git(...args) {
-  return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" })
-    .split("\n")
-    .filter(Boolean);
+  return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
 }
 
 function candidateFiles() {
@@ -77,7 +76,9 @@ for (const rel of candidateFiles()) {
 }
 
 if (findings > 0) {
-  console.error(`\n${findings} possible secret(s). Remove them and rotate the credential if it was real.`);
+  console.error(
+    `\n${findings} possible secret(s). Remove them and rotate the credential if it was real.`,
+  );
   process.exit(1);
 }
 console.log("secret scan: clean");

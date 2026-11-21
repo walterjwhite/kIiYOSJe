@@ -11,7 +11,12 @@ import type { PiperIo, RunResult } from "./piper.js";
 
 const STDERR_LIMIT = 4000;
 
-function run(file: string, args: readonly string[], stdin: string, timeoutMs: number): Promise<RunResult> {
+function run(
+  file: string,
+  args: readonly string[],
+  stdin: string,
+  timeoutMs: number,
+): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     // No shell: the command and its arguments are passed as an argv array.
     const child = spawn(file, [...args], { stdio: ["pipe", "ignore", "pipe"], shell: false });
@@ -37,7 +42,12 @@ function run(file: string, args: readonly string[], stdin: string, timeoutMs: nu
 
 const text = (s: string): Buffer => Buffer.from(s, "utf8");
 
-async function download(url: string, dest: string, maxBytes: number, timeoutMs: number): Promise<void> {
+async function download(
+  url: string,
+  dest: string,
+  maxBytes: number,
+  timeoutMs: number,
+): Promise<void> {
   const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), redirect: "follow" });
   if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
   const declared = Number(res.headers.get("content-length") ?? "0");
@@ -51,9 +61,14 @@ async function download(url: string, dest: string, maxBytes: number, timeoutMs: 
       else done(null, chunk);
     },
   });
-  await pipeline(Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]), limit, createWriteStream(dest, { mode: 0o600 }), {
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+  await pipeline(
+    Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]),
+    limit,
+    createWriteStream(dest, { mode: 0o600 }),
+    {
+      signal: AbortSignal.timeout(timeoutMs),
+    },
+  );
 }
 
 export const nodePiperIo: PiperIo = {

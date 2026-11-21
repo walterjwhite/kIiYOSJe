@@ -2,15 +2,7 @@ import { Hono } from "hono";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import {
-  actions,
-  directions,
-  events,
-  signals,
-  newId,
-  isPaused,
-  logger,
-} from "@mind/core";
+import { actions, directions, events, signals, newId, isPaused, logger } from "@mind/core";
 import type { Db } from "@mind/core";
 import { markThreadAwaitingReply } from "@mind/pipeline";
 import type { AdapterRegistry } from "@mind/pipeline";
@@ -28,11 +20,7 @@ export function actionsRouter(db: Db, adapters: AdapterRegistry) {
     const status = c.req.query("status");
     let rows;
     if (status) {
-      rows = db
-        .select()
-        .from(actions)
-        .where(eq(actions.status, status))
-        .all();
+      rows = db.select().from(actions).where(eq(actions.status, status)).all();
     } else {
       rows = db.select().from(actions).all();
     }
@@ -42,11 +30,7 @@ export function actionsRouter(db: Db, adapters: AdapterRegistry) {
   // POST /actions/:id/send — human approval
   app.post("/:id/send", async (c) => {
     const { id } = c.req.param();
-    const action = db
-      .select()
-      .from(actions)
-      .where(eq(actions.id, id))
-      .get();
+    const action = db.select().from(actions).where(eq(actions.id, id)).get();
 
     if (!action) return c.json({ error: "Not found" }, 404);
     if (action.status !== "proposed")
@@ -59,10 +43,7 @@ export function actionsRouter(db: Db, adapters: AdapterRegistry) {
 
     const adapter = adapters.get(action.adapter);
     if (!adapter?.send) {
-      return c.json(
-        { error: `Adapter '${action.adapter}' cannot send` },
-        422,
-      );
+      return c.json({ error: `Adapter '${action.adapter}' cannot send` }, 422);
     }
 
     let draft: OutboundDraft;
@@ -77,10 +58,7 @@ export function actionsRouter(db: Db, adapters: AdapterRegistry) {
     try {
       result = await adapter.send(draft);
     } catch (err) {
-      db.update(actions)
-        .set({ status: "failed" })
-        .where(eq(actions.id, id))
-        .run();
+      db.update(actions).set({ status: "failed" }).where(eq(actions.id, id)).run();
       db.insert(events)
         .values({
           id: newId(),
@@ -92,10 +70,7 @@ export function actionsRouter(db: Db, adapters: AdapterRegistry) {
       return c.json({ error: "Send failed" }, 502);
     }
 
-    db.update(actions)
-      .set({ status: "sent", sentAt: now })
-      .where(eq(actions.id, id))
-      .run();
+    db.update(actions).set({ status: "sent", sentAt: now }).where(eq(actions.id, id)).run();
 
     // Two-sided tracking: a send only counts as absorption once the other side
     // answers. Without this, "absorbed" hides a thread that went quiet.
@@ -131,20 +106,13 @@ export function actionsRouter(db: Db, adapters: AdapterRegistry) {
   // POST /actions/:id/discard
   app.post("/:id/discard", (c) => {
     const { id } = c.req.param();
-    const action = db
-      .select()
-      .from(actions)
-      .where(eq(actions.id, id))
-      .get();
+    const action = db.select().from(actions).where(eq(actions.id, id)).get();
 
     if (!action) return c.json({ error: "Not found" }, 404);
     if (action.status !== "proposed")
       return c.json({ error: "Action is not in proposed state" }, 409);
 
-    db.update(actions)
-      .set({ status: "discarded" })
-      .where(eq(actions.id, id))
-      .run();
+    db.update(actions).set({ status: "discarded" }).where(eq(actions.id, id)).run();
 
     db.insert(events)
       .values({
@@ -179,15 +147,13 @@ export function actionsRouter(db: Db, adapters: AdapterRegistry) {
           .select({ count: sql<number>`count(*)` })
           .from(actions)
           .innerJoin(signals, eq(actions.signalId, signals.id))
-          .where(
-            sql`${signals.directionId} = ${directionId} and ${actions.status} = 'discarded'`,
-          )
+          .where(sql`${signals.directionId} = ${directionId} and ${actions.status} = 'discarded'`)
           .get();
 
         const total = totalRow?.count ?? 0;
         const discarded = discardedRow?.count ?? 0;
 
-        if (total >= 5 && discarded / total > 0.20) {
+        if (total >= 5 && discarded / total > 0.2) {
           const overrideRate = discarded / total;
 
           db.update(directions)
@@ -221,49 +187,41 @@ export function actionsRouter(db: Db, adapters: AdapterRegistry) {
   });
 
   // PATCH /actions/:id — edit draft body before sending
-  app.patch(
-    "/:id",
-    zValidator("json", PatchActionSchema),
-    (c) => {
-      const { id } = c.req.param();
-      const { body: newBody } = c.req.valid("json");
+  app.patch("/:id", zValidator("json", PatchActionSchema), (c) => {
+    const { id } = c.req.param();
+    const { body: newBody } = c.req.valid("json");
 
-      const action = db
-        .select()
-        .from(actions)
-        .where(eq(actions.id, id))
-        .get();
+    const action = db.select().from(actions).where(eq(actions.id, id)).get();
 
-      if (!action) return c.json({ error: "Not found" }, 404);
-      if (action.status !== "proposed")
-        return c.json({ error: "Action is not in proposed state" }, 409);
+    if (!action) return c.json({ error: "Not found" }, 404);
+    if (action.status !== "proposed")
+      return c.json({ error: "Action is not in proposed state" }, 409);
 
-      let draft: OutboundDraft;
-      try {
-        draft = JSON.parse(action.payload) as OutboundDraft;
-      } catch {
-        return c.json({ error: "Malformed action payload" }, 500);
-      }
+    let draft: OutboundDraft;
+    try {
+      draft = JSON.parse(action.payload) as OutboundDraft;
+    } catch {
+      return c.json({ error: "Malformed action payload" }, 500);
+    }
 
-      draft.body = newBody;
+    draft.body = newBody;
 
-      db.update(actions)
-        .set({ payload: JSON.stringify(draft) })
-        .where(eq(actions.id, id))
-        .run();
+    db.update(actions)
+      .set({ payload: JSON.stringify(draft) })
+      .where(eq(actions.id, id))
+      .run();
 
-      db.insert(events)
-        .values({
-          id: newId(),
-          actor: "user",
-          kind: "action.edited",
-          payload: JSON.stringify({ actionId: id }),
-        })
-        .run();
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "user",
+        kind: "action.edited",
+        payload: JSON.stringify({ actionId: id }),
+      })
+      .run();
 
-      return c.json({ ok: true });
-    },
-  );
+    return c.json({ ok: true });
+  });
 
   return app;
 }

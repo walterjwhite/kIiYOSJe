@@ -1,6 +1,6 @@
 ---
-inclusion: auto
----
+
+## inclusion: auto
 
 # Security
 
@@ -10,12 +10,12 @@ leaving the machine unintentionally. Design and review against those three.
 
 ## Assets and trust boundaries
 
-| Asset | Where | Protection |
-| --- | --- | --- |
-| API token | `~/.config/kIiYOSJe/mind/token` | mode 600, constant-time compare, never logged |
-| Provider credentials | env, then `credentials.yml` | mode 600, never bundled, never committed |
-| Message content | SQLite file | local disk only; excluded from logs |
-| Send capability | pipeline gates | five independent gates, re-checked at send time |
+| Asset                | Where                           | Protection                                      |
+| -------------------- | ------------------------------- | ----------------------------------------------- |
+| API token            | `~/.config/kIiYOSJe/mind/token` | mode 600, constant-time compare, never logged   |
+| Provider credentials | env, then `credentials.yml`     | mode 600, never bundled, never committed        |
+| Message content      | SQLite file                     | local disk only; excluded from logs             |
+| Send capability      | pipeline gates                  | five independent gates, re-checked at send time |
 
 Untrusted inputs: message bodies and headers, calendar text, provider API
 responses, model output, directions YAML from outside the operator, issue and PR
@@ -58,15 +58,15 @@ text, and every HTTP request (even from localhost).
 
 ## Threat model summary
 
-| Threat | Mitigation | Test |
-| --- | --- | --- |
-| Hostile email instructs the model to send | injection guard, gates, human approval | injection corpus |
-| Web page calls the local API | token, Host/Origin checks, no CORS | server tests |
-| Token or credential file readable by others | mode check at startup | core tests |
-| Replay or crash causes double send | intent recorded first, idempotency key | autosend tests |
-| Malicious dependency | audit, license check, pinned versions, review | CI |
-| Agent PR weakens a gate | protected paths, CODEOWNERS, human approval | agent-guard |
-| Provider revokes access | degrade to "not configured" | adapter tests |
+| Threat                                      | Mitigation                                    | Test             |
+| ------------------------------------------- | --------------------------------------------- | ---------------- |
+| Hostile email instructs the model to send   | injection guard, gates, human approval        | injection corpus |
+| Web page calls the local API                | token, Host/Origin checks, no CORS            | server tests     |
+| Token or credential file readable by others | mode check at startup                         | core tests       |
+| Replay or crash causes double send          | intent recorded first, idempotency key        | autosend tests   |
+| Malicious dependency                        | audit, license check, pinned versions, review | CI               |
+| Agent PR weakens a gate                     | protected paths, CODEOWNERS, human approval   | agent-guard      |
+| Provider revokes access                     | degrade to "not configured"                   | adapter tests    |
 
 ## Changes that need explicit human approval
 

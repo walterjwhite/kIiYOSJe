@@ -3,11 +3,7 @@
 import { readFileSync } from "node:fs";
 import { SERVER_HOST, SERVER_PORT, tokenPath } from "@mind/core";
 
-export async function api(
-  path: string,
-  method = "GET",
-  body?: unknown,
-): Promise<unknown> {
+export async function api(path: string, method = "GET", body?: unknown): Promise<unknown> {
   let token: string;
   try {
     token = readFileSync(tokenPath(), "utf8").trim();

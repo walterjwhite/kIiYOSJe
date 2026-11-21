@@ -26,18 +26,13 @@ export async function explain(signalId: string): Promise<void> {
 }
 
 /** Dry-run a Direction against stored signals; nothing is written. */
-export async function preview(
-  directionId: string,
-  classify: boolean,
-): Promise<void> {
+export async function preview(directionId: string, classify: boolean): Promise<void> {
   if (!directionId) {
     throw new Error("usage: mind preview <directionId> [--classify]");
   }
   // The id is in the body: Direction ids contain slashes and cannot be a path
   // segment.
-  print(
-    await api("/directions/preview", "POST", { directionId, classify }),
-  );
+  print(await api("/directions/preview", "POST", { directionId, classify }));
 }
 
 /** Proposals come from the learning loop; default to the undecided ones. */

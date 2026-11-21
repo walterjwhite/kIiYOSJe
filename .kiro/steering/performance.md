@@ -1,6 +1,6 @@
 ---
-inclusion: auto
----
+
+## inclusion: auto
 
 # Performance and resource use
 
@@ -10,14 +10,14 @@ disk. Performance work is driven by numbers, not guesses: measure, change, measu
 
 ## Budgets (initial targets; replace with measured values from the benchmark)
 
-| Measure | Budget |
-| --- | --- |
-| Idle RSS of the server | under 150 MB |
-| Dedupe + normalize + match per signal | p95 under 20 ms |
-| Queue, Thoughts, Signals list query at 100k signals | p95 under 50 ms |
-| Ingest throughput excluding model calls | at least 200 signals per second |
-| Database growth | under 5 KB per stored signal excluding body |
-| Startup to `/health` | under 3 s |
+| Measure                                             | Budget                                      |
+| --------------------------------------------------- | ------------------------------------------- |
+| Idle RSS of the server                              | under 150 MB                                |
+| Dedupe + normalize + match per signal               | p95 under 20 ms                             |
+| Queue, Thoughts, Signals list query at 100k signals | p95 under 50 ms                             |
+| Ingest throughput excluding model calls             | at least 200 signals per second             |
+| Database growth                                     | under 5 KB per stored signal excluding body |
+| Startup to `/health`                                | under 3 s                                   |
 
 Model latency is outside these budgets but is bounded (below).
 

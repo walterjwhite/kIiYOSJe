@@ -3,14 +3,7 @@
  */
 
 import { sql } from "drizzle-orm";
-import {
-  index,
-  integer,
-  real,
-  sqliteTable,
-  text,
-  uniqueIndex,
-} from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // ── directions ───────────────────────────────────────────────────────────────
 
@@ -24,7 +17,7 @@ export const directions = sqliteTable("directions", {
   autonomy: text("autonomy").notNull().default("observe"), // DirectionAutonomy
   confidenceMin: real("confidence_min").notNull().default(0.7),
   guards: text("guards"), // JSON blob of DirectionGuards
-  matchPrompt: text("match_prompt"),       // how to recognize a match, beyond scope
+  matchPrompt: text("match_prompt"), // how to recognize a match, beyond scope
   responsePrompt: text("response_prompt"), // how to actually respond, alongside standard
   // How to rewrite a matched signal's display summary into something
   // shorter/clearer, without changing its disposition or routing — e.g.
@@ -37,12 +30,8 @@ export const directions = sqliteTable("directions", {
   signalActions: text("signal_actions"),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   version: integer("version").notNull().default(1),
-  createdAt: text("created_at")
-    .notNull()
-    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
-  updatedAt: text("updated_at")
-    .notNull()
-    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  createdAt: text("created_at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  updatedAt: text("updated_at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
 });
 
 // ── signals ──────────────────────────────────────────────────────────────────
@@ -78,8 +67,8 @@ export const signals = sqliteTable(
     disposition: text("disposition").notNull().default("new"), // SignalDisposition
     thoughtId: text("thought_id").references(() => thoughts.id),
     directionId: text("direction_id").references(() => directions.id),
-    signalKind: text("signal_kind"),   // SignalKind from classifier
-    escalateBy: text("escalate_by"),   // ISO-8601, computed at ingest
+    signalKind: text("signal_kind"), // SignalKind from classifier
+    escalateBy: text("escalate_by"), // ISO-8601, computed at ingest
     dedupeKey: text("dedupe_key").notNull(),
     // Two-sided reply tracking: set when a reply to this thread went out,
     // cleared by replyReceivedAt when the other side answers.
@@ -110,7 +99,7 @@ export const thoughts = sqliteTable("thoughts", {
   directionId: text("direction_id").references(() => directions.id),
   nextAction: text("next_action"),
   reviewAt: text("review_at"),
-  escalateBy: text("escalate_by"),   // deadline; checker promotes thought when this passes
+  escalateBy: text("escalate_by"), // deadline; checker promotes thought when this passes
   // Commitment JSON (packages/core/src/commitments.ts). States are replaced,
   // previousStates is append-only, so a changed promise keeps its history.
   commitment: text("commitment"),
@@ -118,31 +107,29 @@ export const thoughts = sqliteTable("thoughts", {
   disputedReason: text("disputed_reason"),
   // Set when an outbound reply went out and we are waiting on the other side.
   awaitingReplyAt: text("awaiting_reply_at"),
-  createdAt: text("created_at")
-    .notNull()
-    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
-  updatedAt: text("updated_at")
-    .notNull()
-    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  createdAt: text("created_at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  updatedAt: text("updated_at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
 });
 
 // ── actions ──────────────────────────────────────────────────────────────────
 
-export const actions = sqliteTable("actions", {
-  id: text("id").primaryKey(),
-  thoughtId: text("thought_id").references(() => thoughts.id),
-  signalId: text("signal_id").references(() => signals.id),
-  kind: text("kind").notNull(), // "reply" | "draft"
-  payload: text("payload").notNull(), // JSON OutboundDraft
-  status: text("status").notNull().default("proposed"), // ActionStatus
-  adapter: text("adapter").notNull(),
-  /** Account the reply will be sent from; mirrors signals.account. */
-  account: text("account"),
-  createdAt: text("created_at")
-    .notNull()
-    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
-  sentAt: text("sent_at"),
-}, (t) => [index("actions_status_idx").on(t.status)]);
+export const actions = sqliteTable(
+  "actions",
+  {
+    id: text("id").primaryKey(),
+    thoughtId: text("thought_id").references(() => thoughts.id),
+    signalId: text("signal_id").references(() => signals.id),
+    kind: text("kind").notNull(), // "reply" | "draft"
+    payload: text("payload").notNull(), // JSON OutboundDraft
+    status: text("status").notNull().default("proposed"), // ActionStatus
+    adapter: text("adapter").notNull(),
+    /** Account the reply will be sent from; mirrors signals.account. */
+    account: text("account"),
+    createdAt: text("created_at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+    sentAt: text("sent_at"),
+  },
+  (t) => [index("actions_status_idx").on(t.status)],
+);
 
 // ── queue_order ──────────────────────────────────────────────────────────────
 // The operator's drag-and-drop order of Queue items. `item_id` is the queue
@@ -169,9 +156,7 @@ export const queuePlan = sqliteTable("queue_plan", {
 
 export const events = sqliteTable("events", {
   id: text("id").primaryKey(),
-  at: text("at")
-    .notNull()
-    .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
+  at: text("at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
   actor: text("actor").notNull(), // "system" | "user"
   kind: text("kind").notNull(),
   payload: text("payload").notNull(), // JSON

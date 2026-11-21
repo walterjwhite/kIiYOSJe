@@ -8,12 +8,7 @@
 
 import { adapterIdForAccount } from "@mind/core";
 import { logger } from "@mind/core";
-import type {
-  Adapter,
-  NewSignal,
-  OutboundDraft,
-  SendResult,
-} from "@mind/core";
+import type { Adapter, NewSignal, OutboundDraft, SendResult } from "@mind/core";
 import { isNotConfigured } from "../errors.js";
 import { outlookBackend } from "./backend.js";
 import { outlookAccountLabels } from "./auth.js";
@@ -53,12 +48,7 @@ export class OutlookAdapter implements Adapter {
     const labels = outlookAccountLabels();
     if (labels.length === 0) return [new OutlookAdapter()];
     return labels.map(
-      (label) =>
-        new OutlookAdapter(
-          createOutlookSource(label),
-          DEFAULT_POLL_MS,
-          label,
-        ),
+      (label) => new OutlookAdapter(createOutlookSource(label), DEFAULT_POLL_MS, label),
     );
   }
 

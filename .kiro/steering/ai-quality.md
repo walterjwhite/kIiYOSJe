@@ -1,6 +1,6 @@
 ---
-inclusion: auto
----
+
+## inclusion: auto
 
 # AI quality
 
@@ -10,14 +10,14 @@ absorb is worse than an extra Thought, so errors are not symmetric.
 
 ## What is measured
 
-| Metric | Definition | Direction |
-| --- | --- | --- |
-| Surface recall | of signals a human would want to see, share surfaced | high, target ≥ 0.95 |
-| Surface precision | of surfaced Thoughts, share the operator wanted | high, target ≥ 0.6 and rising |
-| False-absorb rate | absorbed signals later corrected or reopened | low, target ≤ 0.02 |
-| Draft acceptance | drafts approved without edit or with small edits | tracked, no target yet |
-| Gate violations | sends outside Direction autonomy | must be 0 |
-| Ratio | signals ÷ Thoughts per week | must rise |
+| Metric            | Definition                                           | Direction                     |
+| ----------------- | ---------------------------------------------------- | ----------------------------- |
+| Surface recall    | of signals a human would want to see, share surfaced | high, target ≥ 0.95           |
+| Surface precision | of surfaced Thoughts, share the operator wanted      | high, target ≥ 0.6 and rising |
+| False-absorb rate | absorbed signals later corrected or reopened         | low, target ≤ 0.02            |
+| Draft acceptance  | drafts approved without edit or with small edits     | tracked, no target yet        |
+| Gate violations   | sends outside Direction autonomy                     | must be 0                     |
+| Ratio             | signals ÷ Thoughts per week                          | must rise                     |
 
 Targets are starting points; replace them with measured baselines and record the
 date and model.

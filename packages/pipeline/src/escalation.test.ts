@@ -38,10 +38,7 @@ describe("computeEscalateBy", () => {
   });
 
   it("low urgency task → 72 hours after receivedAt", () => {
-    const result = computeEscalateBy(
-      makeOutput({ urgency: "low", signalKind: "task" }),
-      BASE_DATE,
-    );
+    const result = computeEscalateBy(makeOutput({ urgency: "low", signalKind: "task" }), BASE_DATE);
     expect(result).toBe("2024-01-18T10:00:00.000Z");
   });
 

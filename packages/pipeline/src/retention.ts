@@ -22,12 +22,7 @@ export function runRetention(db: Db): void {
   const stale = db
     .select({ id: signals.id })
     .from(signals)
-    .where(
-      and(
-        lt(signals.receivedAt, cutoff),
-        notLike(signals.body, `${redactedPrefix}%`),
-      ),
-    )
+    .where(and(lt(signals.receivedAt, cutoff), notLike(signals.body, `${redactedPrefix}%`)))
     .all();
 
   const count = stale.length;
@@ -37,10 +32,7 @@ export function runRetention(db: Db): void {
   }
 
   for (const row of stale) {
-    db.update(signals)
-      .set({ body: marker })
-      .where(sql`${signals.id} = ${row.id}`)
-      .run();
+    db.update(signals).set({ body: marker }).where(sql`${signals.id} = ${row.id}`).run();
   }
 
   db.insert(events)
@@ -55,10 +47,7 @@ export function runRetention(db: Db): void {
   logger.info({ count, retentionDays: days }, "retention: redacted signal bodies");
 }
 
-export function startRetentionJob(
-  db: Db,
-  intervalMs = DEFAULT_INTERVAL_MS,
-): NodeJS.Timeout {
+export function startRetentionJob(db: Db, intervalMs = DEFAULT_INTERVAL_MS): NodeJS.Timeout {
   runRetention(db);
   return setInterval(() => runRetention(db), intervalMs);
 }

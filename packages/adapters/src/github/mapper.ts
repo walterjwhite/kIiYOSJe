@@ -12,10 +12,7 @@ import type { NewSignal } from "@mind/core";
 import { adapterIdForAccount } from "@mind/core";
 import type { GitHubPullRequest } from "./client.js";
 
-export type PullRequestReason =
-  | "review_requested"
-  | "assigned"
-  | "changes_requested";
+export type PullRequestReason = "review_requested" | "assigned" | "changes_requested";
 
 export const REASON_LABEL: Record<PullRequestReason, string> = {
   review_requested: "review requested",

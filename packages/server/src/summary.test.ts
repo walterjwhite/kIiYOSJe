@@ -20,7 +20,13 @@ process.env["MIND_TEST_TOKEN"] = "test-token";
 process.env["MIND_CONFIG_DIR"] = mkdtempSync(join(tmpdir(), "mind-summary-config-"));
 process.env["MIND_DATA_DIR"] = mkdtempSync(join(tmpdir(), "mind-summary-data-"));
 
-const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "core", "migrations");
+const MIGRATIONS_DIR = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "core",
+  "migrations",
+);
 
 function openDb() {
   const sqlite = new Database(":memory:");
@@ -46,18 +52,32 @@ function fakeIo(over: Partial<PiperIo> = {}): PiperIo {
 function appWith(io: PiperIo) {
   const db = openDb();
   const app = new Hono();
-  app.route("/summary", summaryRouter(db, io, () => new Date("2026-11-20T09:00:00")));
+  app.route(
+    "/summary",
+    summaryRouter(db, io, () => new Date("2026-11-20T09:00:00")),
+  );
   return { db, request: (path: string, init?: RequestInit) => app.request(path, init) };
 }
 
 describe("/summary", () => {
   it("builds the transcript from goals and the queue", async () => {
     const { db, request } = appWith(fakeIo());
-    db.insert(thoughts).values({ id: "g1", title: "Ship the report", body: "", state: "goal" }).run();
+    db.insert(thoughts)
+      .values({ id: "g1", title: "Ship the report", body: "", state: "goal" })
+      .run();
     db.insert(signals)
       .values({
-        id: "s1", adapter: "gmail", externalId: "s1", sender: "boss@example.com", recipients: "[]", kind: "email",
-        body: "need numbers", receivedAt: new Date().toISOString(), disposition: "promoted", dedupeKey: "s1", thoughtId: "g1",
+        id: "s1",
+        adapter: "gmail",
+        externalId: "s1",
+        sender: "boss@example.com",
+        recipients: "[]",
+        kind: "email",
+        body: "need numbers",
+        receivedAt: new Date().toISOString(),
+        disposition: "promoted",
+        dedupeKey: "s1",
+        thoughtId: "g1",
       })
       .run();
 
@@ -102,12 +122,25 @@ describe("/admin/audio", () => {
 
   it("round-trips settings and rejects a voice name that could escape the voice folder", async () => {
     const app = buildApp(openDb(), new AdapterRegistry());
-    const good = { voice: "en_GB-alba-medium", speaker: null, speed: 1.25, tone: "calm", piperCommand: "piper", autoDownload: true };
-    expect((await call(app, "/admin/audio", { method: "PUT", body: JSON.stringify(good) })).status).toBe(200);
+    const good = {
+      voice: "en_GB-alba-medium",
+      speaker: null,
+      speed: 1.25,
+      tone: "calm",
+      piperCommand: "piper",
+      autoDownload: true,
+    };
+    expect(
+      (await call(app, "/admin/audio", { method: "PUT", body: JSON.stringify(good) })).status,
+    ).toBe(200);
     expect(await (await call(app, "/admin/audio")).json()).toEqual(good);
 
     const bad = { ...good, voice: "../../etc/passwd" };
-    expect((await call(app, "/admin/audio", { method: "PUT", body: JSON.stringify(bad) })).status).toBe(400);
-    expect(((await (await call(app, "/admin/audio")).json()) as { voice: string }).voice).toBe("en_GB-alba-medium");
+    expect(
+      (await call(app, "/admin/audio", { method: "PUT", body: JSON.stringify(bad) })).status,
+    ).toBe(400);
+    expect(((await (await call(app, "/admin/audio")).json()) as { voice: string }).voice).toBe(
+      "en_GB-alba-medium",
+    );
   });
 });

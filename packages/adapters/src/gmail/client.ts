@@ -35,22 +35,19 @@ export class GmailClient {
   }
 
   async send(draft: OutboundDraft): Promise<SendResult> {
-    const response = await requestJson<{ id: string }>(
-      `${this.baseUrl}/users/me/messages/send`,
-      {
-        headers: await this.authHeaders(),
-        json: {
-          raw: buildRawMessage({
-            from: this.selfAddress,
-            to: draft.to,
-            subject: draft.subject ?? "(no subject)",
-            body: draft.body,
-            inReplyTo: draft.replyToExternalId,
-          }),
-          ...(draft.threadId ? { threadId: draft.threadId } : {}),
-        },
+    const response = await requestJson<{ id: string }>(`${this.baseUrl}/users/me/messages/send`, {
+      headers: await this.authHeaders(),
+      json: {
+        raw: buildRawMessage({
+          from: this.selfAddress,
+          to: draft.to,
+          subject: draft.subject ?? "(no subject)",
+          body: draft.body,
+          inReplyTo: draft.replyToExternalId,
+        }),
+        ...(draft.threadId ? { threadId: draft.threadId } : {}),
       },
-    );
+    });
     return { externalId: response.id };
   }
 

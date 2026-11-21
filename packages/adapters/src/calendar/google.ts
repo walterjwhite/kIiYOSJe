@@ -4,11 +4,7 @@
  */
 
 import { requestJson } from "@mind/core";
-import type {
-  CalendarEvent,
-  OutboundEvent,
-  TimeRange,
-} from "@mind/core";
+import type { CalendarEvent, OutboundEvent, TimeRange } from "@mind/core";
 import type { TokenResolver } from "../gmail/client.js";
 
 const BASE_URL = "https://www.googleapis.com/calendar/v3";
@@ -19,10 +15,7 @@ export class GoogleCalendarClient {
     private readonly baseUrl = BASE_URL,
   ) {}
 
-  async listEvents(
-    calendarId: string,
-    range: TimeRange,
-  ): Promise<CalendarEvent[]> {
+  async listEvents(calendarId: string, range: TimeRange): Promise<CalendarEvent[]> {
     const query = new URLSearchParams({
       timeMin: range.from.toISOString(),
       timeMax: range.to.toISOString(),
@@ -34,9 +27,7 @@ export class GoogleCalendarClient {
       `${this.baseUrl}/calendars/${encodeURIComponent(calendarId)}/events?${query.toString()}`,
       { headers: await this.authHeaders() },
     );
-    return (response.items ?? []).map((item) =>
-      toCalendarEvent(item, calendarId),
-    );
+    return (response.items ?? []).map((item) => toCalendarEvent(item, calendarId));
   }
 
   async createEvent(event: OutboundEvent): Promise<{ externalId: string }> {
@@ -51,9 +42,7 @@ export class GoogleCalendarClient {
           location: event.location ?? "",
           start: { dateTime: event.startsAt.toISOString() },
           end: {
-            dateTime: (
-              event.endsAt ?? defaultEnd(event.startsAt)
-            ).toISOString(),
+            dateTime: (event.endsAt ?? defaultEnd(event.startsAt)).toISOString(),
           },
           attendees: (event.attendees ?? []).map((email) => ({ email })),
         },
@@ -78,10 +67,7 @@ interface GoogleEvent {
   end?: { date?: string; dateTime?: string };
 }
 
-export function toCalendarEvent(
-  item: GoogleEvent,
-  calendarId: string,
-): CalendarEvent {
+export function toCalendarEvent(item: GoogleEvent, calendarId: string): CalendarEvent {
   const start = parseGoogleDate(item.start);
   return {
     id: item.id,

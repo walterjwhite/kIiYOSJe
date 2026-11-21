@@ -18,7 +18,7 @@ import { directions, signals, actions, events, logger, newId } from "@mind/core"
 
 export interface DirectionProposal {
   kind: "narrow" | "widen" | "new";
-  directionId: string | null;    // null for 'new' proposals
+  directionId: string | null; // null for 'new' proposals
   field: string;
   currentValue: unknown;
   proposedValue: unknown;
@@ -33,9 +33,9 @@ export interface DirectionProposal {
 
 const WINDOW_DAYS = 7;
 const MIN_SAMPLE = 3;
-const NARROW_THRESHOLD = 0.20;   // override rate above this → narrow
-const WIDEN_THRESHOLD  = 0.10;   // override rate below this AND sent >= MIN_SAMPLE → widen
-const NEW_DIR_SIGNALS  = 3;       // unmatched signals from same sender → propose new direction
+const NARROW_THRESHOLD = 0.2; // override rate above this → narrow
+const WIDEN_THRESHOLD = 0.1; // override rate below this AND sent >= MIN_SAMPLE → widen
+const NEW_DIR_SIGNALS = 3; // unmatched signals from same sender → propose new direction
 
 export function runLearningLoop(db: Db): DirectionProposal[] {
   const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
@@ -183,10 +183,7 @@ function proposeFromUnmatched(db: Db, since: string): DirectionProposal[] {
 
 const WEEKLY_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
-export function startLearningLoop(
-  db: Db,
-  intervalMs = WEEKLY_INTERVAL_MS,
-): NodeJS.Timeout {
+export function startLearningLoop(db: Db, intervalMs = WEEKLY_INTERVAL_MS): NodeJS.Timeout {
   return setInterval(() => {
     try {
       runLearningLoop(db);

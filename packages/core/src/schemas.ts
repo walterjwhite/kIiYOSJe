@@ -13,12 +13,7 @@ export class ValidationError extends Error {
 }
 
 export const ScopeKindSchema = z.enum(["person", "project", "topic", "thread"]);
-export const DirectionPostureSchema = z.enum([
-  "absorb",
-  "draft",
-  "surface",
-  "escalate",
-]);
+export const DirectionPostureSchema = z.enum(["absorb", "draft", "surface", "escalate"]);
 export const DirectionAutonomySchema = z.enum(["observe", "draft", "send"]);
 export const ThoughtStateSchema = z.enum([
   "seedling",
@@ -57,10 +52,7 @@ export const SignalActionSchema = z.discriminatedUnion("kind", [
       try {
         const u = new URL(v);
         return (
-          u.protocol === "https:" &&
-          u.username === "" &&
-          u.password === "" &&
-          u.pathname.length > 1
+          u.protocol === "https:" && u.username === "" && u.password === "" && u.pathname.length > 1
         );
       } catch {
         return false;
@@ -78,12 +70,7 @@ export const DirectionConfigSchema = z.preprocess(
     // guidance for how to recognize and respond, not a formal standard.
     // Either key works in YAML; "standard" still wins if both are present,
     // so nothing silently changes for a file that already has one.
-    if (
-      raw &&
-      typeof raw === "object" &&
-      "guidance" in raw &&
-      !("standard" in raw)
-    ) {
+    if (raw && typeof raw === "object" && "guidance" in raw && !("standard" in raw)) {
       const { guidance, ...rest } = raw as Record<string, unknown>;
       return { ...rest, standard: guidance };
     }
@@ -119,12 +106,7 @@ export const DirectionConfigSchema = z.preprocess(
 // PATCH /directions/:id — editable fields, all optional.
 export const UpdateDirectionRequestSchema = z.preprocess(
   (raw) => {
-    if (
-      raw &&
-      typeof raw === "object" &&
-      "guidance" in raw &&
-      !("standard" in raw)
-    ) {
+    if (raw && typeof raw === "object" && "guidance" in raw && !("standard" in raw)) {
       const { guidance, ...rest } = raw as Record<string, unknown>;
       return { ...rest, standard: guidance };
     }
@@ -184,11 +166,11 @@ export const DisplaySettingsSchema = z.object({
 
 // LLM classifier structured output schema
 export const SignalKindSchema = z.enum([
-  "question",   // sender is asking for information or an answer
-  "task",       // sender is assigning or requesting work
+  "question", // sender is asking for information or an answer
+  "task", // sender is assigning or requesting work
   "acknowledgement", // sender confirming receipt or saying thanks
-  "information",    // sender providing info, no action expected
-  "event",          // a calendar occurrence, not a message
+  "information", // sender providing info, no action expected
+  "event", // a calendar occurrence, not a message
   "other",
 ]);
 

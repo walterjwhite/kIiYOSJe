@@ -1,6 +1,6 @@
 ---
-inclusion: auto
----
+
+## inclusion: auto
 
 # Privacy and data handling
 
@@ -10,14 +10,14 @@ egress needs, and let the operator delete or export everything.
 
 ## Data inventory
 
-| Data | Location | Retention | Leaves the machine? |
-| --- | --- | --- | --- |
-| Signals (normalized message content) | SQLite | `MIND_RETENTION_DAYS` | Only the text of a signal in a classifier or drafting prompt to the configured model provider |
-| Thoughts, actions, events | SQLite | same as signals unless kept as audit | No |
-| Directions | YAML under `directions/` | operator-owned | No |
-| Credentials, token | `~/.config/kIiYOSJe/mind/` | until revoked | Credentials go only to their own provider |
-| Logs | stdout / operator's log sink | operator-owned | No, and contain no content |
-| Backups | operator-chosen path | operator-owned | No |
+| Data                                 | Location                     | Retention                            | Leaves the machine?                                                                           |
+| ------------------------------------ | ---------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| Signals (normalized message content) | SQLite                       | `MIND_RETENTION_DAYS`                | Only the text of a signal in a classifier or drafting prompt to the configured model provider |
+| Thoughts, actions, events            | SQLite                       | same as signals unless kept as audit | No                                                                                            |
+| Directions                           | YAML under `directions/`     | operator-owned                       | No                                                                                            |
+| Credentials, token                   | `~/.config/kIiYOSJe/mind/`   | until revoked                        | Credentials go only to their own provider                                                     |
+| Logs                                 | stdout / operator's log sink | operator-owned                       | No, and contain no content                                                                    |
+| Backups                              | operator-chosen path         | operator-owned                       | No                                                                                            |
 
 Keep this table current whenever a column, file, or adapter is added.
 

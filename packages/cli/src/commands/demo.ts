@@ -22,21 +22,19 @@ export async function demo(personas: string[]): Promise<void> {
         "Start Ollama (the default provider) or configure one via the extension.",
     );
   }
-  const { ALL_PERSONAS, demoDbPath, resetDemoDb, seedDemo } = await import(
-    "@mind/demo-data"
-  );
+  const { ALL_PERSONAS, demoDbPath, resetDemoDb, seedDemo } = await import("@mind/demo-data");
 
   const requested =
     personas.length > 0
       ? ALL_PERSONAS.filter((persona) => personas.includes(persona.id))
       : ALL_PERSONAS;
   if (requested.length === 0) {
-    throw new Error(
-      `No matching persona. Choices: ${ALL_PERSONAS.map((p) => p.id).join(", ")}`,
-    );
+    throw new Error(`No matching persona. Choices: ${ALL_PERSONAS.map((p) => p.id).join(", ")}`);
   }
 
-  console.log(`Using provider: ${aiProvider()}. This calls a real model for every signal — expect this to take a while.\n`);
+  console.log(
+    `Using provider: ${aiProvider()}. This calls a real model for every signal — expect this to take a while.\n`,
+  );
   resetDemoDb();
   const root = directionsRoot();
   if (!existsSync(root)) {

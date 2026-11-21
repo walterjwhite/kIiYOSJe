@@ -24,7 +24,7 @@ mind pause                       # optional hard stop for all sends
 - Approving a draft in the Queue is the only human send path. `mind pause`
   blocks it too (HTTP 423).
 - Keep every Direction at `autonomy: observe` or `draft` for the first week.
-  `observe` records what it *would* have done and writes no draft.
+  `observe` records what it _would_ have done and writes no draft.
 - Full message bodies are kept 30 days (`MIND_RETENTION_DAYS`), then redacted
   to sender + disposition + match. Set it lower if that matters to you.
 - The only network egress is the model call. Ollama is the default and keeps it
@@ -38,11 +38,11 @@ sources one at a time. Environment variables win over the file and are listed
 next to each section.
 
 ```yaml
-google:                       # Gmail + Google Calendar share one token
+google: # Gmail + Google Calendar share one token
   clientId: "..."
   clientSecret: "..."
-  refreshToken: "..."        # the default account
-  accounts:                  # optional: more accounts, same OAuth client
+  refreshToken: "..." # the default account
+  accounts: # optional: more accounts, same OAuth client
     - label: work
       address: you@work.example
       refreshToken: "..."
@@ -50,7 +50,7 @@ google:                       # Gmail + Google Calendar share one token
       address: you@personal.example
       refreshToken: "..."
 
-outlook:                     # optional; same account shape
+outlook: # optional; same account shape
   tenantId: "..."
   clientId: "..."
   clientSecret: "..."
@@ -60,22 +60,22 @@ outlook:                     # optional; same account shape
       refreshToken: "..."
 
 github:
-  token: "github_pat_..."     # fine-grained PAT: metadata + pull requests (read)
-  accounts:                  # optional: one adapter per token
+  token: "github_pat_..." # fine-grained PAT: metadata + pull requests (read)
+  accounts: # optional: one adapter per token
     - label: work
       token: "github_pat_..."
 
-gmessages:                    # SMS via a self-hosted Matrix bridge
+gmessages: # SMS via a self-hosted Matrix bridge
   homeserverUrl: "http://localhost:8008"
   accessToken: "..."
   userId: "@you:localhost"
-  accounts:                  # optional: one bridge login per phone line
+  accounts: # optional: one bridge login per phone line
     - label: second-line
       accessToken: "..."
       userId: "@you2:localhost"
 
 operator:
-  addresses:                  # extra "me" addresses; account addresses join this
+  addresses: # extra "me" addresses; account addresses join this
     - you@example.com
     - "+15551234567"
 ```
@@ -108,12 +108,12 @@ OAuth scopes: `gmail.modify` (read + drafts). The adapter polls
    API, and authorise the scopes in `packages/adapters/src/google/auth.ts`.
    Then let the mailboxes in: Google Auth Platform → Audience → either add each
    address under **Test users**, or press **Publish app**. A new project starts
-   in *Testing*, where any address not on the test list is refused with
+   in _Testing_, where any address not on the test list is refused with
    `Error 403: access_denied` before a code is ever issued — that is the block,
    not a client or redirect problem. Testing also expires refresh tokens after
    7 days, so for several personal mailboxes publish the app and click through
    the "Google hasn't verified this app" warning once per mailbox. Real
-   verification is not worth it: `gmail.modify` is a *restricted* scope, so it
+   verification is not worth it: `gmail.modify` is a _restricted_ scope, so it
    means a third-party security assessment.
 2. Mint a refresh token: `scripts/google-refresh-token.sh --account you@gmail.com`.
    It runs the loopback consent flow (`access_type=offline` + `prompt=consent`),
@@ -233,7 +233,7 @@ mind doctor          # in another
 ## 7. Daily rhythm for the week
 
 1. Open the brief. Read `thoughts.disputed` first: those are the ones the tool
-   is confident it *cannot* answer, and they are where your judgement pays.
+   is confident it _cannot_ answer, and they are where your judgement pays.
 2. Review the Queue only if a Direction is at `draft`; discard what you would
    not have sent. Every discard is the learning-loop input.
 3. Once a day: `mind coverage`. Note absorb rate **on explicit Directions** and
@@ -243,11 +243,11 @@ mind doctor          # in another
 
 ## 8. When something looks wrong
 
-| Symptom | First thing to check |
-| --- | --- |
-| Nothing arrives from a source | `mind doctor`; `/health` adapter list; adapter logs (`~/.data/kIiYOSJe/mind/mind.log`) |
-| Everything matches the catch-all | `mind preview <directionId>` and the Direction's `scope`/`matchPrompt` (STATUS gap #12) |
-| A decision is inexplicable | `mind explain <signalId>` — the `signal.processed` event carries intent, confidence, blocker, commitment, guards, and reason |
-| A draft is bad but the match is right | The Direction's `standard`, not the model. Tighten it, then `mind preview` |
-| The same promise reminds twice | Should not happen — commitments supersede per thread. If it does, that thread had no `threadId`; check the adapter |
-| A send happened and should not have | `mind pause` immediately, then read the `action.sent` event: it records which gates passed |
+| Symptom                               | First thing to check                                                                                                         |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Nothing arrives from a source         | `mind doctor`; `/health` adapter list; adapter logs (`~/.data/kIiYOSJe/mind/mind.log`)                                       |
+| Everything matches the catch-all      | `mind preview <directionId>` and the Direction's `scope`/`matchPrompt` (STATUS gap #12)                                      |
+| A decision is inexplicable            | `mind explain <signalId>` — the `signal.processed` event carries intent, confidence, blocker, commitment, guards, and reason |
+| A draft is bad but the match is right | The Direction's `standard`, not the model. Tighten it, then `mind preview`                                                   |
+| The same promise reminds twice        | Should not happen — commitments supersede per thread. If it does, that thread had no `threadId`; check the adapter           |
+| A send happened and should not have   | `mind pause` immediately, then read the `action.sent` event: it records which gates passed                                   |

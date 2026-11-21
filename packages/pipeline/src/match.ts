@@ -29,11 +29,7 @@ export interface MatchResult {
 }
 
 export function matchSignal(db: Db, signal: NewSignal): MatchResult | null {
-  const enabled = db
-    .select()
-    .from(directions)
-    .where(eq(directions.enabled, true))
-    .all();
+  const enabled = db.select().from(directions).where(eq(directions.enabled, true)).all();
 
   let best: MatchResult | null = null;
 
@@ -70,10 +66,7 @@ function matchesScope(dir: DirectionRow, signal: NewSignal): boolean {
     case "thread":
       return signal.threadId?.toLowerCase() === v;
     case "project":
-      return (
-        signal.body.toLowerCase().includes(v) ||
-        signal.sender.toLowerCase().includes(v)
-      );
+      return signal.body.toLowerCase().includes(v) || signal.sender.toLowerCase().includes(v);
     case "topic":
       // Empty scopeValue is reserved for the catch-all; skip here.
       if (!v) return false;

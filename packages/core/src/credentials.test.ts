@@ -75,11 +75,7 @@ describe("credentialAccounts", () => {
     );
 
     const accounts = credentialAccounts("google");
-    expect(accounts.map((account) => account.label)).toEqual([
-      "default",
-      "work",
-      "personal",
-    ]);
+    expect(accounts.map((account) => account.label)).toEqual(["default", "work", "personal"]);
     const work = accounts.find((account) => account.label === "work");
     expect(work?.config["refreshToken"]).toBe("work-token");
     expect(work?.config["clientId"]).toBe("client");
@@ -99,9 +95,7 @@ describe("credentialAccounts", () => {
       ].join("\n"),
     );
 
-    expect(credentialAccounts("outlook").map((account) => account.label)).toEqual(
-      ["work"],
-    );
+    expect(credentialAccounts("outlook").map((account) => account.label)).toEqual(["work"]);
   });
 
   it("names unnamed entries and keeps labels unique", () => {
@@ -119,14 +113,8 @@ describe("credentialAccounts", () => {
     );
 
     const accounts = credentialAccounts("gmessages");
-    expect(accounts.map((account) => account.label)).toEqual([
-      "account-1",
-      "work",
-      "work-2",
-    ]);
-    expect(accounts.every((account) => account.config["homeserverUrl"])).toBe(
-      true,
-    );
+    expect(accounts.map((account) => account.label)).toEqual(["account-1", "work", "work-2"]);
+    expect(accounts.every((account) => account.config["homeserverUrl"])).toBe(true);
   });
 
   it("returns nothing for an absent section", () => {

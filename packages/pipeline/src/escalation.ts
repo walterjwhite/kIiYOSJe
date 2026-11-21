@@ -33,10 +33,7 @@ export function computeEscalateBy(
   if (classifierOut.escalateBy) return classifierOut.escalateBy;
 
   // Acknowledgements and information with no urgency cue need no deadline.
-  if (
-    NO_DEADLINE_KINDS.has(classifierOut.signalKind) &&
-    classifierOut.urgency === "low"
-  ) {
+  if (NO_DEADLINE_KINDS.has(classifierOut.signalKind) && classifierOut.urgency === "low") {
     return null;
   }
 

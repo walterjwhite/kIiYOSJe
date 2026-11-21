@@ -1,6 +1,6 @@
 ---
-inclusion: auto
----
+
+## inclusion: auto
 
 # Issue-to-PR workflow for humans and AI agents
 
@@ -23,18 +23,18 @@ agent judgment alone.
    action. `agent-intake.yml` starts it when `ai-ready` passes, passing a hash of
    the approved issue body (an edit before the run stops it). A maintainer can also
    start it by hand from the Actions tab. The workflow has two jobs:
-   - *implement* runs the model with a read-only token and an allowlist of tools
+   - _implement_ runs the model with a read-only token and an allowlist of tools
      (read, edit, list, search, and a fixed set of `npm`, `npx biome`, `npx vitest`,
      `git status`, and `git diff` commands). It cannot push, comment, or open a PR.
      Its output is a patch.
-   - *publish* never runs the model. It applies the patch, runs the guard scripts
+   - _publish_ never runs the model. It applies the patch, runs the guard scripts
      from the base branch (protected paths, dependency changes, secrets, at most 60
      files), then pushes `agent/<issue>-<slug>` and opens a **draft** PR with
      `Closes #<n>` and `ai-generated`, using a GitHub App token (or a PAT fallback)
      so CI runs on the PR.
-   Other agents (Kiro, a local tool) use the same branch naming and rules.
-   Every agent reads the issue, the linked specs, and the relevant steering files,
-   writes the failing test first, and keeps to the issue's scope.
+     Other agents (Kiro, a local tool) use the same branch naming and rules.
+     Every agent reads the issue, the linked specs, and the relevant steering files,
+     writes the failing test first, and keeps to the issue's scope.
 5. **Gates (automatic).** `ci-pass` (typecheck, Biome on changed files, tests
    with coverage floors, license, secret and migration checks), `agent-guard`,
    CodeQL, dependency review, and the secret scan must pass. Branch rules require

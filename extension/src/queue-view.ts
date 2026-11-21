@@ -43,7 +43,7 @@ export function addDays(date: string, days: number): string {
 export function nextMonday(date: string): string {
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
   const dow = new Date(y, m - 1, d, 12).getDay(); // 0 Sun .. 6 Sat
-  return addDays(date, ((8 - dow) % 7) || 7);
+  return addDays(date, (8 - dow) % 7 || 7);
 }
 
 export function planState(plannedFor: string | null, today: string): PlanState {
@@ -67,7 +67,12 @@ export function inView(item: Plannable, view: QueueView, today: string): boolean
 }
 
 export function viewCounts(items: Plannable[], today: string): Record<QueueView, number> {
-  const counts: Record<QueueView, number> = { today: 0, upcoming: 0, backlog: 0, all: items.length };
+  const counts: Record<QueueView, number> = {
+    today: 0,
+    upcoming: 0,
+    backlog: 0,
+    all: items.length,
+  };
   for (const item of items) {
     for (const v of ["today", "upcoming", "backlog"] as const) {
       if (inView(item, v, today)) counts[v]++;
@@ -112,7 +117,8 @@ export function parsePlanDate(input: string, today: string): string | undefined 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return undefined;
   const [y, m, d] = text.split("-").map(Number) as [number, number, number];
   const real = new Date(y, m - 1, d, 12);
-  if (real.getFullYear() !== y || real.getMonth() !== m - 1 || real.getDate() !== d) return undefined;
+  if (real.getFullYear() !== y || real.getMonth() !== m - 1 || real.getDate() !== d)
+    return undefined;
   return text >= today ? text : undefined;
 }
 

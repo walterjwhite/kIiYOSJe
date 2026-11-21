@@ -71,8 +71,7 @@ export function eventsRouter(db: Db) {
     if (since) conditions.push(sql`${events.at} >= ${since}`);
     if (untilParam) conditions.push(sql`${events.at} <= ${untilParam}`);
 
-    const whereClause =
-      conditions.length > 0 ? sql.join(conditions, sql` and `) : undefined;
+    const whereClause = conditions.length > 0 ? sql.join(conditions, sql` and `) : undefined;
 
     const rows = whereClause
       ? db.select().from(events).where(whereClause).orderBy(desc(events.at)).limit(limit).all()

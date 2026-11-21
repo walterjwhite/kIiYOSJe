@@ -59,7 +59,10 @@ export interface LinkInput {
 
 function buildPrompt(input: LinkInput): string {
   const goals = input.goals
-    .map((g) => `- id: ${g.id}\n  title: ${g.title}\n  notes: ${g.body.replace(/\s+/g, " ").slice(0, 300)}`)
+    .map(
+      (g) =>
+        `- id: ${g.id}\n  title: ${g.title}\n  notes: ${g.body.replace(/\s+/g, " ").slice(0, 300)}`,
+    )
     .join("\n");
   return `Goals:\n${goals}\n\nFrom: ${input.sender}\n${input.subject ? `Subject: ${input.subject}\n` : ""}Message:\n${input.signalBody.slice(0, 4000)}\n\nWhich Goal does this message belong to, if any?`;
 }
@@ -75,7 +78,10 @@ export async function proposeLink(input: LinkInput): Promise<LinkOutput | null> 
       ...(input.onTrace ? { onTrace: input.onTrace } : {}),
     });
   } catch (err) {
-    logger.warn({ err, sender: input.sender }, "link: model call failed, leaving the signal unlinked");
+    logger.warn(
+      { err, sender: input.sender },
+      "link: model call failed, leaving the signal unlinked",
+    );
     return null;
   }
 }

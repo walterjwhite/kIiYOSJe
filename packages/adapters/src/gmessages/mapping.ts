@@ -25,14 +25,9 @@ export function isGoogleMessagesSender(sender: string): boolean {
 export function isGoogleMessagesRoom(room: MatrixRoom): boolean {
   if (isBridgeRoom(room)) return true;
   const ghostMember = room.stateEvents.some(
-    (event) =>
-      event.type === "m.room.member" &&
-      isGoogleMessagesSender(event.state_key ?? ""),
+    (event) => event.type === "m.room.member" && isGoogleMessagesSender(event.state_key ?? ""),
   );
-  return (
-    ghostMember ||
-    room.timeline.some((event) => isGoogleMessagesSender(event.sender))
-  );
+  return ghostMember || room.timeline.some((event) => isGoogleMessagesSender(event.sender));
 }
 
 /** The phone number behind a ghost user, when the bridge encodes one. */
@@ -47,9 +42,7 @@ export function phoneNumber(sender: string): string | null {
 export function roomLabel(room: MatrixRoom): string {
   if (room.name.length > 0) return room.name;
   const ghost = room.stateEvents.find(
-    (event) =>
-      event.type === "m.room.member" &&
-      isGoogleMessagesSender(event.state_key ?? ""),
+    (event) => event.type === "m.room.member" && isGoogleMessagesSender(event.state_key ?? ""),
   );
   return phoneNumber(ghost?.state_key ?? "") ?? room.roomId;
 }
@@ -57,8 +50,7 @@ export function roomLabel(room: MatrixRoom): string {
 export function isTextMessage(event: MatrixEvent): boolean {
   return (
     event.type === "m.room.message" &&
-    (event.content?.msgtype === "m.text" ||
-      event.content?.msgtype === "m.notice") &&
+    (event.content?.msgtype === "m.text" || event.content?.msgtype === "m.notice") &&
     typeof event.content?.body === "string"
   );
 }

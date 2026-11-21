@@ -97,10 +97,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
 
 export class NavProvider implements vscode.TreeDataProvider<NavItem> {
   getTreeItem(item: NavItem): vscode.TreeItem {
-    const treeItem = new vscode.TreeItem(
-      item.label,
-      vscode.TreeItemCollapsibleState.None,
-    );
+    const treeItem = new vscode.TreeItem(item.label, vscode.TreeItemCollapsibleState.None);
     if (item.description !== undefined) treeItem.description = item.description;
     treeItem.iconPath = new vscode.ThemeIcon(item.icon);
     treeItem.command = { command: item.command, title: item.label };

@@ -12,12 +12,10 @@ export abstract class SectionPanel {
   protected readonly panel: vscode.WebviewPanel;
 
   protected constructor(viewType: string, title: string) {
-    this.panel = vscode.window.createWebviewPanel(
-      viewType,
-      title,
-      vscode.ViewColumn.One,
-      { enableScripts: true, retainContextWhenHidden: true },
-    );
+    this.panel = vscode.window.createWebviewPanel(viewType, title, vscode.ViewColumn.One, {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+    });
     this.panel.onDidDispose(() => this.onDispose());
     this.panel.webview.onDidReceiveMessage((msg: unknown) => this.onMessage(msg));
   }
@@ -588,18 +586,11 @@ ${extraScript}
 }
 
 export function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 /** A toggle switch — posts `action` with the given data attributes on click or Enter/Space when focused. No separate label needed; pair it with text in the caller. */
-export function toggleSwitch(
-  on: boolean,
-  action: string,
-  data: Record<string, string>,
-): string {
+export function toggleSwitch(on: boolean, action: string, data: Record<string, string>): string {
   const attrs = Object.entries(data)
     .map(([k, v]) => `data-${k}="${esc(v)}"`)
     .join(" ");

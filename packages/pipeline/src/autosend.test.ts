@@ -12,9 +12,15 @@ import type { Adapter, NewSignal } from "@mind/core";
 
 vi.mock("./classify.js", () => ({
   classify: async () => ({
-    confidence: 0.95, intent: "ask", signalKind: "question",
-    urgency: "low", commitment: null, escalateBy: null, sensitiveTopics: [],
-    answerable: true, answerBlocker: null,
+    confidence: 0.95,
+    intent: "ask",
+    signalKind: "question",
+    urgency: "low",
+    commitment: null,
+    escalateBy: null,
+    sensitiveTopics: [],
+    answerable: true,
+    answerBlocker: null,
   }),
 }));
 let draftText: string | null = "Here is the answer.";
@@ -31,14 +37,27 @@ function setup(autonomy: string) {
   sqlite.pragma("foreign_keys = ON");
   const db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder: MIGRATIONS_DIR });
-  db.insert(directions).values({
-    id: "d1", name: "d1", scopeKind: "person", scopeValue: "a@x.com", posture: "absorb",
-    standard: "s", autonomy, confidenceMin: 0.5, enabled: true, version: 1,
-  }).run();
+  db.insert(directions)
+    .values({
+      id: "d1",
+      name: "d1",
+      scopeKind: "person",
+      scopeValue: "a@x.com",
+      posture: "absorb",
+      standard: "s",
+      autonomy,
+      confidenceMin: 0.5,
+      enabled: true,
+      version: 1,
+    })
+    .run();
   const send = vi.fn(async () => ({ externalId: "ext-1" }));
   const adapter: Adapter = {
-    id: "t", capabilities: { canSend: true, canStream: false },
-    start: async () => {}, stop: async () => {}, send,
+    id: "t",
+    capabilities: { canSend: true, canStream: false },
+    start: async () => {},
+    stop: async () => {},
+    send,
   };
   const reg = new AdapterRegistry();
   reg.register(adapter);
@@ -47,15 +66,22 @@ function setup(autonomy: string) {
 
 let n = 0;
 const sig = (): NewSignal => ({
-  adapter: "t", externalId: `e${++n}`, threadId: null, sender: "a@x.com",
-  recipients: ["me@x.com"], kind: "m", body: "q?", receivedAt: new Date(), urgencyHint: null,
+  adapter: "t",
+  externalId: `e${++n}`,
+  threadId: null,
+  sender: "a@x.com",
+  recipients: ["me@x.com"],
+  kind: "m",
+  body: "q?",
+  receivedAt: new Date(),
+  urgencyHint: null,
 });
 
 const savedHome = process.env["HOME"];
 let home: string;
 beforeEach(() => {
   home = mkdtempSync(join(tmpdir(), "mind-home-"));
-  process.env["HOME"] = home;          // isolates the paused flag file
+  process.env["HOME"] = home; // isolates the paused flag file
   process.env["MIND_SEND_ENABLED"] = "true";
   draftText = "Here is the answer.";
 });
@@ -70,7 +96,11 @@ describe("autonomous send", () => {
     await ingest(db, sig(), reg);
     expect(send).toHaveBeenCalledOnce();
     expect(db.select().from(actions).all()[0]?.status).toBe("sent");
-    const ev = db.select().from(events).all().find((e) => e.kind === "action.sent");
+    const ev = db
+      .select()
+      .from(events)
+      .all()
+      .find((e) => e.kind === "action.sent");
     expect(JSON.parse(ev!.payload).autonomous).toBe(true);
   });
 

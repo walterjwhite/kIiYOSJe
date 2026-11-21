@@ -15,9 +15,7 @@ export function toSignal(mail: OutlookMail, account = "default"): NewSignal {
     adapter: adapterIdForAccount("outlook", account),
     account,
     externalId: mail.id,
-    ...(mail.internetMessageId
-      ? { dedupeId: `message-id:${mail.internetMessageId}` }
-      : {}),
+    ...(mail.internetMessageId ? { dedupeId: `message-id:${mail.internetMessageId}` } : {}),
     threadId: mail.threadId ?? null,
     sender: mail.from,
     recipients: mail.to,
@@ -35,19 +33,14 @@ export function toSignal(mail: OutlookMail, account = "default"): NewSignal {
 /** Microsoft Graph message to the neutral shape. */
 export function fromGraph(message: GraphMessage): OutlookMail {
   const htmlContent =
-    message.body?.contentType?.trim().toLowerCase() === "html"
-      ? message.body?.content
-      : undefined;
+    message.body?.contentType?.trim().toLowerCase() === "html" ? message.body?.content : undefined;
 
   return {
     id: message.id,
     ...(message.conversationId ? { threadId: message.conversationId } : {}),
     ...(message.internetMessageId
       ? {
-          internetMessageId: message.internetMessageId
-            .trim()
-            .replace(/^<|>$/g, "")
-            .toLowerCase(),
+          internetMessageId: message.internetMessageId.trim().replace(/^<|>$/g, "").toLowerCase(),
         }
       : {}),
     ...(message.subject ? { subject: message.subject } : {}),
@@ -68,10 +61,7 @@ export function fromGraph(message: GraphMessage): OutlookMail {
       return bcc.length > 0 ? { bcc } : {};
     })(),
     receivedAt: parseDate(message.receivedDateTime),
-    body: bodyText(
-      message.body?.contentType,
-      message.body?.content ?? message.bodyPreview ?? "",
-    ),
+    body: bodyText(message.body?.contentType, message.body?.content ?? message.bodyPreview ?? ""),
     ...(htmlContent ? { htmlBody: htmlContent } : {}),
     urgencyHint: message.importance === "high" ? 1 : null,
   };
@@ -82,9 +72,7 @@ function address(value: string | undefined): string {
 }
 
 function bodyText(contentType: string | undefined, content: string): string {
-  return contentType?.trim().toLowerCase() === "html"
-    ? stripHtml(content)
-    : content;
+  return contentType?.trim().toLowerCase() === "html" ? stripHtml(content) : content;
 }
 
 function parseDate(value: string | undefined): Date {

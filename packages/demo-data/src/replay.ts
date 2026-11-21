@@ -143,18 +143,10 @@ function resolveHistoricalActions(
   let discarded = 0;
 
   for (const s of historicalSignals) {
-    const sig = db
-      .select()
-      .from(signals)
-      .where(eq(signals.externalId, s.signal.externalId))
-      .get();
+    const sig = db.select().from(signals).where(eq(signals.externalId, s.signal.externalId)).get();
     if (!sig) continue;
 
-    const action = db
-      .select()
-      .from(actions)
-      .where(eq(actions.signalId, sig.id))
-      .get();
+    const action = db.select().from(actions).where(eq(actions.signalId, sig.id)).get();
     if (!action || action.status !== "proposed") continue; // nothing to resolve, or already sent autonomously
 
     const shouldDiscard = decideSimulatedReaction(sig.body, sig.id);
@@ -192,8 +184,16 @@ function resolveHistoricalActions(
 }
 
 const SENSITIVE_PATTERNS = [
-  "budget", "headcount", "legal", "scope change", "critical",
-  "cve score 9", "cve score 10", "breach", "exploit", "unauthorized access",
+  "budget",
+  "headcount",
+  "legal",
+  "scope change",
+  "critical",
+  "cve score 9",
+  "cve score 10",
+  "breach",
+  "exploit",
+  "unauthorized access",
 ];
 
 function decideSimulatedReaction(body: string, seedId: string): boolean {
@@ -212,17 +212,9 @@ function decideSimulatedReaction(body: string, seedId: string): boolean {
 function countProposed(db: Db, liveSignals: ScenarioSignal[]): number {
   let count = 0;
   for (const s of liveSignals) {
-    const sig = db
-      .select()
-      .from(signals)
-      .where(eq(signals.externalId, s.signal.externalId))
-      .get();
+    const sig = db.select().from(signals).where(eq(signals.externalId, s.signal.externalId)).get();
     if (!sig) continue;
-    const action = db
-      .select()
-      .from(actions)
-      .where(eq(actions.signalId, sig.id))
-      .get();
+    const action = db.select().from(actions).where(eq(actions.signalId, sig.id)).get();
     if (action?.status === "proposed") count++;
   }
   return count;
@@ -251,9 +243,7 @@ function maybeAutoDisable(db: Db, directionId: string | null): void {
     .select({ count: sql<number>`count(*)` })
     .from(actions)
     .innerJoin(signals, eq(actions.signalId, signals.id))
-    .where(
-      sql`${signals.directionId} = ${directionId} and ${actions.status} = 'discarded'`,
-    )
+    .where(sql`${signals.directionId} = ${directionId} and ${actions.status} = 'discarded'`)
     .get();
 
   const discardedCount = discardedRow?.count ?? 0;

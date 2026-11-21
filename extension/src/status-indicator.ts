@@ -95,9 +95,7 @@ class StatusIndicator {
     }
     for (const view of this.badgeTargets) {
       view.badge =
-        state === "error" || state === "warning"
-          ? { value: 1, tooltip: LABELS[state] }
-          : undefined;
+        state === "error" || state === "warning" ? { value: 1, tooltip: LABELS[state] } : undefined;
     }
   }
 }

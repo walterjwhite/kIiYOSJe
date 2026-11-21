@@ -11,7 +11,9 @@ vi.mock("@mind/core", async (orig) => {
     ...actual,
     backupDir: () => dir,
     getRawDb: () => ({
-      backup: async (dest: string) => { writeFileSync(dest, "db"); },
+      backup: async (dest: string) => {
+        writeFileSync(dest, "db");
+      },
     }),
   };
 });

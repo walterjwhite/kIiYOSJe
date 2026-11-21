@@ -75,15 +75,25 @@ export class ModelTracePanel extends SectionPanel {
       this.summary = summarize(events);
       const signals = await this.signalLookup();
       this.loadError = undefined;
-      void this.panel.webview.postMessage({ type: "data", summary: this.summary, signals, live: this.live });
+      void this.panel.webview.postMessage({
+        type: "data",
+        summary: this.summary,
+        signals,
+        live: this.live,
+      });
     } catch (err) {
       this.loadError = String(err);
-      void this.panel.webview.postMessage({ type: "ping", result: { lines: [{ text: this.loadError, bad: true }] } });
+      void this.panel.webview.postMessage({
+        type: "ping",
+        result: { lines: [{ text: this.loadError, bad: true }] },
+      });
     }
   }
 
   /** Who and what each processed signal was, so a row can say more than an id. Never blocks the graph. */
-  private async signalLookup(): Promise<Record<string, { sender: string; subject: string | null }>> {
+  private async signalLookup(): Promise<
+    Record<string, { sender: string; subject: string | null }>
+  > {
     try {
       const rows = await apiFetch<{ id: string; sender: string; subject: string | null }[]>(
         `/signals?range=${this.range}`,
@@ -101,7 +111,10 @@ export class ModelTracePanel extends SectionPanel {
     const endpoint = this.summary?.calls[0]?.endpoint ?? null;
     const root = localOllamaRoot(endpoint);
     if (!root) {
-      lines.push({ text: `The configured endpoint (${endpoint ?? "none"}) is not on this machine, so it was not contacted.`, bad: true });
+      lines.push({
+        text: `The configured endpoint (${endpoint ?? "none"}) is not on this machine, so it was not contacted.`,
+        bad: true,
+      });
     } else {
       try {
         const get = async <T>(p: string): Promise<T> => {
@@ -110,7 +123,9 @@ export class ModelTracePanel extends SectionPanel {
           return (await res.json()) as T;
         };
         const tags = await get<{ models?: { name: string }[] }>("/api/tags");
-        const ps = await get<{ models?: { name: string; size_vram?: number; expires_at?: string }[] }>("/api/ps");
+        const ps = await get<{
+          models?: { name: string; size_vram?: number; expires_at?: string }[];
+        }>("/api/ps");
         const installed = (tags.models ?? []).map((m) => m.name);
         lines.push({ text: `Ollama is answering at ${root}.` });
         lines.push({ text: `Installed: ${installed.join(", ") || "nothing"}` });
@@ -121,7 +136,11 @@ export class ModelTracePanel extends SectionPanel {
             : "No model is loaded right now. Ollama unloads idle models after a few minutes, so this is normal when nothing ran recently.",
         });
         for (const m of used) {
-          if (!installed.includes(m)) lines.push({ text: `Model "${m}" appears in recent calls but is not installed.`, bad: true });
+          if (!installed.includes(m))
+            lines.push({
+              text: `Model "${m}" appears in recent calls but is not installed.`,
+              bad: true,
+            });
         }
       } catch (err) {
         lines.push({ text: `Could not reach Ollama at ${root}: ${String(err)}`, bad: true });

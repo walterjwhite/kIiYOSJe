@@ -8,7 +8,10 @@ const goals = [
 
 describe("chooseLink", () => {
   it("links a known goal at or above the threshold", () => {
-    expect(chooseLink({ thoughtId: "g1", confidence: 0.8 }, goals, 0.8)).toEqual({ thoughtId: "g1", confidence: 0.8 });
+    expect(chooseLink({ thoughtId: "g1", confidence: 0.8 }, goals, 0.8)).toEqual({
+      thoughtId: "g1",
+      confidence: 0.8,
+    });
   });
   it("does not link below the threshold", () => {
     expect(chooseLink({ thoughtId: "g1", confidence: 0.79 }, goals, 0.8)).toBeNull();

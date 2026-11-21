@@ -19,11 +19,7 @@
  * slot: a second account must never be handed the first account's token.
  */
 
-import {
-  accountCredential,
-  credentialAccounts,
-  credentialString,
-} from "@mind/core";
+import { accountCredential, credentialAccounts, credentialString } from "@mind/core";
 import type { CredentialAccount } from "@mind/core";
 import { AdapterNotConfiguredError } from "../errors.js";
 import { requestJson } from "@mind/core";
@@ -43,13 +39,9 @@ const cachedTokens = new Map<string, { value: string; expiresAt: number }>();
 
 /** The configured account, or a default placeholder so env-only setups work. */
 function googleAccount(label = "default"): CredentialAccount | undefined {
-  const configured = credentialAccounts("google").find(
-    (account) => account.label === label,
-  );
+  const configured = credentialAccounts("google").find((account) => account.label === label);
   if (configured) return configured;
-  return label === "default"
-    ? { label: "default", section: "google", config: {} }
-    : undefined;
+  return label === "default" ? { label: "default", section: "google", config: {} } : undefined;
 }
 
 /** Labels of every Google account with a refresh token configured. */
@@ -57,22 +49,14 @@ export function googleAccountLabels(): string[] {
   const labels = credentialAccounts("google")
     .filter(
       (account) =>
-        accountCredential(
-          account,
-          "refreshToken",
-          "MIND_GOOGLE_REFRESH_TOKEN",
-        ) !== undefined,
+        accountCredential(account, "refreshToken", "MIND_GOOGLE_REFRESH_TOKEN") !== undefined,
     )
     .map((account) => account.label);
   if (labels.length > 0) return labels;
-  return credentialString("google", "refreshToken", "MIND_GOOGLE_REFRESH_TOKEN")
-    ? ["default"]
-    : [];
+  return credentialString("google", "refreshToken", "MIND_GOOGLE_REFRESH_TOKEN") ? ["default"] : [];
 }
 
-export function googleCredentials(
-  label = "default",
-): GoogleCredentials | undefined {
+export function googleCredentials(label = "default"): GoogleCredentials | undefined {
   const account = googleAccount(label);
   if (!account) return undefined;
 
@@ -87,11 +71,7 @@ export function googleCredentials(
       ? credentialString("google", "clientSecret", "MIND_GOOGLE_CLIENT_SECRET")
       : undefined);
   const refreshToken =
-    accountCredential(
-      account,
-      "refreshToken",
-      "MIND_GOOGLE_REFRESH_TOKEN",
-    ) ??
+    accountCredential(account, "refreshToken", "MIND_GOOGLE_REFRESH_TOKEN") ??
     (account.label === "default"
       ? credentialString("google", "refreshToken", "MIND_GOOGLE_REFRESH_TOKEN")
       : undefined);
@@ -101,14 +81,9 @@ export function googleCredentials(
 }
 
 /** Returns a bearer token, throwing AdapterNotConfiguredError when unconfigured. */
-export async function googleAccessToken(
-  credentials = googleCredentials(),
-): Promise<string> {
+export async function googleAccessToken(credentials = googleCredentials()): Promise<string> {
   if (!credentials) {
-    throw new AdapterNotConfiguredError(
-      "google",
-      "clientId/clientSecret/refreshToken",
-    );
+    throw new AdapterNotConfiguredError("google", "clientId/clientSecret/refreshToken");
   }
 
   const cacheKey = `${credentials.clientId}:${credentials.refreshToken}`;

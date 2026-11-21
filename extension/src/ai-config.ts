@@ -113,29 +113,20 @@ export async function configureAiProvider(): Promise<void> {
 
   const classifyModel = await vscode.window.showInputBox({
     title: "Classifier model (fast/cheap calls)",
-    value:
-      picked.provider === current.provider
-        ? current.classifyModel
-        : picked.defaultModel,
+    value: picked.provider === current.provider ? current.classifyModel : picked.defaultModel,
   });
   if (classifyModel === undefined) return;
 
   const draftModel = await vscode.window.showInputBox({
     title: "Draft model (reply generation)",
-    value:
-      picked.provider === current.provider
-        ? current.draftModel
-        : picked.defaultModel,
+    value: picked.provider === current.provider ? current.draftModel : picked.defaultModel,
   });
   if (draftModel === undefined) return;
 
   let baseURL: string | undefined;
   if (picked.provider === "ollama" || picked.provider === "openai-compatible") {
     baseURL = await vscode.window.showInputBox({
-      title:
-        picked.provider === "ollama"
-          ? "Ollama base URL"
-          : "OpenAI-compatible base URL",
+      title: picked.provider === "ollama" ? "Ollama base URL" : "OpenAI-compatible base URL",
       value:
         picked.provider === current.provider
           ? current.baseURL
@@ -182,19 +173,14 @@ export async function configureAiProvider(): Promise<void> {
  * Clicking it opens the same picker as the command palette entry.
  */
 export function createAiStatusBarItem(): vscode.StatusBarItem {
-  const item = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Right,
-    90,
-  );
+  const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
   item.command = "mind.ai.configure";
   item.tooltip = "mind: click to change AI provider / model";
   item.show();
   return item;
 }
 
-export async function refreshAiStatusBarItem(
-  item: vscode.StatusBarItem,
-): Promise<void> {
+export async function refreshAiStatusBarItem(item: vscode.StatusBarItem): Promise<void> {
   try {
     const current = await apiFetch<AiConfigResponse>("/admin/ai-config");
     const icon =

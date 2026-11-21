@@ -125,14 +125,14 @@ pip install piper-tts      # or any install that gives you a `piper` command
 
 Then open **Settings → Audio summary**:
 
-| Setting | What it does |
-| --- | --- |
-| Voice | A Piper voice name such as `en_US-lessac-medium` (language_REGION-name-quality). Samples: <https://rhasspy.github.io/piper-samples/>. Gender and accent are properties of the voice. |
-| Speed | 0.5 to 2. 1 is the voice's natural pace. |
-| Tone | `calm`, `neutral` or `upbeat`. Changes the greeting and how varied Piper's delivery is. |
-| Speaker number | Only for multi-speaker voices. |
-| Piper command | Default `python3 -m piper`. Split on spaces and run without a shell, so use `piper` if that is on your PATH. |
-| Download voices | When on, a voice that is not in `data/voices/` is downloaded once from [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) on huggingface.co. |
+| Setting         | What it does                                                                                                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Voice           | A Piper voice name such as `en_US-lessac-medium` (language_REGION-name-quality). Samples: <https://rhasspy.github.io/piper-samples/>. Gender and accent are properties of the voice. |
+| Speed           | 0.5 to 2. 1 is the voice's natural pace.                                                                                                                                             |
+| Tone            | `calm`, `neutral` or `upbeat`. Changes the greeting and how varied Piper's delivery is.                                                                                              |
+| Speaker number  | Only for multi-speaker voices.                                                                                                                                                       |
+| Piper command   | Default `python3 -m piper`. Split on spaces and run without a shell, so use `piper` if that is on your PATH.                                                                         |
+| Download voices | When on, a voice that is not in `data/voices/` is downloaded once from [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) on huggingface.co.                        |
 
 That download is the only network use audio adds, and it is off if you turn
 the setting off; then put the voice's `.onnx` and `.onnx.json` files in

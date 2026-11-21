@@ -65,4 +65,4 @@ signalActions:
     label: "Disavow sign-in…"
     kind: openLink
     linkPrefix: "https://accounts.google.com/AccountDisavow?adt="
-    confirm: "Open Google's \"I don't recognise this sign-in\" page (accounts.google.com) in your browser?"
+    confirm: 'Open Google''s "I don''t recognise this sign-in" page (accounts.google.com) in your browser?'

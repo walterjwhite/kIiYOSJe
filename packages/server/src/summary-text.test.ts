@@ -26,7 +26,10 @@ describe("buildSummary", () => {
 
   it("reports goals with their linked items and flags", () => {
     const text = buildSummary(
-      { ...base, goals: [{ title: "Ship the report", linked: 2, overdue: true, reviewDue: false }] },
+      {
+        ...base,
+        goals: [{ title: "Ship the report", linked: 2, overdue: true, reviewDue: false }],
+      },
       "neutral",
     );
     expect(text).toContain("You have 1 goal.");
@@ -52,7 +55,11 @@ describe("buildSummary", () => {
   it("never reads out a long message in full", () => {
     const long = "word ".repeat(200);
     const text = buildSummary(
-      { ...base, queue: { ...base.queue, now: 1 }, top: [{ sender: "a", summary: long, bucket: "now" }] },
+      {
+        ...base,
+        queue: { ...base.queue, now: 1 },
+        top: [{ sender: "a", summary: long, bucket: "now" }],
+      },
       "neutral",
     );
     expect(Math.max(...text.split("\n").map((l) => l.length))).toBeLessThan(140);

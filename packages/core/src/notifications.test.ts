@@ -2,11 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  DEFAULT_QUIET_PERIOD,
-  quietPeriodConfig,
-  writeQuietPeriodConfig,
-} from "./config.js";
+import { DEFAULT_QUIET_PERIOD, quietPeriodConfig, writeQuietPeriodConfig } from "./config.js";
 
 process.env["HOME"] = mkdtempSync(join(tmpdir(), "mind-notify-"));
 

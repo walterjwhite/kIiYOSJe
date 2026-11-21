@@ -17,18 +17,18 @@ class, not an integration.
 
 ## Components
 
-| Component | Responsibility | File |
-| --- | --- | --- |
-| Dedupe | unique `dedupeKey`, drop repeats before inference | `pipeline/src/dedupe.ts` |
-| Normalize | strip quotes/signatures, resolve participants | `pipeline/src/normalize.ts` |
-| Match | specificity-ordered Direction selection | `pipeline/src/match.ts` |
-| Classify | zod-validated structured output | `pipeline/src/classify.ts` |
-| Draft | Direction `standard` + `responsePrompt` guidance | `pipeline/src/draft.ts` |
-| Decide | posture → action/thought, send gates | `pipeline/src/decide.ts` |
-| Record | one action + one event per decision | `pipeline/src/ingest.ts` |
-| Directions loader | YAML → validated rows, hot reload | `pipeline/src/directions-loader.ts` |
-| Guards | rate, sensitive topic, new recipient | `pipeline/src/guards.ts` |
-| Learning loop | override-rate proposals, never auto-applied | `pipeline/src/learning-loop.ts` |
+| Component         | Responsibility                                    | File                                |
+| ----------------- | ------------------------------------------------- | ----------------------------------- |
+| Dedupe            | unique `dedupeKey`, drop repeats before inference | `pipeline/src/dedupe.ts`            |
+| Normalize         | strip quotes/signatures, resolve participants     | `pipeline/src/normalize.ts`         |
+| Match             | specificity-ordered Direction selection           | `pipeline/src/match.ts`             |
+| Classify          | zod-validated structured output                   | `pipeline/src/classify.ts`          |
+| Draft             | Direction `standard` + `responsePrompt` guidance  | `pipeline/src/draft.ts`             |
+| Decide            | posture → action/thought, send gates              | `pipeline/src/decide.ts`            |
+| Record            | one action + one event per decision               | `pipeline/src/ingest.ts`            |
+| Directions loader | YAML → validated rows, hot reload                 | `pipeline/src/directions-loader.ts` |
+| Guards            | rate, sensitive topic, new recipient              | `pipeline/src/guards.ts`            |
+| Learning loop     | override-rate proposals, never auto-applied       | `pipeline/src/learning-loop.ts`     |
 
 ## Data model
 
@@ -72,9 +72,9 @@ handles the signal so no message is silently dropped.
 
 ## Risks
 
-| Risk | Mitigation |
-| --- | --- |
-| Third-party API terms | documented APIs only (Gmail, Graph, Calendar); no unofficial clients |
-| Model non-determinism in seeds | demo data stores bodies, never pre-computed classifications |
-| Classifier over-confidence | `confidenceMin` per Direction plus override-rate auto-disable |
-| Single-file data loss | startup + daily `.backup()`, 14 kept |
+| Risk                           | Mitigation                                                           |
+| ------------------------------ | -------------------------------------------------------------------- |
+| Third-party API terms          | documented APIs only (Gmail, Graph, Calendar); no unofficial clients |
+| Model non-determinism in seeds | demo data stores bodies, never pre-computed classifications          |
+| Classifier over-confidence     | `confidenceMin` per Direction plus override-rate auto-disable        |
+| Single-file data loss          | startup + daily `.backup()`, 14 kept                                 |

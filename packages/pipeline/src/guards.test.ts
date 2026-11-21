@@ -48,10 +48,7 @@ function checkMaxPerThreadPerHour(
     .where(
       and(
         eq(signals.threadId, threadId),
-        or(
-          eq(signals.disposition, "absorbed"),
-          eq(signals.disposition, "new"),
-        ),
+        or(eq(signals.disposition, "absorbed"), eq(signals.disposition, "new")),
         gte(signals.receivedAt, oneHourAgo),
       ),
     )

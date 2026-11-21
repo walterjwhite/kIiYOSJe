@@ -10,11 +10,7 @@ import { directions, parseCommitment } from "@mind/core";
 import type { NewSignal } from "@mind/core";
 import { AdapterRegistry } from "./adapter-registry.js";
 import { ensureFallbackDirection } from "./fallback-direction.js";
-import {
-  ingest,
-  markThreadAwaitingReply,
-  type IngestOverrides,
-} from "./ingest.js";
+import { ingest, markThreadAwaitingReply, type IngestOverrides } from "./ingest.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = join(__dirname, "..", "..", "core", "migrations");
@@ -88,7 +84,11 @@ describe("ingest", () => {
     const row = db.select().from(schema.signals).get();
     expect(row?.body).not.toContain("old quoted text");
     expect(
-      db.select().from(schema.events).all().filter((e) => e.kind === "signal.processed"),
+      db
+        .select()
+        .from(schema.events)
+        .all()
+        .filter((e) => e.kind === "signal.processed"),
     ).toHaveLength(1);
   });
 
@@ -113,12 +113,10 @@ describe("ingest", () => {
 
   it("escalates below the confidence floor and pins the thought active", async () => {
     const db = setup("surface", 0.99);
-    const result = await ingest(
-      db,
-      signal,
-      new AdapterRegistry(),
-      { ...overrides(), classifierOutput: { ...classifier, confidence: 0.2 } },
-    );
+    const result = await ingest(db, signal, new AdapterRegistry(), {
+      ...overrides(),
+      classifierOutput: { ...classifier, confidence: 0.2 },
+    });
 
     expect(result.disposition).toBe("escalated");
     expect(db.select().from(schema.thoughts).get()?.state).toBe("active");
@@ -206,9 +204,7 @@ describe("ingest", () => {
     expect(commitment?.status).toBe("changed");
     expect(commitment?.dueDate).toBe("2026-11-25T17:00:00.000Z");
     expect(commitment?.previousStates).toHaveLength(1);
-    expect(commitment?.previousStates[0]?.dueDate).toBe(
-      "2026-11-20T17:00:00.000Z",
-    );
+    expect(commitment?.previousStates[0]?.dueDate).toBe("2026-11-20T17:00:00.000Z");
     expect(
       db
         .select()
@@ -242,9 +238,7 @@ describe("ingest", () => {
     );
 
     expect(second.thoughtId).toBe(first.thoughtId);
-    const commitment = parseCommitment(
-      db.select().from(schema.thoughts).get()?.commitment ?? null,
-    );
+    const commitment = parseCommitment(db.select().from(schema.thoughts).get()?.commitment ?? null);
     expect(commitment?.status).toBe("proposed");
     expect(commitment?.previousStates).toHaveLength(0);
     expect(
@@ -259,12 +253,7 @@ describe("ingest", () => {
   it("marks a waiting thread answered when the other side replies", async () => {
     const db = setup("surface");
     const first = await ingest(db, signal, new AdapterRegistry(), overrides());
-    markThreadAwaitingReply(
-      db,
-      signal.threadId,
-      new Date().toISOString(),
-      first.thoughtId,
-    );
+    markThreadAwaitingReply(db, signal.threadId, new Date().toISOString(), first.thoughtId);
 
     await ingest(
       db,
@@ -370,40 +359,72 @@ describe("ingest", () => {
 
 describe("ingest auto-link", () => {
   const addGoal = (db: ReturnType<typeof setup>, id = "goal-1") =>
-    db.insert(schema.thoughts).values({ id, title: "Ship the report", body: "", state: "goal" }).run();
-  const linkedTo = (db: ReturnType<typeof setup>) => db.select().from(schema.signals).get()?.thoughtId;
+    db
+      .insert(schema.thoughts)
+      .values({ id, title: "Ship the report", body: "", state: "goal" })
+      .run();
+  const linkedTo = (db: ReturnType<typeof setup>) =>
+    db.select().from(schema.signals).get()?.thoughtId;
 
   it("links a queued signal to a goal when the model is confident enough", async () => {
     const db = setup("surface");
     addGoal(db);
-    await ingest(db, signal, new AdapterRegistry(), { ...overrides(), linkOutput: { thoughtId: "goal-1", confidence: 0.9 } });
+    await ingest(db, signal, new AdapterRegistry(), {
+      ...overrides(),
+      linkOutput: { thoughtId: "goal-1", confidence: 0.9 },
+    });
 
     expect(linkedTo(db)).toBe("goal-1");
-    const event = db.select().from(schema.events).all().find((e) => e.kind === "signal.thought_linked");
-    expect(JSON.parse(event!.payload)).toMatchObject({ thoughtId: "goal-1", auto: true, confidence: 0.9 });
+    const event = db
+      .select()
+      .from(schema.events)
+      .all()
+      .find((e) => e.kind === "signal.thought_linked");
+    expect(JSON.parse(event!.payload)).toMatchObject({
+      thoughtId: "goal-1",
+      auto: true,
+      confidence: 0.9,
+    });
   });
 
   it("leaves the signal on its own thought when confidence is below the threshold", async () => {
     const db = setup("surface");
     addGoal(db);
-    await ingest(db, signal, new AdapterRegistry(), { ...overrides(), linkOutput: { thoughtId: "goal-1", confidence: 0.6 } });
+    await ingest(db, signal, new AdapterRegistry(), {
+      ...overrides(),
+      linkOutput: { thoughtId: "goal-1", confidence: 0.6 },
+    });
 
     expect(linkedTo(db)).not.toBe("goal-1");
-    expect(db.select().from(schema.events).all().some((e) => e.kind === "signal.thought_linked")).toBe(false);
+    expect(
+      db
+        .select()
+        .from(schema.events)
+        .all()
+        .some((e) => e.kind === "signal.thought_linked"),
+    ).toBe(false);
   });
 
   it("ignores a goal id the model made up", async () => {
     const db = setup("surface");
     addGoal(db);
-    await ingest(db, signal, new AdapterRegistry(), { ...overrides(), linkOutput: { thoughtId: "invented", confidence: 1 } });
+    await ingest(db, signal, new AdapterRegistry(), {
+      ...overrides(),
+      linkOutput: { thoughtId: "invented", confidence: 1 },
+    });
 
     expect(linkedTo(db)).not.toBe("invented");
   });
 
   it("never links to a thought that is not a goal, even an active one", async () => {
     const db = setup("surface");
-    db.insert(schema.thoughts).values({ id: "seed-1", title: "x", body: "", state: "active" }).run();
-    await ingest(db, signal, new AdapterRegistry(), { ...overrides(), linkOutput: { thoughtId: "seed-1", confidence: 1 } });
+    db.insert(schema.thoughts)
+      .values({ id: "seed-1", title: "x", body: "", state: "active" })
+      .run();
+    await ingest(db, signal, new AdapterRegistry(), {
+      ...overrides(),
+      linkOutput: { thoughtId: "seed-1", confidence: 1 },
+    });
 
     expect(linkedTo(db)).not.toBe("seed-1");
   });

@@ -115,10 +115,9 @@ export class LearningsPanel extends SectionPanel {
 
   private async resolve(id: string, action: "accept" | "reject"): Promise<void> {
     try {
-      const result = await apiFetch<{ yamlChange?: string | null }>(
-        `/proposals/${id}/${action}`,
-        { method: "POST" },
-      );
+      const result = await apiFetch<{ yamlChange?: string | null }>(`/proposals/${id}/${action}`, {
+        method: "POST",
+      });
       if (action === "accept" && result.yamlChange) {
         vscode.window.showInformationMessage(`mind: ${result.yamlChange}`);
       }
@@ -158,7 +157,12 @@ export class LearningsPanel extends SectionPanel {
 
     const reclassRows = this.reclassifications
       .map((e) => {
-        let detail: { signalId?: string; fromDirectionId?: string; toDirectionId?: string; reason?: string } = {};
+        let detail: {
+          signalId?: string;
+          fromDirectionId?: string;
+          toDirectionId?: string;
+          reason?: string;
+        } = {};
         try {
           detail = JSON.parse(e.payload);
         } catch {

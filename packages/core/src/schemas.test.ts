@@ -29,15 +29,11 @@ describe("ClassifierOutputSchema", () => {
     expect(() =>
       ClassifierOutputSchema.parse({ ...CLASSIFICATION, signalKind: "incident" }),
     ).toThrow();
-    expect(() =>
-      ClassifierOutputSchema.parse({ ...CLASSIFICATION, urgency: "urgent" }),
-    ).toThrow();
+    expect(() => ClassifierOutputSchema.parse({ ...CLASSIFICATION, urgency: "urgent" })).toThrow();
   });
 
   it("rejects confidence outside 0-1", () => {
-    expect(() =>
-      ClassifierOutputSchema.parse({ ...CLASSIFICATION, confidence: 1.5 }),
-    ).toThrow();
+    expect(() => ClassifierOutputSchema.parse({ ...CLASSIFICATION, confidence: 1.5 })).toThrow();
   });
 });
 

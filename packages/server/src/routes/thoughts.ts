@@ -20,11 +20,7 @@ export function thoughtsRouter(db: Db) {
     let rows;
     if (state) {
       ThoughtStateSchema.parse(state);
-      rows = db
-        .select()
-        .from(thoughts)
-        .where(eq(thoughts.state, state))
-        .all();
+      rows = db.select().from(thoughts).where(eq(thoughts.state, state)).all();
     } else {
       rows = db.select().from(thoughts).all();
     }
@@ -63,20 +59,14 @@ export function thoughtsRouter(db: Db) {
     const body = c.req.valid("json");
     const now = new Date().toISOString();
 
-    const existing = db
-      .select()
-      .from(thoughts)
-      .where(eq(thoughts.id, id))
-      .get();
+    const existing = db.select().from(thoughts).where(eq(thoughts.id, id)).get();
 
     if (!existing) return c.json({ error: "Not found" }, 404);
 
     db.update(thoughts)
       .set({
         ...(body.state !== undefined ? { state: body.state } : {}),
-        ...(body.nextAction !== undefined
-          ? { nextAction: body.nextAction }
-          : {}),
+        ...(body.nextAction !== undefined ? { nextAction: body.nextAction } : {}),
         ...(body.reviewAt !== undefined ? { reviewAt: body.reviewAt } : {}),
         updatedAt: now,
       })

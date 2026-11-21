@@ -41,8 +41,20 @@ interface Detail {
     disputedReason: string | null;
     commitment: { text?: string; dueDate?: string | null; status?: string } | null;
   } | null;
-  direction: { id: string; name: string; posture: string; autonomy: string; standard: string } | null;
-  actions: Array<{ id: string; kind: string; status: string; createdAt: string; sentAt: string | null }>;
+  direction: {
+    id: string;
+    name: string;
+    posture: string;
+    autonomy: string;
+    standard: string;
+  } | null;
+  actions: Array<{
+    id: string;
+    kind: string;
+    status: string;
+    createdAt: string;
+    sentAt: string | null;
+  }>;
   events: Array<{ id: string; at: string; actor: string; kind: string; payload: string }>;
 }
 
@@ -132,7 +144,9 @@ export class QueueDetailPanel extends SectionPanel {
 
     const buttons = item.actions
       .filter((a) => a.kind !== "openLink" || a.linkAvailable !== false)
-      .map((a) => `<button data-action="itemAction" data-act="${esc(a.id)}">${esc(a.label)}</button>`)
+      .map(
+        (a) => `<button data-action="itemAction" data-act="${esc(a.id)}">${esc(a.label)}</button>`,
+      )
       .join("");
 
     const a = item.assessment;
@@ -148,7 +162,9 @@ export class QueueDetailPanel extends SectionPanel {
 
     const thread = d.thread
       .map(
-        (s) => `<div class="card"${s.current ? ' style="border-left: 3px solid var(--mind-accent);"' : ""}>
+        (
+          s,
+        ) => `<div class="card"${s.current ? ' style="border-left: 3px solid var(--mind-accent);"' : ""}>
           <div class="toolbar" style="margin-bottom: 4px;">
             <span class="badge">${esc(channelLabel(s.adapter, s.account))}</span>
             <strong>${esc(s.sender)}</strong>

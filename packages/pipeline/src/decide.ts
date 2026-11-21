@@ -4,11 +4,7 @@
  */
 
 import type { DirectionPosture, SignalDisposition } from "@mind/core";
-import {
-  DirectionPosture as P,
-  SignalDisposition as D,
-  globalSendEnabled,
-} from "@mind/core";
+import { DirectionPosture as P, SignalDisposition as D, globalSendEnabled } from "@mind/core";
 import type { ClassifierOutput } from "./classify.js";
 
 export interface DecideInput {
@@ -38,14 +34,7 @@ export type DecideOutcome =
   | { disposition: "filed"; shouldDraft: false; shouldSend: false };
 
 export function decide(input: DecideInput): DecideOutcome {
-  const {
-    posture,
-    autonomy,
-    adapterCanSend,
-    confidence,
-    confidenceMin,
-    guards,
-  } = input;
+  const { posture, autonomy, adapterCanSend, confidence, confidenceMin, guards } = input;
 
   // If confidence is below minimum, escalate regardless of posture.
   if (confidence < confidenceMin && posture !== P.escalate) {
@@ -79,10 +68,7 @@ export function decide(input: DecideInput): DecideOutcome {
   switch (posture) {
     case P.absorb: {
       const shouldSend =
-        autonomy === "send" &&
-        adapterCanSend &&
-        globalSendEnabled() &&
-        !guards.triggered;
+        autonomy === "send" && adapterCanSend && globalSendEnabled() && !guards.triggered;
       return { disposition: "absorbed", shouldDraft: true, shouldSend };
     }
 

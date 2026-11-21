@@ -62,7 +62,7 @@ export function ensureFallbackDirection(db: Db): void {
     .values({
       id: FALLBACK_DIRECTION_ID,
       name: "catch-all",
-      scopeKind: "topic",   // topic scope with empty value = matches everything
+      scopeKind: "topic", // topic scope with empty value = matches everything
       scopeValue: "",
       posture: "absorb",
       standard: STANDARD,

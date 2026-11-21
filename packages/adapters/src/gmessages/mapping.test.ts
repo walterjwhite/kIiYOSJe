@@ -62,9 +62,7 @@ describe("isGoogleMessagesRoom", () => {
 
 describe("phoneNumber", () => {
   it("extracts the number from a ghost mxid", () => {
-    expect(phoneNumber("@gmessages_15551234567:matrix.example")).toBe(
-      "15551234567",
-    );
+    expect(phoneNumber("@gmessages_15551234567:matrix.example")).toBe("15551234567");
   });
 
   it("returns null for a normal user", () => {
@@ -90,9 +88,7 @@ describe("roomLabel", () => {
 describe("isTextMessage", () => {
   it("accepts m.text and m.notice only", () => {
     expect(isTextMessage(event())).toBe(true);
-    expect(
-      isTextMessage(event({ content: { msgtype: "m.image", body: "x" } })),
-    ).toBe(false);
+    expect(isTextMessage(event({ content: { msgtype: "m.image", body: "x" } }))).toBe(false);
     expect(isTextMessage(event({ type: "m.reaction" }))).toBe(false);
   });
 });

@@ -78,9 +78,12 @@ describe("parsePlanDate", () => {
     expect(parsePlanDate(" 2026-11-19 ", TODAY)).toBe("2026-11-19");
     expect(parsePlanDate("2027-01-05", TODAY)).toBe("2027-01-05");
   });
-  it.each(["2026-11-18", "2026-02-30", "2026-13-01", "next week", "2026-1-5", ""])("rejects %j", (v) => {
-    expect(parsePlanDate(v, TODAY)).toBeUndefined();
-  });
+  it.each(["2026-11-18", "2026-02-30", "2026-13-01", "next week", "2026-1-5", ""])(
+    "rejects %j",
+    (v) => {
+      expect(parsePlanDate(v, TODAY)).toBeUndefined();
+    },
+  );
 });
 
 describe("groupByDate", () => {
@@ -89,6 +92,9 @@ describe("groupByDate", () => {
     const b = item("2026-11-20");
     const c = item("2026-11-22");
     const groups = groupByDate([a, b, c, item(null)]);
-    expect(groups.map((g) => [g.date, g.items.length])).toEqual([["2026-11-20", 1], ["2026-11-22", 2]]);
+    expect(groups.map((g) => [g.date, g.items.length])).toEqual([
+      ["2026-11-20", 1],
+      ["2026-11-22", 2],
+    ]);
   });
 });

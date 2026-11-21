@@ -51,19 +51,21 @@ describe("matchSignal", () => {
     const db = openTestDb();
     ensureFallbackDirection(db);
 
-    db.insert(directions).values({
-      id: "work/alice",
-      name: "alice",
-      scopeKind: "person",
-      scopeValue: "alice@example.com",
-      posture: "absorb",
-      standard: "Reply promptly.",
-      autonomy: "draft",
-      confidenceMin: 0.7,
-      guards: null,
-      enabled: true,
-      version: 1,
-    }).run();
+    db.insert(directions)
+      .values({
+        id: "work/alice",
+        name: "alice",
+        scopeKind: "person",
+        scopeValue: "alice@example.com",
+        posture: "absorb",
+        standard: "Reply promptly.",
+        autonomy: "draft",
+        confidenceMin: 0.7,
+        guards: null,
+        enabled: true,
+        version: 1,
+      })
+      .run();
 
     const result = matchSignal(db, signal);
     expect(result?.direction.id).toBe("work/alice");
@@ -75,19 +77,21 @@ describe("matchSignal", () => {
     const db = openTestDb();
     ensureFallbackDirection(db);
 
-    db.insert(directions).values({
-      id: "work/alice",
-      name: "alice",
-      scopeKind: "person",
-      scopeValue: "alice@example.com",
-      posture: "absorb",
-      standard: "Reply promptly.",
-      autonomy: "draft",
-      confidenceMin: 0.7,
-      guards: null,
-      enabled: false, // disabled
-      version: 1,
-    }).run();
+    db.insert(directions)
+      .values({
+        id: "work/alice",
+        name: "alice",
+        scopeKind: "person",
+        scopeValue: "alice@example.com",
+        posture: "absorb",
+        standard: "Reply promptly.",
+        autonomy: "draft",
+        confidenceMin: 0.7,
+        guards: null,
+        enabled: false, // disabled
+        version: 1,
+      })
+      .run();
 
     const result = matchSignal(db, signal);
     // Falls back to catch-all since explicit direction is disabled.
@@ -98,19 +102,21 @@ describe("matchSignal", () => {
     const db = openTestDb();
     ensureFallbackDirection(db);
 
-    db.insert(directions).values({
-      id: "topic/report",
-      name: "reports",
-      scopeKind: "topic",
-      scopeValue: "quarterly report",
-      posture: "surface",
-      standard: "Surface for review.",
-      autonomy: "observe",
-      confidenceMin: 0.6,
-      guards: null,
-      enabled: true,
-      version: 1,
-    }).run();
+    db.insert(directions)
+      .values({
+        id: "topic/report",
+        name: "reports",
+        scopeKind: "topic",
+        scopeValue: "quarterly report",
+        posture: "surface",
+        standard: "Surface for review.",
+        autonomy: "observe",
+        confidenceMin: 0.6,
+        guards: null,
+        enabled: true,
+        version: 1,
+      })
+      .run();
 
     const result = matchSignal(db, signal);
     expect(result?.direction.id).toBe("topic/report");
@@ -123,20 +129,22 @@ describe("matchSignal", () => {
 
     // scopeValue is a keyword that won't appear verbatim in the signal body,
     // but matchPrompt lists a phrase that does (STATUS.md gap #12).
-    db.insert(directions).values({
-      id: "topic/status-update",
-      name: "status updates",
-      scopeKind: "topic",
-      scopeValue: "status-update-keyword-not-present",
-      posture: "surface",
-      standard: "Surface for review.",
-      autonomy: "observe",
-      confidenceMin: 0.6,
-      guards: null,
-      matchPrompt: "review the quarterly report, send a status update",
-      enabled: true,
-      version: 1,
-    }).run();
+    db.insert(directions)
+      .values({
+        id: "topic/status-update",
+        name: "status updates",
+        scopeKind: "topic",
+        scopeValue: "status-update-keyword-not-present",
+        posture: "surface",
+        standard: "Surface for review.",
+        autonomy: "observe",
+        confidenceMin: 0.6,
+        guards: null,
+        matchPrompt: "review the quarterly report, send a status update",
+        enabled: true,
+        version: 1,
+      })
+      .run();
 
     const result = matchSignal(db, signal);
     expect(result?.direction.id).toBe("topic/status-update");
@@ -147,20 +155,22 @@ describe("matchSignal", () => {
     const db = openTestDb();
     ensureFallbackDirection(db);
 
-    db.insert(directions).values({
-      id: "topic/unrelated",
-      name: "unrelated",
-      scopeKind: "topic",
-      scopeValue: "nope",
-      posture: "surface",
-      standard: "Surface for review.",
-      autonomy: "observe",
-      confidenceMin: 0.6,
-      guards: null,
-      matchPrompt: "totally unrelated phrase, something else entirely",
-      enabled: true,
-      version: 1,
-    }).run();
+    db.insert(directions)
+      .values({
+        id: "topic/unrelated",
+        name: "unrelated",
+        scopeKind: "topic",
+        scopeValue: "nope",
+        posture: "surface",
+        standard: "Surface for review.",
+        autonomy: "observe",
+        confidenceMin: 0.6,
+        guards: null,
+        matchPrompt: "totally unrelated phrase, something else entirely",
+        enabled: true,
+        version: 1,
+      })
+      .run();
 
     const result = matchSignal(db, signal);
     expect(result?.direction.id).toBe(FALLBACK_DIRECTION_ID);

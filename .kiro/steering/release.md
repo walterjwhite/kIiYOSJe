@@ -1,17 +1,17 @@
 ---
-inclusion: auto
----
+
+## inclusion: auto
 
 # Release
 
 ## Artifacts
 
-| Artifact | Built by | Notes |
-| --- | --- | --- |
-| Server archive `mind-server-<tag>.tgz` | `release.yml` | compiled `dist/`, migrations, manifests, LICENSE |
-| VSIX `mind-vscode-<version>.vsix` | `scripts/build-extension.sh` | ships `extension/LICENSE` as `LICENSE.txt` |
-| SBOM `mind-<tag>.sbom.cdx.json` | `npm sbom` | production dependencies |
-| `SHA256SUMS` + build provenance attestation | `release.yml` | verify with `gh attestation verify` |
+| Artifact                                    | Built by                     | Notes                                            |
+| ------------------------------------------- | ---------------------------- | ------------------------------------------------ |
+| Server archive `mind-server-<tag>.tgz`      | `release.yml`                | compiled `dist/`, migrations, manifests, LICENSE |
+| VSIX `mind-vscode-<version>.vsix`           | `scripts/build-extension.sh` | ships `extension/LICENSE` as `LICENSE.txt`       |
+| SBOM `mind-<tag>.sbom.cdx.json`             | `npm sbom`                   | production dependencies                          |
+| `SHA256SUMS` + build provenance attestation | `release.yml`                | verify with `gh attestation verify`              |
 
 ## Versioning
 

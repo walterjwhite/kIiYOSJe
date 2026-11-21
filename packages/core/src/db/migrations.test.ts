@@ -6,12 +6,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { getRawDb, openDb } from "./client.js";
 
-const MIGRATIONS_DIR = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "migrations",
-);
+const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "migrations");
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const NEW_MIGRATION = "0003";
 
@@ -87,16 +82,8 @@ describe("0003 iso timestamps", () => {
   it("keeps rows and their foreign keys through the rebuild", () => {
     openDb(legacyDatabase());
     const raw = getRawDb();
-    const counts = [
-      "directions",
-      "thoughts",
-      "events",
-      "signals",
-      "actions",
-    ].map(
-      (table) =>
-        (raw.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number })
-          .n,
+    const counts = ["directions", "thoughts", "events", "signals", "actions"].map(
+      (table) => (raw.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n,
     );
 
     expect(counts).toEqual([1, 1, 1, 1, 1]);
@@ -115,9 +102,7 @@ describe("0003 iso timestamps", () => {
     openDb(legacyDatabase());
     const raw = getRawDb();
     raw
-      .prepare(
-        "INSERT INTO events (id, actor, kind, payload) VALUES ('e2','system','test','{}')",
-      )
+      .prepare("INSERT INTO events (id, actor, kind, payload) VALUES ('e2','system','test','{}')")
       .run();
     const row = raw.prepare("SELECT at FROM events WHERE id = 'e2'").get() as {
       at: string;

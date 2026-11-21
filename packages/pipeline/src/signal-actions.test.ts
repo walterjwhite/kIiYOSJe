@@ -19,7 +19,9 @@ const link = (linkPrefix: string) =>
 
 describe("SignalActionSchema", () => {
   it("accepts acknowledge and an https openLink", () => {
-    expect(SignalActionSchema.safeParse({ id: "ack", label: "Ack", kind: "acknowledge" }).success).toBe(true);
+    expect(
+      SignalActionSchema.safeParse({ id: "ack", label: "Ack", kind: "acknowledge" }).success,
+    ).toBe(true);
     expect(link("https://accounts.google.com/AccountDisavow?adt=").success).toBe(true);
   });
 
@@ -34,12 +36,19 @@ describe("SignalActionSchema", () => {
   });
 
   it("rejects unknown kinds, so a YAML file cannot request arbitrary behaviour", () => {
-    expect(SignalActionSchema.safeParse({ id: "x", label: "X", kind: "shell", command: "rm -rf /" }).success).toBe(false);
+    expect(
+      SignalActionSchema.safeParse({ id: "x", label: "X", kind: "shell", command: "rm -rf /" })
+        .success,
+    ).toBe(false);
   });
 
   it("rejects duplicate action ids in a direction", () => {
     const r = DirectionConfigSchema.safeParse({
-      name: "d", scope: { kind: "topic", value: "v" }, posture: "surface", autonomy: "observe", standard: "s",
+      name: "d",
+      scope: { kind: "topic", value: "v" },
+      posture: "surface",
+      autonomy: "observe",
+      standard: "s",
       signalActions: [
         { id: "a", label: "A", kind: "acknowledge" },
         { id: "a", label: "B", kind: "acknowledge" },
@@ -55,7 +64,11 @@ describe("signalActions loading", () => {
     migrate(db, { migrationsFolder: MIGRATIONS_DIR });
     loadDirections(db, EXAMPLES_DIR);
 
-    const row = db.select().from(directions).all().find((d) => d.name === "google-signin-notice");
+    const row = db
+      .select()
+      .from(directions)
+      .all()
+      .find((d) => d.name === "google-signin-notice");
     const actions = JSON.parse(row!.signalActions!);
     expect(actions.map((a: { id: string }) => a.id)).toEqual(["acknowledge", "disavow"]);
     expect(actions[1]).toMatchObject({
@@ -80,6 +93,12 @@ signalActions:
     const db = drizzle(new Database(":memory:"), { schema });
     migrate(db, { migrationsFolder: MIGRATIONS_DIR });
     loadDirections(db, dir);
-    expect(db.select().from(directions).all().find((d) => d.name === "bad")).toBeUndefined();
+    expect(
+      db
+        .select()
+        .from(directions)
+        .all()
+        .find((d) => d.name === "bad"),
+    ).toBeUndefined();
   });
 });

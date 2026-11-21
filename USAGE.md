@@ -33,13 +33,13 @@ is authorized.
 
 Selection follows the usual list conventions.
 
-| Action | Result |
-| --- | --- |
-| Click | Clears the selection and opens or closes that item |
-| Ctrl/Cmd+click | Adds or removes that one item |
-| Shift+click | Selects every item between the last item you clicked and this one |
-| Ctrl/Cmd+Shift+click | Adds that range to the current selection |
-| Esc | Clears the selection |
+| Action               | Result                                                            |
+| -------------------- | ----------------------------------------------------------------- |
+| Click                | Clears the selection and opens or closes that item                |
+| Ctrl/Cmd+click       | Adds or removes that one item                                     |
+| Shift+click          | Selects every item between the last item you clicked and this one |
+| Ctrl/Cmd+Shift+click | Adds that range to the current selection                          |
+| Esc                  | Clears the selection                                              |
 
 When anything is selected, a bar appears above the list. Use it to plan the
 selected items for Today, Tomorrow or the Backlog, or to link them to a goal from

@@ -25,10 +25,7 @@ export interface GmailMessage {
 }
 
 export function header(headers: GmailPart["headers"], name: string): string {
-  return (
-    headers?.find((entry) => entry.name.toLowerCase() === name.toLowerCase())
-      ?.value ?? ""
-  );
+  return headers?.find((entry) => entry.name.toLowerCase() === name.toLowerCase())?.value ?? "";
 }
 
 /**
@@ -44,15 +41,9 @@ export function extractHtmlBody(part: GmailPart | undefined): string | undefined
   return findDecoded(part, "text/html");
 }
 
-function findDecoded(
-  part: GmailPart | undefined,
-  mimeType?: string,
-): string | undefined {
+function findDecoded(part: GmailPart | undefined, mimeType?: string): string | undefined {
   if (!part) return undefined;
-  if (
-    part.body?.data &&
-    (mimeType === undefined || part.mimeType === mimeType)
-  ) {
+  if (part.body?.data && (mimeType === undefined || part.mimeType === mimeType)) {
     return Buffer.from(part.body.data, "base64url").toString("utf8");
   }
   for (const child of part.parts ?? []) {
@@ -79,13 +70,8 @@ export function toSignal(
 ): NewSignal {
   const headers = message.payload?.headers;
   const from = header(headers, "from");
-  const receivedAt = message.internalDate
-    ? new Date(Number(message.internalDate))
-    : new Date();
-  const messageId = header(headers, "message-id")
-    .trim()
-    .replace(/^<|>$/g, "")
-    .toLowerCase();
+  const receivedAt = message.internalDate ? new Date(Number(message.internalDate)) : new Date();
+  const messageId = header(headers, "message-id").trim().replace(/^<|>$/g, "").toLowerCase();
   const cc = parseAddresses(header(headers, "cc"));
   const bcc = parseAddresses(header(headers, "bcc"));
   const htmlBody = extractHtmlBody(message.payload);

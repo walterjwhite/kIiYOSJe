@@ -76,9 +76,7 @@ export interface CoverageOptions {
 
 /** UTC Monday 00:00 of the week containing `date`. */
 export function mondayOf(date: Date): Date {
-  const day = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-  );
+  const day = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   const sinceMonday = (day.getUTCDay() + 6) % 7; // 0 = Monday
   day.setUTCDate(day.getUTCDate() - sinceMonday);
   return day;
@@ -143,27 +141,16 @@ export function weeklyCoverage(
     // curve move; not an audit of when coverage changed.
     const weekEnd = firstMonday + (i + 1) * WEEK_MS;
     bucket.directions = input.directions.filter(
-      (direction) =>
-        direction.enabled && Date.parse(direction.createdAt) < weekEnd,
+      (direction) => direction.enabled && Date.parse(direction.createdAt) < weekEnd,
     ).length;
-    bucket.absorbRate =
-      bucket.signals > 0
-        ? +(bucket.absorbed / bucket.signals).toFixed(4)
-        : null;
-    bucket.ratio =
-      bucket.thoughts > 0
-        ? +(bucket.signals / bucket.thoughts).toFixed(2)
-        : null;
-    bucket.meetsTarget =
-      bucket.absorbRate !== null && bucket.absorbRate >= target;
+    bucket.absorbRate = bucket.signals > 0 ? +(bucket.absorbed / bucket.signals).toFixed(4) : null;
+    bucket.ratio = bucket.thoughts > 0 ? +(bucket.signals / bucket.thoughts).toFixed(2) : null;
+    bucket.meetsTarget = bucket.absorbRate !== null && bucket.absorbRate >= target;
   }
 
   const signals = buckets.reduce((sum, b) => sum + b.signals, 0);
   const absorbed = buckets.reduce((sum, b) => sum + b.absorbed, 0);
-  const absorbedUnanswered = buckets.reduce(
-    (sum, b) => sum + b.absorbedUnanswered,
-    0,
-  );
+  const absorbedUnanswered = buckets.reduce((sum, b) => sum + b.absorbedUnanswered, 0);
   const thoughts = buckets.reduce((sum, b) => sum + b.thoughts, 0);
   const absorbRate = signals > 0 ? +(absorbed / signals).toFixed(4) : null;
 

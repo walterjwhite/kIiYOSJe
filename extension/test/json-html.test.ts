@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { jsonTextToHtml, jsonToHtml } from "../src/json-html.js";
 
-const strip = (html: string) => html.replace(/<[^>]+>/g, "").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+const strip = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, "")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 
 describe("jsonToHtml", () => {
   it("wraps each token type in its own class", () => {

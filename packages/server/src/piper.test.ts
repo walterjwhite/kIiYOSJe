@@ -12,12 +12,24 @@ import {
 } from "./piper.js";
 
 const DIR = "/voices";
-const settings = (over: Partial<AudioSettings> = {}): AudioSettings => ({ ...DEFAULT_AUDIO_SETTINGS, ...over });
+const settings = (over: Partial<AudioSettings> = {}): AudioSettings => ({
+  ...DEFAULT_AUDIO_SETTINGS,
+  ...over,
+});
 
 /** An in-memory filesystem and a scriptable process, so nothing real is touched. */
-function fakeIo(opts: { files?: string[]; run?: (args: readonly string[], stdin: string) => RunResult | Error; failDownload?: boolean } = {}) {
+function fakeIo(
+  opts: {
+    files?: string[];
+    run?: (args: readonly string[], stdin: string) => RunResult | Error;
+    failDownload?: boolean;
+  } = {},
+) {
   const files = new Set(opts.files ?? []);
-  const log = { downloads: [] as string[], runs: [] as { file: string; args: readonly string[]; stdin: string }[] };
+  const log = {
+    downloads: [] as string[],
+    runs: [] as { file: string; args: readonly string[]; stdin: string }[],
+  };
   const io: PiperIo = {
     exists: (p) => files.has(p),
     mkdirp: () => undefined,
@@ -45,7 +57,10 @@ function fakeIo(opts: { files?: string[]; run?: (args: readonly string[], stdin:
 
 describe("parsePiperCommand", () => {
   it("splits a command into a program and its arguments", () => {
-    expect(parsePiperCommand("python3 -m piper")).toEqual({ file: "python3", args: ["-m", "piper"] });
+    expect(parsePiperCommand("python3 -m piper")).toEqual({
+      file: "python3",
+      args: ["-m", "piper"],
+    });
     expect(parsePiperCommand("  piper ")).toEqual({ file: "piper", args: [] });
   });
   it("rejects an empty command", () => {
@@ -58,14 +73,19 @@ describe("voiceUrls", () => {
     expect(voiceUrls("en_US-lessac-medium").onnx).toBe(
       "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx",
     );
-    expect(voiceUrls("de_DE-thorsten_emotional-medium").config).toMatch(/de\/de_DE\/thorsten_emotional\/medium\/.*\.onnx\.json$/);
+    expect(voiceUrls("de_DE-thorsten_emotional-medium").config).toMatch(
+      /de\/de_DE\/thorsten_emotional\/medium\/.*\.onnx\.json$/,
+    );
   });
-  it.each(["../../etc/passwd", "en_US-lessac", "en_US-lessac-medium/../x", "http://evil/x-y-low", ""])(
-    "rejects %j so a name cannot become a path or host",
-    (name) => {
-      expect(() => voiceUrls(name)).toThrow(PiperError);
-    },
-  );
+  it.each([
+    "../../etc/passwd",
+    "en_US-lessac",
+    "en_US-lessac-medium/../x",
+    "http://evil/x-y-low",
+    "",
+  ])("rejects %j so a name cannot become a path or host", (name) => {
+    expect(() => voiceUrls(name)).toThrow(PiperError);
+  });
 });
 
 describe("piperArgs", () => {
@@ -86,7 +106,9 @@ describe("piperArgs", () => {
 
 describe("ensureVoice", () => {
   it("does not touch the network when the voice is already on disk", async () => {
-    const { io, log } = fakeIo({ files: [`${DIR}/en_US-lessac-medium.onnx`, `${DIR}/en_US-lessac-medium.onnx.json`] });
+    const { io, log } = fakeIo({
+      files: [`${DIR}/en_US-lessac-medium.onnx`, `${DIR}/en_US-lessac-medium.onnx.json`],
+    });
     expect(await ensureVoice(settings(), DIR, io)).toBe(`${DIR}/en_US-lessac-medium.onnx`);
     expect(log.downloads).toEqual([]);
   });
@@ -101,13 +123,17 @@ describe("ensureVoice", () => {
 
   it("refuses to download when automatic download is off", async () => {
     const { io, log } = fakeIo();
-    await expect(ensureVoice(settings({ autoDownload: false }), DIR, io)).rejects.toMatchObject({ code: "voice_missing" });
+    await expect(ensureVoice(settings({ autoDownload: false }), DIR, io)).rejects.toMatchObject({
+      code: "voice_missing",
+    });
     expect(log.downloads).toEqual([]);
   });
 
   it("cleans up and reports a failed download", async () => {
     const { io, files } = fakeIo({ failDownload: true });
-    await expect(ensureVoice(settings(), DIR, io)).rejects.toMatchObject({ code: "download_failed" });
+    await expect(ensureVoice(settings(), DIR, io)).rejects.toMatchObject({
+      code: "download_failed",
+    });
     expect(files.size).toBe(0);
   });
 });
@@ -127,12 +153,19 @@ describe("renderSpeech", () => {
   it("reports a missing Piper with install guidance", async () => {
     const err = Object.assign(new Error("spawn piper ENOENT"), { code: "ENOENT" });
     const { io } = fakeIo({ files: ready, run: () => err });
-    await expect(renderSpeech("hi", settings(), DIR, "/out/day.wav", io)).rejects.toMatchObject({ code: "piper_not_found" });
+    await expect(renderSpeech("hi", settings(), DIR, "/out/day.wav", io)).rejects.toMatchObject({
+      code: "piper_not_found",
+    });
   });
 
   it("reports a non-zero exit with the tail of stderr and keeps no output", async () => {
-    const { io, files } = fakeIo({ files: ready, run: () => ({ code: 2, stderr: "boom\nbad flag --length-scale" }) });
-    await expect(renderSpeech("hi", settings(), DIR, "/out/day.wav", io)).rejects.toThrow(/code 2.*bad flag/);
+    const { io, files } = fakeIo({
+      files: ready,
+      run: () => ({ code: 2, stderr: "boom\nbad flag --length-scale" }),
+    });
+    await expect(renderSpeech("hi", settings(), DIR, "/out/day.wav", io)).rejects.toThrow(
+      /code 2.*bad flag/,
+    );
     expect(files.has("/out/day.wav")).toBe(false);
   });
 });

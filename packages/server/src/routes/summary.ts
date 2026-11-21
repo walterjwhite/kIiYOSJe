@@ -51,7 +51,12 @@ export function buildSummaryInput(db: Db, now: Date): SummaryInput {
     db
       .select({ count: sql<number>`count(*)` })
       .from(signals)
-      .where(and(sql`${signals.receivedAt} >= ${start.toISOString()}`, eq(signals.disposition, "absorbed")))
+      .where(
+        and(
+          sql`${signals.receivedAt} >= ${start.toISOString()}`,
+          eq(signals.disposition, "absorbed"),
+        ),
+      )
       .get()?.count ?? 0;
 
   return {
@@ -75,13 +80,21 @@ export function buildSummaryInput(db: Db, now: Date): SummaryInput {
 const wavPath = () => join(audioDir(), "summary.wav");
 const textPath = () => join(audioDir(), "summary.txt");
 
-export function summaryRouter(db: Db, io: PiperIo = nodePiperIo, clock: () => Date = () => new Date()) {
+export function summaryRouter(
+  db: Db,
+  io: PiperIo = nodePiperIo,
+  clock: () => Date = () => new Date(),
+) {
   const app = new Hono();
 
   const transcript = () => {
     const settings = audioSettings();
     const input = buildSummaryInput(db, clock());
-    return { settings, text: buildSummary(input, settings.tone), absorbedToday: input.absorbedToday };
+    return {
+      settings,
+      text: buildSummary(input, settings.tone),
+      absorbedToday: input.absorbedToday,
+    };
   };
 
   app.get("/", (c) => {
@@ -124,7 +137,10 @@ export function summaryRouter(db: Db, io: PiperIo = nodePiperIo, clock: () => Da
 
   app.get("/audio", (c) => {
     if (!existsSync(wavPath())) return c.json({ error: "No audio has been rendered yet" }, 404);
-    return c.body(readFileSync(wavPath()), 200, { "Content-Type": "audio/wav", "Cache-Control": "no-store" });
+    return c.body(readFileSync(wavPath()), 200, {
+      "Content-Type": "audio/wav",
+      "Cache-Control": "no-store",
+    });
   });
 
   return app;

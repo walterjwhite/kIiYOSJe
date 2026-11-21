@@ -10,12 +10,7 @@
 
 import { adapterIdForAccount, accountAddress, credentialAccounts } from "@mind/core";
 import { logger, operatorAddresses } from "@mind/core";
-import type {
-  Adapter,
-  NewSignal,
-  OutboundDraft,
-  SendResult,
-} from "@mind/core";
+import type { Adapter, NewSignal, OutboundDraft, SendResult } from "@mind/core";
 import { isNotConfigured } from "../errors.js";
 import { googleAccessTokenFor, googleAccountLabels } from "../google/auth.js";
 import { GmailClient } from "./client.js";
@@ -26,11 +21,9 @@ const QUERY = "is:unread newer_than:1d";
 
 /** The address to send from: the account's own, else the first configured one. */
 function selfAddressFor(account: string): string {
-  const configured = credentialAccounts("google").find(
-    (entry) => entry.label === account,
-  );
+  const configured = credentialAccounts("google").find((entry) => entry.label === account);
   const own = configured ? accountAddress(configured) : undefined;
-  return own ?? (account === "default" ? operatorAddresses()[0] ?? "" : "");
+  return own ?? (account === "default" ? (operatorAddresses()[0] ?? "") : "");
 }
 
 export class GmailAdapter implements Adapter {
@@ -53,12 +46,7 @@ export class GmailAdapter implements Adapter {
     this.pollMs = pollMs;
     this.selfAddress = selfAddress;
     this.client =
-      client ??
-      new GmailClient(
-        () => googleAccessTokenFor(account),
-        undefined,
-        selfAddress,
-      );
+      client ?? new GmailClient(() => googleAccessTokenFor(account), undefined, selfAddress);
   }
 
   /** One adapter per configured Google account; one idle adapter if none. */
@@ -72,13 +60,7 @@ export class GmailAdapter implements Adapter {
     const poll = async (): Promise<void> => {
       try {
         for (const id of await this.client.listMessageIds(QUERY)) {
-          sink(
-            toSignal(
-              await this.client.getMessage(id),
-              this.selfAddress,
-              this.account,
-            ),
-          );
+          sink(toSignal(await this.client.getMessage(id), this.selfAddress, this.account));
         }
       } catch (err) {
         if (isNotConfigured(err)) {
@@ -97,10 +79,7 @@ export class GmailAdapter implements Adapter {
 
     await poll();
     this.timer = setInterval(() => void poll(), this.pollMs);
-    logger.info(
-      { adapter: this.id, account: this.account },
-      "gmail adapter started",
-    );
+    logger.info({ adapter: this.id, account: this.account }, "gmail adapter started");
   }
 
   async stop(): Promise<void> {

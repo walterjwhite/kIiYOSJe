@@ -24,10 +24,7 @@ export interface JsonRequest {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-export async function requestJson<T>(
-  url: string,
-  request: JsonRequest = {},
-): Promise<T> {
+export async function requestJson<T>(url: string, request: JsonRequest = {}): Promise<T> {
   const body =
     request.json !== undefined
       ? JSON.stringify(request.json)

@@ -121,21 +121,24 @@ export async function ingest(
   // ── 4. Classify ──────────────────────────────────────────────────────────
   if (overrides?.classifierOutput) aiSkipped["classify"] = "override supplied";
   else if (!aiOn) aiSkipped["classify"] = "no AI provider configured";
-  const classifierOut = overrides?.classifierOutput ?? await classify({
-    signalBody: normalizedBody,
-    sender: signal.sender,
-    standard: match?.direction.standard ?? null,
-    receivedAt: signal.receivedAt,
-    matchPrompt: match?.direction.matchPrompt ?? null,
-    onTrace: (t) => aiCalls.push(t),
-  });
+  const classifierOut =
+    overrides?.classifierOutput ??
+    (await classify({
+      signalBody: normalizedBody,
+      sender: signal.sender,
+      standard: match?.direction.standard ?? null,
+      receivedAt: signal.receivedAt,
+      matchPrompt: match?.direction.matchPrompt ?? null,
+      onTrace: (t) => aiCalls.push(t),
+    }));
 
   // ── 4b. Compute escalation deadline ──────────────────────────────────────
   const escalateBy = computeEscalateBy(classifierOut, signal.receivedAt);
 
   // ── 4d. Transform (optional display rewrite, never changes routing) ──────
   if (overrides?.transformedSummary !== undefined) aiSkipped["transform"] = "override supplied";
-  else if (!match?.direction.transformPrompt) aiSkipped["transform"] = "direction has no transformPrompt";
+  else if (!match?.direction.transformPrompt)
+    aiSkipped["transform"] = "direction has no transformPrompt";
   else if (!aiOn) aiSkipped["transform"] = "no AI provider configured";
   const transformedSummary =
     overrides?.transformedSummary !== undefined
@@ -158,14 +161,11 @@ export async function ingest(
   // replaces it — and the replacement keeps the old state in previousStates.
   // The failure this prevents: two competing dates, two reminders, no way to
   // tell which promise is dead.
-  const open = signal.threadId
-    ? findOpenCommitmentInThread(db, signal.threadId)
-    : null;
+  const open = signal.threadId ? findOpenCommitmentInThread(db, signal.threadId) : null;
 
   let commitment: Commitment | null = null;
   let commitmentThoughtId: string | null = null;
-  let commitmentEvent: { kind: string; payload: Record<string, unknown> } | null =
-    null;
+  let commitmentEvent: { kind: string; payload: Record<string, unknown> } | null = null;
 
   if (classifierOut.commitment) {
     const incoming = newCommitment({
@@ -180,8 +180,7 @@ export async function ingest(
       commitment = incoming;
     } else if (
       sameCommitmentText(open.commitment.text, incoming.text) &&
-      (incoming.dueDate === null ||
-        incoming.dueDate === open.commitment.dueDate)
+      (incoming.dueDate === null || incoming.dueDate === open.commitment.dueDate)
     ) {
       commitment = verifyCommitment(open.commitment, now);
       commitmentThoughtId = open.thoughtId;
@@ -250,11 +249,7 @@ export async function ingest(
   let thoughtId: string | null = null;
 
   if (commitmentThoughtId) {
-    const existing = db
-      .select()
-      .from(thoughts)
-      .where(eq(thoughts.id, commitmentThoughtId))
-      .get();
+    const existing = db.select().from(thoughts).where(eq(thoughts.id, commitmentThoughtId)).get();
 
     if (existing) {
       thoughtId = existing.id;
@@ -268,9 +263,7 @@ export async function ingest(
                 escalateBy: commitment.dueDate,
               }
             : {}),
-          ...(disputed
-            ? { state: "disputed", disputedReason: classifierOut.answerBlocker }
-            : {}),
+          ...(disputed ? { state: "disputed", disputedReason: classifierOut.answerBlocker } : {}),
           updatedAt: now,
         })
         .where(eq(thoughts.id, thoughtId))
@@ -280,9 +273,7 @@ export async function ingest(
 
   if (
     !thoughtId &&
-    (disposition === "promoted" ||
-      disposition === "escalated" ||
-      commitment !== null)
+    (disposition === "promoted" || disposition === "escalated" || commitment !== null)
   ) {
     thoughtId = newId();
     db.insert(thoughts)
@@ -290,11 +281,7 @@ export async function ingest(
         id: thoughtId,
         title: buildThoughtTitle(classifierOut, signal.sender),
         body: normalizedBody,
-        state: disputed
-          ? "disputed"
-          : disposition === "escalated"
-            ? "active"
-            : "seedling",
+        state: disputed ? "disputed" : disposition === "escalated" ? "active" : "seedling",
         directionId: match?.direction.id ?? null,
         nextAction: commitment?.text ?? classifierOut.commitment,
         reviewAt: commitment?.dueDate ?? null,
@@ -365,16 +352,17 @@ export async function ingest(
   // Absorbing one records it and stops: no draft, no Queue entry.
   if (match && disposition === "absorbed" && signal.kind !== "event") {
     const dir = match.direction;
-    const draftBody = overrides?.draftBody !== undefined
-      ? overrides.draftBody
-      : await draft({
-          senderBody: normalizedBody,
-          sender: signal.sender,
-          standard: dir.standard,
-          classifierOutput: classifierOut,
-          responsePrompt: dir.responsePrompt,
-          onTrace: (t) => aiCalls.push(t),
-        });
+    const draftBody =
+      overrides?.draftBody !== undefined
+        ? overrides.draftBody
+        : await draft({
+            senderBody: normalizedBody,
+            sender: signal.sender,
+            standard: dir.standard,
+            classifierOutput: classifierOut,
+            responsePrompt: dir.responsePrompt,
+            onTrace: (t) => aiCalls.push(t),
+          });
     if (overrides?.draftBody !== undefined) aiSkipped["draft"] = "override supplied";
     else if (!aiOn) aiSkipped["draft"] = "no AI provider configured";
 
@@ -383,10 +371,7 @@ export async function ingest(
     if (draftBody === null || draftBody.trim() === "") {
       disposition = "filed";
       reason = "drafter not configured";
-      db.update(signals)
-        .set({ disposition })
-        .where(eq(signals.id, signalId))
-        .run();
+      db.update(signals).set({ disposition }).where(eq(signals.id, signalId)).run();
     } else {
       actionId = newId();
       const outbound: OutboundDraft = {
@@ -414,12 +399,7 @@ export async function ingest(
       // was engaged while the draft was being generated. An empty draft is
       // never sent: it stays proposed for the operator.
       const sender = adapters.get(signal.adapter);
-      if (
-        shouldSend &&
-        sender?.send &&
-        outbound.body.trim() !== "" &&
-        globalSendEnabled()
-      ) {
+      if (shouldSend && sender?.send && outbound.body.trim() !== "" && globalSendEnabled()) {
         try {
           const result = await sender.send(outbound);
           db.update(actions)
@@ -444,10 +424,7 @@ export async function ingest(
             })
             .run();
         } catch (err) {
-          db.update(actions)
-            .set({ status: "failed" })
-            .where(eq(actions.id, actionId))
-            .run();
+          db.update(actions).set({ status: "failed" }).where(eq(actions.id, actionId)).run();
           db.insert(events)
             .values({
               id: newId(),
@@ -479,7 +456,8 @@ export async function ingest(
       .where(eq(thoughts.state, "goal"))
       .all();
     if (goals.length === 0) aiSkipped["link"] = "no goals to link to";
-    else if (overrides?.linkOutput === undefined && !aiOn) aiSkipped["link"] = "no AI provider configured";
+    else if (overrides?.linkOutput === undefined && !aiOn)
+      aiSkipped["link"] = "no AI provider configured";
     const proposed =
       overrides?.linkOutput !== undefined
         ? overrides.linkOutput
@@ -603,9 +581,7 @@ export function findOpenCommitmentInThread(
     })
     .from(signals)
     .innerJoin(thoughts, eq(thoughts.id, signals.thoughtId))
-    .where(
-      and(eq(signals.threadId, threadId), isNotNull(thoughts.commitment)),
-    )
+    .where(and(eq(signals.threadId, threadId), isNotNull(thoughts.commitment)))
     .orderBy(desc(signals.receivedAt))
     .limit(20)
     .all();
@@ -624,11 +600,7 @@ export function findOpenCommitmentInThread(
  * An inbound message from someone other than the operator closes every
  * outstanding wait in that thread. Returns the thread id when it did.
  */
-function markReplyReceived(
-  db: Db,
-  signal: NewSignal,
-  at: string,
-): string | null {
+function markReplyReceived(db: Db, signal: NewSignal, at: string): string | null {
   if (!signal.threadId) return null;
   const self = new Set(operatorAddresses().map((a) => a.toLowerCase()));
   if (self.has(signal.sender.toLowerCase())) return null;
@@ -678,16 +650,10 @@ export function markThreadAwaitingReply(
   thoughtId?: string | null,
 ): void {
   if (threadId) {
-    db.update(signals)
-      .set({ awaitingReplyAt: at })
-      .where(eq(signals.threadId, threadId))
-      .run();
+    db.update(signals).set({ awaitingReplyAt: at }).where(eq(signals.threadId, threadId)).run();
   }
   if (thoughtId) {
-    db.update(thoughts)
-      .set({ awaitingReplyAt: at })
-      .where(eq(thoughts.id, thoughtId))
-      .run();
+    db.update(thoughts).set({ awaitingReplyAt: at }).where(eq(thoughts.id, thoughtId)).run();
   }
 }
 
@@ -722,10 +688,7 @@ export function evaluateGuards(
       .where(
         and(
           eq(signals.threadId, signal.threadId),
-          or(
-            eq(signals.disposition, "absorbed"),
-            eq(signals.disposition, "new"),
-          ),
+          or(eq(signals.disposition, "absorbed"), eq(signals.disposition, "new")),
           gte(signals.receivedAt, oneHourAgo),
         ),
       )

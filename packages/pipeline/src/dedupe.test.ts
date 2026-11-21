@@ -10,13 +10,7 @@ import { dedupeKey, isDuplicate } from "./dedupe.js";
 import type { NewSignal } from "@mind/core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = join(
-  __dirname,
-  "..",
-  "..",
-  "core",
-  "migrations",
-);
+const MIGRATIONS_DIR = join(__dirname, "..", "..", "core", "migrations");
 
 function openTestDb() {
   const sqlite = new Database(":memory:");
@@ -44,9 +38,9 @@ describe("dedupeKey", () => {
   });
 
   it("prefers a provider-independent dedupeId when present", () => {
-    expect(
-      dedupeKey({ ...signal, dedupeId: "message-id:x@example.com" }),
-    ).toBe("message-id:x@example.com");
+    expect(dedupeKey({ ...signal, dedupeId: "message-id:x@example.com" })).toBe(
+      "message-id:x@example.com",
+    );
   });
 });
 

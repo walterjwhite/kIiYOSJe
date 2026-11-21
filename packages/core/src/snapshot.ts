@@ -16,12 +16,7 @@ import {
   statSync,
 } from "node:fs";
 import { join } from "node:path";
-import {
-  SERVER_HOST,
-  SERVER_PORT,
-  dbPath,
-  snapshotDir,
-} from "./config.js";
+import { SERVER_HOST, SERVER_PORT, dbPath, snapshotDir } from "./config.js";
 
 export type Snapshot = {
   label: string;
@@ -71,9 +66,7 @@ export async function restore(
   assertStopped: () => Promise<void> = assertServerStopped,
 ): Promise<{ restored: string; archived: string | null }> {
   await assertStopped();
-  const source = label.endsWith(".db")
-    ? label
-    : join(dir, `${safeLabel(label)}.db`);
+  const source = label.endsWith(".db") ? label : join(dir, `${safeLabel(label)}.db`);
   if (!existsSync(source)) {
     throw new Error(`no snapshot named ${label} (see mind snapshots)`);
   }

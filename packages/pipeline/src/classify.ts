@@ -9,12 +9,7 @@
  * provider, so classify() calls a real model out of the box at zero cost.
  */
 
-import {
-  ClassifierOutputSchema,
-  aiConfigured,
-  aiProvider,
-  logger,
-} from "@mind/core";
+import { ClassifierOutputSchema, aiConfigured, aiProvider, logger } from "@mind/core";
 import type { z } from "zod";
 import { generateStructured } from "./model.js";
 import type { ModelTrace } from "./model.js";

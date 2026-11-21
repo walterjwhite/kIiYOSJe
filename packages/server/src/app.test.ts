@@ -19,13 +19,7 @@ import { buildApp } from "./app.js";
 
 // Point to core's migrations
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = join(
-  __dirname,
-  "..",
-  "..",
-  "core",
-  "migrations",
-);
+const MIGRATIONS_DIR = join(__dirname, "..", "..", "core", "migrations");
 
 // Override the token for tests
 process.env["MIND_TEST_TOKEN"] = "test-token";
@@ -435,11 +429,7 @@ describe("/signals (list + reclassify)", () => {
     });
     expect(patchRes.status).toBe(200);
 
-    const updated = db
-      .select()
-      .from(schema.signals)
-      .where(eq(schema.signals.id, "sig-1"))
-      .get();
+    const updated = db.select().from(schema.signals).where(eq(schema.signals.id, "sig-1")).get();
     expect(updated?.directionId).toBe("dir-b");
 
     const eventsRes = await app.request("/events?kind=signal.reclassified", {
@@ -816,8 +806,20 @@ describe("/events (Journal)", () => {
 
     db.insert(schema.events)
       .values([
-        { id: "ev-recent", actor: "system", kind: "signal.processed", payload: "{}", at: twoHoursAgo },
-        { id: "ev-older", actor: "system", kind: "signal.processed", payload: "{}", at: sixHoursAgo },
+        {
+          id: "ev-recent",
+          actor: "system",
+          kind: "signal.processed",
+          payload: "{}",
+          at: twoHoursAgo,
+        },
+        {
+          id: "ev-older",
+          actor: "system",
+          kind: "signal.processed",
+          payload: "{}",
+          at: sixHoursAgo,
+        },
       ])
       .run();
 
@@ -877,7 +879,8 @@ describe("/proposals/insights (stored AI-generated narratives)", () => {
           kind: "learning.insight",
           payload: JSON.stringify({
             at: new Date().toISOString(),
-            insight: "Override rate rose because the boss direction matched unrelated status pings.",
+            insight:
+              "Override rate rose because the boss direction matched unrelated status pings.",
             proposalCount: 2,
           }),
         },

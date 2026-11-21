@@ -119,8 +119,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
     if (adapter) conditions.push(sql`${signals.adapter} = ${adapter}`);
     if (account) conditions.push(sql`${signals.account} = ${account}`);
 
-    const whereClause =
-      conditions.length > 0 ? sql.join(conditions, sql` and `) : undefined;
+    const whereClause = conditions.length > 0 ? sql.join(conditions, sql` and `) : undefined;
 
     const rows = whereClause
       ? db.select().from(signals).where(whereClause).orderBy(desc(signals.receivedAt)).all()
@@ -130,47 +129,40 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
   });
 
   // PATCH /signals/:id — reclassify to a different direction
-  app.patch(
-    "/:id",
-    zValidator("json", ReclassifySignalRequestSchema),
-    (c) => {
-      const { id } = c.req.param();
-      const { directionId, reason } = c.req.valid("json");
+  app.patch("/:id", zValidator("json", ReclassifySignalRequestSchema), (c) => {
+    const { id } = c.req.param();
+    const { directionId, reason } = c.req.valid("json");
 
-      const signal = db.select().from(signals).where(eq(signals.id, id)).get();
-      if (!signal) return c.json({ error: "Not found" }, 404);
+    const signal = db.select().from(signals).where(eq(signals.id, id)).get();
+    if (!signal) return c.json({ error: "Not found" }, 404);
 
-      const direction = db
-        .select({ id: directions.id })
-        .from(directions)
-        .where(eq(directions.id, directionId))
-        .get();
-      if (!direction) return c.json({ error: "Unknown directionId" }, 422);
+    const direction = db
+      .select({ id: directions.id })
+      .from(directions)
+      .where(eq(directions.id, directionId))
+      .get();
+    if (!direction) return c.json({ error: "Unknown directionId" }, 422);
 
-      const fromDirectionId = signal.directionId;
+    const fromDirectionId = signal.directionId;
 
-      db.update(signals)
-        .set({ directionId })
-        .where(eq(signals.id, id))
-        .run();
+    db.update(signals).set({ directionId }).where(eq(signals.id, id)).run();
 
-      db.insert(events)
-        .values({
-          id: newId(),
-          actor: "user",
-          kind: "signal.reclassified",
-          payload: JSON.stringify({
-            signalId: id,
-            fromDirectionId,
-            toDirectionId: directionId,
-            reason: reason ?? null,
-          }),
-        })
-        .run();
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "user",
+        kind: "signal.reclassified",
+        payload: JSON.stringify({
+          signalId: id,
+          fromDirectionId,
+          toDirectionId: directionId,
+          reason: reason ?? null,
+        }),
+      })
+      .run();
 
-      return c.json({ ok: true, fromDirectionId, toDirectionId: directionId });
-    },
-  );
+    return c.json({ ok: true, fromDirectionId, toDirectionId: directionId });
+  });
 
   /**
    * GET /signals/:id/explain — the full trail for one decision: the signal, the
@@ -184,23 +176,14 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
     if (!signal) return c.json({ error: "Not found" }, 404);
 
     const direction = signal.directionId
-      ? (db
-          .select()
-          .from(directions)
-          .where(eq(directions.id, signal.directionId))
-          .get() ?? null)
+      ? (db.select().from(directions).where(eq(directions.id, signal.directionId)).get() ?? null)
       : null;
 
     const thought = signal.thoughtId
-      ? (db.select().from(thoughts).where(eq(thoughts.id, signal.thoughtId)).get() ??
-        null)
+      ? (db.select().from(thoughts).where(eq(thoughts.id, signal.thoughtId)).get() ?? null)
       : null;
 
-    const relatedActions = db
-      .select()
-      .from(actions)
-      .where(eq(actions.signalId, id))
-      .all();
+    const relatedActions = db.select().from(actions).where(eq(actions.signalId, id)).all();
 
     const threadCondition = signal.threadId
       ? sql` or json_extract(${events.payload}, '$.threadId') = ${signal.threadId}`
@@ -208,9 +191,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
     const relatedEvents = db
       .select()
       .from(events)
-      .where(
-        sql`json_extract(${events.payload}, '$.signalId') = ${id}${threadCondition}`,
-      )
+      .where(sql`json_extract(${events.payload}, '$.signalId') = ${id}${threadCondition}`)
       .orderBy(desc(events.at))
       .all();
 
@@ -253,11 +234,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
       return c.json({ error: "Nothing to undo" }, 409);
     }
 
-    const relatedActions = db
-      .select()
-      .from(actions)
-      .where(eq(actions.signalId, id))
-      .all();
+    const relatedActions = db.select().from(actions).where(eq(actions.signalId, id)).all();
 
     const sent = relatedActions.filter((action) => action.status === "sent");
     if (sent.length > 0) {
@@ -272,10 +249,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
 
     for (const action of relatedActions) {
       if (action.status === "proposed" || action.status === "failed") {
-        db.update(actions)
-          .set({ status: "discarded" })
-          .where(eq(actions.id, action.id))
-          .run();
+        db.update(actions).set({ status: "discarded" }).where(eq(actions.id, action.id)).run();
       }
     }
 
@@ -286,12 +260,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
         db
           .select({ count: sql<number>`count(*)` })
           .from(signals)
-          .where(
-            and(
-              eq(signals.thoughtId, signal.thoughtId),
-              sql`${signals.id} != ${id}`,
-            ),
-          )
+          .where(and(eq(signals.thoughtId, signal.thoughtId), sql`${signals.id} != ${id}`))
           .get()?.count ?? 0;
 
       if (siblings === 0) {
@@ -302,10 +271,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
       }
     }
 
-    db.update(signals)
-      .set({ disposition: "new", thoughtId: null })
-      .where(eq(signals.id, id))
-      .run();
+    db.update(signals).set({ disposition: "new", thoughtId: null }).where(eq(signals.id, id)).run();
 
     db.insert(events)
       .values({
@@ -336,65 +302,58 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
    * offers. Distinct from reclassify: this corrects or sets which larger
    * item a signal belongs to, not which Direction matched it.
    */
-  app.put(
-    "/:id/thought",
-    zValidator("json", LinkThoughtRequestSchema),
-    (c) => {
-      const { id } = c.req.param();
-      const body = c.req.valid("json");
+  app.put("/:id/thought", zValidator("json", LinkThoughtRequestSchema), (c) => {
+    const { id } = c.req.param();
+    const body = c.req.valid("json");
 
-      const signal = db.select().from(signals).where(eq(signals.id, id)).get();
-      if (!signal) return c.json({ error: "Not found" }, 404);
+    const signal = db.select().from(signals).where(eq(signals.id, id)).get();
+    if (!signal) return c.json({ error: "Not found" }, 404);
 
-      let thoughtId: string;
-      let created = false;
+    let thoughtId: string;
+    let created = false;
 
-      if ("thoughtId" in body) {
-        const existing = db
-          .select({ id: thoughts.id })
-          .from(thoughts)
-          .where(eq(thoughts.id, body.thoughtId))
-          .get();
-        if (!existing) return c.json({ error: "Unknown thoughtId" }, 422);
-        thoughtId = body.thoughtId;
-      } else {
-        thoughtId = newId();
-        created = true;
-        db.insert(thoughts)
-          .values({
-            id: thoughtId,
-            title: body.title,
-            body: signal.body,
-            state: "seedling",
-            directionId: signal.directionId,
-          })
-          .run();
-      }
-
-      const previousThoughtId = signal.thoughtId;
-
-      db.update(signals)
-        .set({ thoughtId })
-        .where(eq(signals.id, id))
-        .run();
-
-      db.insert(events)
+    if ("thoughtId" in body) {
+      const existing = db
+        .select({ id: thoughts.id })
+        .from(thoughts)
+        .where(eq(thoughts.id, body.thoughtId))
+        .get();
+      if (!existing) return c.json({ error: "Unknown thoughtId" }, 422);
+      thoughtId = body.thoughtId;
+    } else {
+      thoughtId = newId();
+      created = true;
+      db.insert(thoughts)
         .values({
-          id: newId(),
-          actor: "user",
-          kind: "signal.thought_linked",
-          payload: JSON.stringify({
-            signalId: id,
-            thoughtId,
-            previousThoughtId,
-            createdThought: created,
-          }),
+          id: thoughtId,
+          title: body.title,
+          body: signal.body,
+          state: "seedling",
+          directionId: signal.directionId,
         })
         .run();
+    }
 
-      return c.json({ ok: true, thoughtId, created });
-    },
-  );
+    const previousThoughtId = signal.thoughtId;
+
+    db.update(signals).set({ thoughtId }).where(eq(signals.id, id)).run();
+
+    db.insert(events)
+      .values({
+        id: newId(),
+        actor: "user",
+        kind: "signal.thought_linked",
+        payload: JSON.stringify({
+          signalId: id,
+          thoughtId,
+          previousThoughtId,
+          createdThought: created,
+        }),
+      })
+      .run();
+
+    return c.json({ ok: true, thoughtId, created });
+  });
 
   /**
    * DELETE /signals/:id/thought — unlink without touching the thought
@@ -409,10 +368,7 @@ export function signalsRouter(db: Db, adapters: AdapterRegistry) {
 
     const previousThoughtId = signal.thoughtId;
 
-    db.update(signals)
-      .set({ thoughtId: null })
-      .where(eq(signals.id, id))
-      .run();
+    db.update(signals).set({ thoughtId: null }).where(eq(signals.id, id)).run();
 
     db.insert(events)
       .values({

@@ -75,16 +75,34 @@ testable without a UI.
 SQLite via Drizzle. Five tables; everything else is derived.
 
 ```ts
-directions:  id, name, scopeKind, scopeValue, posture, standard,
-             autonomy, confidenceMin, enabled, version, createdAt, updatedAt
-signals:     id, adapter, externalId, threadId, sender, recipients, kind,
-             body, receivedAt, urgencyHint, disposition, thoughtId,
-             dedupeKey (unique)
-thoughts:    id, title, body, state, directionId, nextAction, reviewAt,
-             createdAt, updatedAt
-actions:     id, thoughtId, signalId, kind, payload, status, adapter,
-             createdAt, sentAt
-events:      id, at, actor, kind, payload        // append-only audit
+directions: id,
+  name,
+  scopeKind,
+  scopeValue,
+  posture,
+  standard,
+  autonomy,
+  confidenceMin,
+  enabled,
+  version,
+  createdAt,
+  updatedAt;
+signals: id,
+  adapter,
+  externalId,
+  threadId,
+  sender,
+  recipients,
+  kind,
+  body,
+  receivedAt,
+  urgencyHint,
+  disposition,
+  thoughtId,
+  dedupeKey(unique);
+thoughts: id, title, body, state, directionId, nextAction, reviewAt, createdAt, updatedAt;
+actions: id, thoughtId, signalId, kind, payload, status, adapter, createdAt, sentAt;
+events: id, at, actor, kind, payload; // append-only audit
 ```
 
 Enums (stored as text, validated by zod on write):
@@ -108,7 +126,7 @@ work mail account may only be readable.
 
 ```ts
 export interface Adapter {
-  readonly id: string;                       // "gmail" | "outlook"
+  readonly id: string; // "gmail" | "outlook"
   readonly capabilities: { canSend: boolean; canStream: boolean };
   start(sink: (signal: NewSignal) => void): Promise<void>;
   stop(): Promise<void>;
@@ -137,7 +155,7 @@ field that states what "handled" means.
 name: boss-requests
 scope: { kind: person, value: "boss@corp" }
 posture: absorb
-autonomy: draft            # observe | draft | send
+autonomy: draft # observe | draft | send
 confidenceMin: 0.7
 standard: |
   Acknowledge same day. Restate the ask in one line. State when a plan or
@@ -175,7 +193,7 @@ adapter.capabilities.canSend
 ```
 
 Default posture for every new source is `observe`: ingest, classify, and record
-what it *would* have done, without writing anything. I add Directions only
+what it _would_ have done, without writing anything. I add Directions only
 after reading a week of observe output.
 
 ## 8. Pipeline
@@ -207,30 +225,30 @@ promised.
 Bearer token from `~/.config/kIiYOSJe/mind/token`, bound to `127.0.0.1` only. No CORS
 needed; the extension is a local client.
 
-| method | path                | purpose                               |
-| ------ | ------------------- | ------------------------------------- |
-| GET    | `/health`           | liveness + adapter status             |
-| GET    | `/brief`            | today's brief payload                 |
-| GET    | `/thoughts?state=`  | thought list                          |
-| POST   | `/thoughts`         | capture a thought (used by extension) |
-| PATCH  | `/thoughts/:id`     | state, nextAction, reviewAt           |
-| GET    | `/directions`       | all directions with match stats       |
-| PUT    | `/directions/:id`   | edit name, posture, autonomy, standard, matchPrompt, responsePrompt, confidenceMin, enabled |
-| GET    | `/actions?status=`  | review queue                          |
-| POST   | `/actions/:id/send` | human approval of a proposed action   |
-| POST   | `/actions/:id/discard` | reject, recorded as override       |
-| PATCH  | `/actions/:id`      | edit a draft's body before sending    |
-| POST   | `/signals`          | adapter ingress (internal only)       |
-| GET    | `/signals?range=`   | list signals, `today`\|`7d`\|`30d`\|`all`, newest first |
-| PATCH  | `/signals/:id`      | reclassify: move to a different direction, logged as `signal.reclassified` |
-| GET    | `/metrics?window=`  | signals/thoughts ratio and rates, plus byChannel and dailyVolume |
-| GET    | `/metrics/signals?directionId=\|adapter=\|day=` | Analytics drill-down: the signals behind one bar/row |
-| GET    | `/events?kind=&actor=&since=&limit=` | the Journal — read-only window onto the audit log |
-| GET    | `/proposals?status=` | learning-loop proposals               |
-| POST   | `/proposals/run`    | generate proposals now                |
-| POST   | `/proposals/:id/accept` \| `/reject` | resolve a proposal     |
-| GET    | `/admin/notifications` | the notification quiet-period window, plus whether a notification sent now would be allowed |
-| PUT    | `/admin/notifications` | set the quiet-period window (days, start/end time)       |
+| method | path                                            | purpose                                                                                     |
+| ------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| GET    | `/health`                                       | liveness + adapter status                                                                   |
+| GET    | `/brief`                                        | today's brief payload                                                                       |
+| GET    | `/thoughts?state=`                              | thought list                                                                                |
+| POST   | `/thoughts`                                     | capture a thought (used by extension)                                                       |
+| PATCH  | `/thoughts/:id`                                 | state, nextAction, reviewAt                                                                 |
+| GET    | `/directions`                                   | all directions with match stats                                                             |
+| PUT    | `/directions/:id`                               | edit name, posture, autonomy, standard, matchPrompt, responsePrompt, confidenceMin, enabled |
+| GET    | `/actions?status=`                              | review queue                                                                                |
+| POST   | `/actions/:id/send`                             | human approval of a proposed action                                                         |
+| POST   | `/actions/:id/discard`                          | reject, recorded as override                                                                |
+| PATCH  | `/actions/:id`                                  | edit a draft's body before sending                                                          |
+| POST   | `/signals`                                      | adapter ingress (internal only)                                                             |
+| GET    | `/signals?range=`                               | list signals, `today`\|`7d`\|`30d`\|`all`, newest first                                     |
+| PATCH  | `/signals/:id`                                  | reclassify: move to a different direction, logged as `signal.reclassified`                  |
+| GET    | `/metrics?window=`                              | signals/thoughts ratio and rates, plus byChannel and dailyVolume                            |
+| GET    | `/metrics/signals?directionId=\|adapter=\|day=` | Analytics drill-down: the signals behind one bar/row                                        |
+| GET    | `/events?kind=&actor=&since=&limit=`            | the Journal — read-only window onto the audit log                                           |
+| GET    | `/proposals?status=`                            | learning-loop proposals                                                                     |
+| POST   | `/proposals/run`                                | generate proposals now                                                                      |
+| POST   | `/proposals/:id/accept` \| `/reject`            | resolve a proposal                                                                          |
+| GET    | `/admin/notifications`                          | the notification quiet-period window, plus whether a notification sent now would be allowed |
+| PUT    | `/admin/notifications`                          | set the quiet-period window (days, start/end time)                                          |
 
 Approving an action and discarding it are both events — overrides are the
 training signal for §12. Reclassifying a signal is a separate, explicit
@@ -292,18 +310,18 @@ Notification Quiet Period** command drives it from the editor.
 Node 24 LTS, TypeScript strict, ESM, npm workspaces. Versions verified against
 npm on 2026-11-14; re-check with `npm view <pkg> version` when scaffolding.
 
-| concern        | choice                                     | note                                    |
-| -------------- | ------------------------------------------ | --------------------------------------- |
-| HTTP server    | `hono@4.13` + `@hono/node-server@2`        | Small, typed, zero-dep routing          |
-| DB             | `better-sqlite3@13.2`                      | Sync API; correct for single process    |
-| ORM/migrations | `drizzle-orm@0.45.4` + `drizzle-kit@0.31`  | Plain SQL migrations, reviewable        |
-| Validation     | `zod@4.6`                                  | One schema for config, API, LLM output  |
-| LLM access     | `ai@7` (Vercel AI SDK)                     | Provider-agnostic, structured output    |
-| Email          | `imapflow@2.11`, `nodemailer@10.5`         | Read + save-to-Drafts                   |
-| Logging        | `pino@10`                                  | JSON to file, readable in dev           |
-| Tests          | `vitest@5`                                 | Runs headless                           |
-| Language       | `typescript@7.0`                           | Native compiler; fall back to 5.9 only if a dependency's types fail under it |
-| Extension      | `@types/vscode@1.146`                      | Keep `engines.vscode: ^1.146.0` equal to the installed API version |
+| concern        | choice                                    | note                                                                         |
+| -------------- | ----------------------------------------- | ---------------------------------------------------------------------------- |
+| HTTP server    | `hono@4.13` + `@hono/node-server@2`       | Small, typed, zero-dep routing                                               |
+| DB             | `better-sqlite3@13.2`                     | Sync API; correct for single process                                         |
+| ORM/migrations | `drizzle-orm@0.45.4` + `drizzle-kit@0.31` | Plain SQL migrations, reviewable                                             |
+| Validation     | `zod@4.6`                                 | One schema for config, API, LLM output                                       |
+| LLM access     | `ai@7` (Vercel AI SDK)                    | Provider-agnostic, structured output                                         |
+| Email          | `imapflow@2.11`, `nodemailer@10.5`        | Read + save-to-Drafts                                                        |
+| Logging        | `pino@10`                                 | JSON to file, readable in dev                                                |
+| Tests          | `vitest@5`                                | Runs headless                                                                |
+| Language       | `typescript@7.0`                          | Native compiler; fall back to 5.9 only if a dependency's types fail under it |
+| Extension      | `@types/vscode@1.146`                     | Keep `engines.vscode: ^1.146.0` equal to the installed API version           |
 
 Drizzle is on a 1.0 release candidate; stay on 0.45.x stable until it lands.
 Zod 4 is the current major, so the classifier schema and the HTTP validation
@@ -373,34 +391,34 @@ Each phase ends with something usable, and states how it is verified.
 
 **P0 — Skeleton (1–2 days).** Workspace, strict TS, Drizzle schema + migration,
 Hono on `127.0.0.1:8787`, token auth, `/health`, `mind start`, vitest.
-*Done when:* `npm run dev` serves `/health`, migration is idempotent, tests pass.
+_Done when:_ `npm run dev` serves `/health`, migration is idempotent, tests pass.
 
 **P1 — Email and calendar ingest, observe only (2–3 days).** Gmail and Outlook
 (Graph) adapters plus the calendar feed, dedupe, persistence, signal count
 visible via `/metrics`.
-*Done when:* a full working day of traffic is stored with zero outbound
+_Done when:_ a full working day of traffic is stored with zero outbound
 messages, restart produces no duplicates, and the count matches the client's.
 
 **P2 — Directions + draft-only absorb (3–4 days).** YAML loader, matcher,
 classifier with structured output, draft generation into `actions`, review UI,
 Today brief.
-*Done when:* ≥60% of signals match a Direction, drafts are ones I would have
+_Done when:_ ≥60% of signals match a Direction, drafts are ones I would have
 written, nothing has been sent, and every discard is recorded.
 
 **P3 — Email with filters removed (3–4 days).** IMAP adapter, save-to-Drafts,
 same pipeline; volume nearly doubles on purpose, since this system is meant to
 be the filter.
-*Done when:* drafts appear in the Drafts folder, dedupe holds by `Message-ID`,
+_Done when:_ drafts appear in the Drafts folder, dedupe holds by `Message-ID`,
 and the brief stays readable at the higher volume.
 
 **P4 — Autonomy, narrowly (2–3 days).** Per-Direction `send` opt-in, the §7
 gates, kill switch, rate limits, audit completeness.
-*Done when:* a send happens only for a Direction with `autonomy: send`,
+_Done when:_ a send happens only for a Direction with `autonomy: send`,
 `mind pause` stops all sends immediately, and every outbound message is
 reconstructible from `events`.
 
 **P5 — Learning loop (2–3 days).** Weekly Direction-diff proposal, metrics view.
-*Done when:* the first proposal is generated from real override data.
+_Done when:_ the first proposal is generated from real override data.
 
 **P6 — Deferred.** Mobile client (same API, read-mostly plus capture), richer
 retrieval (FTS5 first, embeddings only if FTS5 proves insufficient).
@@ -420,16 +438,16 @@ Recorded from P1 onward, so the thesis is testable rather than asserted:
 
 ## 16. Risks
 
-| risk                             | mitigation                                                    |
-| -------------------------------- | ------------------------------------------------------------- |
-| Messaging bridge is unofficial   | Google Messages arrives via a self-hosted Matrix bridge; adapter isolated behind the contract, response mapping in one file |
-| Employer policy on programmatic access | confirm before P1; if prohibited, that source stays observe-only via the client and email carries the load |
-| Auto-reply to a sensitive sender | `escalateOn` topics, sender allowlist, default `observe`, send off until P4 |
-| Classifier confidence theatre    | `confidenceMin` per Direction plus override rate; a Direction overridden >20% is disabled automatically |
-| Attention cost returns as UI     | no counts, no badges, no push; the brief is a page I open, not a stream |
-| Cost creep                       | cheap model for classify, larger only for drafting; dedupe before inference |
-| Data loss (single file)          | nightly `sqlite3 .backup` to a local rotations directory, 14 days |
-| TypeScript 7 is new              | pin exact versions; if a dependency's types fail, drop to TS 5.9 for that build and record why |
+| risk                                   | mitigation                                                                                                                  |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Messaging bridge is unofficial         | Google Messages arrives via a self-hosted Matrix bridge; adapter isolated behind the contract, response mapping in one file |
+| Employer policy on programmatic access | confirm before P1; if prohibited, that source stays observe-only via the client and email carries the load                  |
+| Auto-reply to a sensitive sender       | `escalateOn` topics, sender allowlist, default `observe`, send off until P4                                                 |
+| Classifier confidence theatre          | `confidenceMin` per Direction plus override rate; a Direction overridden >20% is disabled automatically                     |
+| Attention cost returns as UI           | no counts, no badges, no push; the brief is a page I open, not a stream                                                     |
+| Cost creep                             | cheap model for classify, larger only for drafting; dedupe before inference                                                 |
+| Data loss (single file)                | nightly `sqlite3 .backup` to a local rotations directory, 14 days                                                           |
+| TypeScript 7 is new                    | pin exact versions; if a dependency's types fail, drop to TS 5.9 for that build and record why                              |
 
 ## 17. Open decisions
 

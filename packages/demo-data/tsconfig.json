@@ -9,10 +9,7 @@
       "@mind/pipeline": ["../pipeline/src/index.ts"]
     }
   },
-  "references": [
-    { "path": "../core" },
-    { "path": "../pipeline" }
-  ],
+  "references": [{ "path": "../core" }, { "path": "../pipeline" }],
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts"]
 }

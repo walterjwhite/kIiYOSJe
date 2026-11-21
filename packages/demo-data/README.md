@@ -39,15 +39,15 @@ demonstrated.
 
 ## Personas
 
-| Persona | Directions it exercises |
-| --- | --- |
-| **Software Engineer** (`engineer`) | Answerable technical questions, CI noise filed as evidence rather than replied to, a paging alert against an `escalateOn` guard. |
-| **Project Manager** (`pm`) | Scheduling and status requests drafted for approval; a deliberately loosely-authored `vendor-noise` direction expected to accumulate overrides. |
+| Persona                              | Directions it exercises                                                                                                                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Software Engineer** (`engineer`)   | Answerable technical questions, CI noise filed as evidence rather than replied to, a paging alert against an `escalateOn` guard.                                        |
+| **Project Manager** (`pm`)           | Scheduling and status requests drafted for approval; a deliberately loosely-authored `vendor-noise` direction expected to accumulate overrides.                         |
 | **DevSecOps Engineer** (`devsecops`) | A `posture: escalate` direction for genuine security incidents; `posture: absorb, autonomy: send` directions with `escalateOn` guards on dependency and scanner alerts. |
 
 Each persona file (`src/personas/*.ts`) splits its signals into two eras:
 
-- **historical** — replayed, then given a *simulated operator reaction*
+- **historical** — replayed, then given a _simulated operator reaction_
   (see "How resolution works" below), so the system looks lived-in: real
   override rates per direction, maybe one already auto-disabled, maybe a
   pending learning-loop proposal — before you ever open the extension.
@@ -59,7 +59,7 @@ Each persona file (`src/personas/*.ts`) splits its signals into two eras:
 Because classification is genuinely probabilistic, the exact mix of sent
 vs. discarded vs. escalated outcomes will differ between seed runs, and
 between model/provider choices. That's expected. The `intent` field on each
-`ScenarioSignal` documents what the signal is *designed* to exercise — not
+`ScenarioSignal` documents what the signal is _designed_ to exercise — not
 a guarantee of what the model will decide.
 
 ## Usage

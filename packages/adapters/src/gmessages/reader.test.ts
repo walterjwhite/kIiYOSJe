@@ -61,12 +61,10 @@ describe("GoogleMessagesReader", () => {
     const messages = await new GoogleMessagesReader(fakeClient()).messages({
       roomId: "!sms:matrix.example",
     });
-    expect(messages.map((message) => [message.eventId, message.inbound])).toEqual(
-      [
-        ["$2", false],
-        ["$1", true],
-      ],
-    );
+    expect(messages.map((message) => [message.eventId, message.inbound])).toEqual([
+      ["$2", false],
+      ["$1", true],
+    ]);
   });
 
   it("honours since and limit", async () => {

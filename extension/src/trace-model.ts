@@ -163,7 +163,11 @@ export function summarize(evts: RawEvent[]): TraceSummary {
   calls.sort((a, b) => b.at.localeCompare(a.at));
   records.sort((a, b) => b.at.localeCompare(a.at));
 
-  const group = <T>(keyOf: (c: TraceCall) => string, make: (c: TraceCall) => T, add: (t: T, c: TraceCall) => void) => {
+  const group = <T>(
+    keyOf: (c: TraceCall) => string,
+    make: (c: TraceCall) => T,
+    add: (t: T, c: TraceCall) => void,
+  ) => {
     const m = new Map<string, T>();
     for (const c of calls) {
       const k = keyOf(c);
@@ -196,11 +200,25 @@ export function summarize(evts: RawEvent[]): TraceSummary {
     (c) => c.operation,
     (c) => ({ operation: c.operation, ...acc() }),
     bump,
-  ).map((o) => ({ operation: o.operation, count: o.count, errors: o.errors, avgMs: avg(o), maxMs: o.maxMs }));
+  ).map((o) => ({
+    operation: o.operation,
+    count: o.count,
+    errors: o.errors,
+    avgMs: avg(o),
+    maxMs: o.maxMs,
+  }));
 
   const models = group(
     modelKey,
-    (c) => ({ key: modelKey(c), provider: c.provider, model: c.model, endpoint: c.endpoint, inputTokens: 0, outputTokens: 0, ...acc() }),
+    (c) => ({
+      key: modelKey(c),
+      provider: c.provider,
+      model: c.model,
+      endpoint: c.endpoint,
+      inputTokens: 0,
+      outputTokens: 0,
+      ...acc(),
+    }),
     (t, c) => {
       bump(t, c);
       t.inputTokens += c.inputTokens ?? 0;
@@ -222,9 +240,25 @@ export function summarize(evts: RawEvent[]): TraceSummary {
     (c) => `${c.operation}>${modelKey(c)}`,
     (c) => ({ operation: c.operation, modelKey: modelKey(c), ...acc() }),
     bump,
-  ).map((e) => ({ operation: e.operation, modelKey: e.modelKey, count: e.count, errors: e.errors, avgMs: avg(e) }));
+  ).map((e) => ({
+    operation: e.operation,
+    modelKey: e.modelKey,
+    count: e.count,
+    errors: e.errors,
+    avgMs: avg(e),
+  }));
 
-  return { records, signals, withModel, withoutModel: signals - withModel, skipped, calls, ops, models, edges };
+  return {
+    records,
+    signals,
+    withModel,
+    withoutModel: signals - withModel,
+    skipped,
+    calls,
+    ops,
+    models,
+    edges,
+  };
 }
 
 /**
@@ -236,7 +270,8 @@ export function summarize(evts: RawEvent[]): TraceSummary {
 export function localOllamaRoot(endpoint: string | null | undefined): string | undefined {
   try {
     const u = new URL(endpoint ?? "http://localhost:11434");
-    const local = u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "[::1]";
+    const local =
+      u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "[::1]";
     return local ? u.origin : undefined;
   } catch {
     return undefined;

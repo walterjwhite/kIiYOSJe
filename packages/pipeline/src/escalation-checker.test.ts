@@ -24,13 +24,15 @@ describe("runCheck", () => {
     const db = openTestDb();
     const past = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(); // 3h ago
 
-    db.insert(thoughts).values({
-      id: "t-1",
-      title: "Overdue thought",
-      body: "",
-      state: "seedling",
-      escalateBy: past,
-    }).run();
+    db.insert(thoughts)
+      .values({
+        id: "t-1",
+        title: "Overdue thought",
+        body: "",
+        state: "seedling",
+        escalateBy: past,
+      })
+      .run();
 
     runCheck(db);
 
@@ -42,13 +44,15 @@ describe("runCheck", () => {
     const db = openTestDb();
     const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-    db.insert(thoughts).values({
-      id: "t-1",
-      title: "Future thought",
-      body: "",
-      state: "seedling",
-      escalateBy: future,
-    }).run();
+    db.insert(thoughts)
+      .values({
+        id: "t-1",
+        title: "Future thought",
+        body: "",
+        state: "seedling",
+        escalateBy: future,
+      })
+      .run();
 
     runCheck(db);
 
@@ -59,13 +63,15 @@ describe("runCheck", () => {
   it("does not promote seedlings with no escalateBy", () => {
     const db = openTestDb();
 
-    db.insert(thoughts).values({
-      id: "t-1",
-      title: "No deadline",
-      body: "",
-      state: "seedling",
-      escalateBy: null,
-    }).run();
+    db.insert(thoughts)
+      .values({
+        id: "t-1",
+        title: "No deadline",
+        body: "",
+        state: "seedling",
+        escalateBy: null,
+      })
+      .run();
 
     runCheck(db);
 
@@ -77,10 +83,12 @@ describe("runCheck", () => {
     const db = openTestDb();
     const past = new Date(Date.now() - 1000).toISOString();
 
-    db.insert(thoughts).values([
-      { id: "t-1", title: "A", body: "", state: "seedling", escalateBy: past },
-      { id: "t-2", title: "B", body: "", state: "seedling", escalateBy: past },
-    ]).run();
+    db.insert(thoughts)
+      .values([
+        { id: "t-1", title: "A", body: "", state: "seedling", escalateBy: past },
+        { id: "t-2", title: "B", body: "", state: "seedling", escalateBy: past },
+      ])
+      .run();
 
     runCheck(db);
 
@@ -92,11 +100,13 @@ describe("runCheck", () => {
     const db = openTestDb();
     const past = new Date(Date.now() - 1000).toISOString();
 
-    db.insert(thoughts).values([
-      { id: "t-1", title: "Active", body: "", state: "active", escalateBy: past },
-      { id: "t-2", title: "Parked", body: "", state: "parked", escalateBy: past },
-      { id: "t-3", title: "Closed", body: "", state: "closed", escalateBy: past },
-    ]).run();
+    db.insert(thoughts)
+      .values([
+        { id: "t-1", title: "Active", body: "", state: "active", escalateBy: past },
+        { id: "t-2", title: "Parked", body: "", state: "parked", escalateBy: past },
+        { id: "t-3", title: "Closed", body: "", state: "closed", escalateBy: past },
+      ])
+      .run();
 
     runCheck(db);
 

@@ -68,9 +68,7 @@ function upsertDirection(db: Db, id: string, cfg: DirectionConfig): void {
   const now = new Date().toISOString();
   const guardsJson = cfg.guards ? JSON.stringify(cfg.guards) : null;
   const signalActionsJson =
-    cfg.signalActions && cfg.signalActions.length > 0
-      ? JSON.stringify(cfg.signalActions)
-      : null;
+    cfg.signalActions && cfg.signalActions.length > 0 ? JSON.stringify(cfg.signalActions) : null;
 
   if (!existing) {
     db.insert(directions)
@@ -150,11 +148,7 @@ function existingDirectionFile(dirRoot: string, id: string): string | null {
 }
 
 /** Creates directions/<id>.yaml. Throws if the file already exists. */
-export function createDirectionFile(
-  dirRoot: string,
-  id: string,
-  cfg: DirectionConfig,
-): void {
+export function createDirectionFile(dirRoot: string, id: string, cfg: DirectionConfig): void {
   if (existingDirectionFile(dirRoot, id)) {
     throw new Error(`direction already exists: ${id}`);
   }

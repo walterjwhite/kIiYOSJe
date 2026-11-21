@@ -18,11 +18,7 @@ import { replayPersona } from "./replay.js";
 import type { ReplayResult } from "./replay.js";
 import type { DemoSignal, PersonaScenario } from "./types.js";
 
-export const ALL_PERSONAS: PersonaScenario[] = [
-  engineerScenario,
-  pmScenario,
-  devsecopsScenario,
-];
+export const ALL_PERSONAS: PersonaScenario[] = [engineerScenario, pmScenario, devsecopsScenario];
 
 /** Flattens a scenario into the same persona shape the monorepo exposes. */
 export function personaSignals(scenario: PersonaScenario): DemoSignal[] {

@@ -2,12 +2,12 @@
 
 ## Paths
 
-| Purpose | Default |
-| --- | --- |
-| Config, token, credentials | `~/.config/kIiYOSJe/mind/` (override `MIND_CONFIG_DIR`) |
-| Database and status | `~/.data/kIiYOSJe/mind/` (override `MIND_DATA_DIR`, `MIND_DB_PATH`) |
-| Directions | `directions/` in the repo or `MIND_DIRECTIONS_DIR` |
-| Backups | operator-chosen path; default `<data>/backups/` |
+| Purpose                    | Default                                                             |
+| -------------------------- | ------------------------------------------------------------------- |
+| Config, token, credentials | `~/.config/kIiYOSJe/mind/` (override `MIND_CONFIG_DIR`)             |
+| Database and status        | `~/.data/kIiYOSJe/mind/` (override `MIND_DATA_DIR`, `MIND_DB_PATH`) |
+| Directions                 | `directions/` in the repo or `MIND_DIRECTIONS_DIR`                  |
+| Backups                    | operator-chosen path; default `<data>/backups/`                     |
 
 ## Startup sequence
 

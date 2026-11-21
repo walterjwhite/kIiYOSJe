@@ -9,18 +9,8 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  actions,
-  directions,
-  openDb,
-  writeAiConfig,
-  type NewSignal,
-} from "@mind/core";
-import {
-  AdapterRegistry,
-  ensureFallbackDirection,
-  ingest,
-} from "@mind/pipeline";
+import { actions, directions, openDb, writeAiConfig, type NewSignal } from "@mind/core";
+import { AdapterRegistry, ensureFallbackDirection, ingest } from "@mind/pipeline";
 
 process.env["HOME"] = mkdtempSync(join(tmpdir(), "mind-model-call-"));
 delete process.env["OPENAI_API_KEY"];
@@ -65,9 +55,10 @@ beforeAll(async () => {
     const chunks: Buffer[] = [];
     request.on("data", (chunk: Buffer) => chunks.push(chunk));
     request.on("end", () => {
-      const body = JSON.parse(
-        Buffer.concat(chunks).toString("utf8") || "{}",
-      ) as { model?: string; response_format?: unknown };
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as {
+        model?: string;
+        response_format?: unknown;
+      };
       calls.push({
         auth: String(request.headers.authorization ?? ""),
         ...(body.model ? { model: body.model } : {}),

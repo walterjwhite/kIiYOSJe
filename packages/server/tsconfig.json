@@ -10,10 +10,6 @@
       "@mind/adapters": ["../adapters/src/index.ts"]
     }
   },
-  "references": [
-    { "path": "../core" },
-    { "path": "../pipeline" },
-    { "path": "../adapters" }
-  ],
+  "references": [{ "path": "../core" }, { "path": "../pipeline" }, { "path": "../adapters" }],
   "include": ["src/**/*"]
 }

@@ -1,6 +1,6 @@
 ---
-inclusion: always
----
+
+## inclusion: always
 
 # Licensing and third-party terms
 
@@ -13,11 +13,11 @@ be one we are authorized to use.
 Run `npm run license:check` after any dependency change. It reads the lockfile
 offline and fails on the deny list below.
 
-| Verdict | Licenses | Rule |
-| --- | --- | --- |
-| Allowed | MIT, ISC, BSD-2/3-Clause, Apache-2.0, 0BSD, Unlicense, CC0-1.0, Python-2.0, BlueOak-1.0.0 | Keep the copyright notice; add a NOTICE entry if Apache-2.0 requires it. |
-| Review | MPL-2.0, EPL-2.0, CDDL, LGPL-2.1/3.0, Artistic-2.0 | Acceptable only while the package is unmodified and, ideally, dev-only. Never patch a file in these packages. |
-| Denied | GPL-2.0/3.0, AGPL-3.0, SSPL, BUSL-1.1, Commons Clause, CC-BY-NC, CC-BY-ND, `UNLICENSED`, "no license" | Do not add. Find an alternative with a permissive license. |
+| Verdict | Licenses                                                                                              | Rule                                                                                                          |
+| ------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Allowed | MIT, ISC, BSD-2/3-Clause, Apache-2.0, 0BSD, Unlicense, CC0-1.0, Python-2.0, BlueOak-1.0.0             | Keep the copyright notice; add a NOTICE entry if Apache-2.0 requires it.                                      |
+| Review  | MPL-2.0, EPL-2.0, CDDL, LGPL-2.1/3.0, Artistic-2.0                                                    | Acceptable only while the package is unmodified and, ideally, dev-only. Never patch a file in these packages. |
+| Denied  | GPL-2.0/3.0, AGPL-3.0, SSPL, BUSL-1.1, Commons Clause, CC-BY-NC, CC-BY-ND, `UNLICENSED`, "no license" | Do not add. Find an alternative with a permissive license.                                                    |
 
 - A dev-only tool is not distributed, so its license does not reach the VSIX or
   the server artifact — but it still must not be vendored into `src/`.
@@ -28,8 +28,8 @@ offline and fails on the deny list below.
 
 ## Bridges and copied protocol code
 
-An AGPL or source-available project may be *talked to* over its public interface
-without its license reaching us; it may not be *vendored*. `mautrix-gmessages` is
+An AGPL or source-available project may be _talked to_ over its public interface
+without its license reaching us; it may not be _vendored_. `mautrix-gmessages` is
 the concrete case here: the adapter speaks Matrix HTTP to a separately installed
 bridge and contains none of its code. Keep that boundary — no copied payload
 shapes, no pasted constants, no `git submodule` of the bridge.

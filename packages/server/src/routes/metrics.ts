@@ -2,12 +2,7 @@ import { Hono } from "hono";
 import { sql, eq, gte } from "drizzle-orm";
 import { signals, thoughts, actions, directions } from "@mind/core";
 import type { Db } from "@mind/core";
-import {
-  COVERAGE_TARGET,
-  FALLBACK_DIRECTION_ID,
-  WEEK_MS,
-  weeklyCoverage,
-} from "@mind/pipeline";
+import { COVERAGE_TARGET, FALLBACK_DIRECTION_ID, WEEK_MS, weeklyCoverage } from "@mind/pipeline";
 
 export function metricsRouter(db: Db) {
   const app = new Hono();
@@ -22,10 +17,7 @@ export function metricsRouter(db: Db) {
     const day = c.req.query("day");
 
     if (!directionId && !adapter && !day) {
-      return c.json(
-        { error: "Provide at least one of directionId, adapter, day" },
-        400,
-      );
+      return c.json({ error: "Provide at least one of directionId, adapter, day" }, 400);
     }
 
     const conditions: ReturnType<typeof sql>[] = [];
@@ -51,10 +43,7 @@ export function metricsRouter(db: Db) {
   // week against the number of Directions in force, which is the only version
   // of the claim that can fail. See DIRECTION.md §3 and references.md.
   app.get("/coverage", (c) => {
-    const weeks = Math.min(
-      Math.max(Number(c.req.query("weeks") ?? "12") || 12, 1),
-      52,
-    );
+    const weeks = Math.min(Math.max(Number(c.req.query("weeks") ?? "12") || 12, 1), 52);
     const since = new Date(Date.now() - (weeks + 1) * WEEK_MS).toISOString();
 
     const signalRows = db
@@ -75,9 +64,7 @@ export function metricsRouter(db: Db) {
     const excludedFallback = signalRows.filter(
       (row) => row.directionId === FALLBACK_DIRECTION_ID,
     ).length;
-    const explicitRows = signalRows.filter(
-      (row) => row.directionId !== FALLBACK_DIRECTION_ID,
-    );
+    const explicitRows = signalRows.filter((row) => row.directionId !== FALLBACK_DIRECTION_ID);
 
     const thoughtRows = db
       .select({ createdAt: thoughts.createdAt })
@@ -133,9 +120,7 @@ export function metricsRouter(db: Db) {
       db
         .select({ count: sql<number>`count(*)` })
         .from(signals)
-        .where(
-          sql`${signals.receivedAt} >= ${since} and ${signals.disposition} = 'absorbed'`,
-        )
+        .where(sql`${signals.receivedAt} >= ${since} and ${signals.disposition} = 'absorbed'`)
         .get()?.count ?? 0;
 
     // Override rate: discarded / (proposed + sent + discarded) for actions in window
@@ -161,12 +146,12 @@ export function metricsRouter(db: Db) {
     // Avg time to decision (ms) for thoughts closed/parked in window
     const avgTimeRow = db
       .select({
-        avgMs: sql<number | null>`avg((julianday(${thoughts.updatedAt}) - julianday(${thoughts.createdAt})) * 86400000)`,
+        avgMs: sql<
+          number | null
+        >`avg((julianday(${thoughts.updatedAt}) - julianday(${thoughts.createdAt})) * 86400000)`,
       })
       .from(thoughts)
-      .where(
-        sql`${thoughts.state} in ('closed','parked') and ${thoughts.updatedAt} >= ${since}`,
-      )
+      .where(sql`${thoughts.state} in ('closed','parked') and ${thoughts.updatedAt} >= ${since}`)
       .get();
 
     // Sends without revert — actions with status='sent' in window
@@ -174,9 +159,7 @@ export function metricsRouter(db: Db) {
       db
         .select({ count: sql<number>`count(*)` })
         .from(actions)
-        .where(
-          sql`${actions.createdAt} >= ${since} and ${actions.status} = 'sent'`,
-        )
+        .where(sql`${actions.createdAt} >= ${since} and ${actions.status} = 'sent'`)
         .get()?.count ?? 0;
 
     // Per-direction stats
@@ -186,9 +169,7 @@ export function metricsRouter(db: Db) {
         db
           .select({ count: sql<number>`count(*)` })
           .from(signals)
-          .where(
-            sql`${signals.receivedAt} >= ${since} and ${signals.directionId} = ${dir.id}`,
-          )
+          .where(sql`${signals.receivedAt} >= ${since} and ${signals.directionId} = ${dir.id}`)
           .get()?.count ?? 0;
 
       const dirAbsorbed =
@@ -228,10 +209,7 @@ export function metricsRouter(db: Db) {
         absorbed: dirAbsorbed,
         absorbRate: dirSignals > 0 ? +(dirAbsorbed / dirSignals).toFixed(4) : null,
         overrides: dirOverrides,
-        overrideRate:
-          dirTotalActions > 0
-            ? +(dirOverrides / dirTotalActions).toFixed(4)
-            : null,
+        overrideRate: dirTotalActions > 0 ? +(dirOverrides / dirTotalActions).toFixed(4) : null,
       };
     });
 
@@ -265,10 +243,7 @@ export function metricsRouter(db: Db) {
       ratio: thoughtCount > 0 ? +(signalCount / thoughtCount).toFixed(2) : null,
       absorbed: absorbedCount,
       absorbRate: signalCount > 0 ? +(absorbedCount / signalCount).toFixed(4) : null,
-      overrideRate:
-        totalActions > 0
-          ? +(discardedActions / totalActions).toFixed(4)
-          : null,
+      overrideRate: totalActions > 0 ? +(discardedActions / totalActions).toFixed(4) : null,
       avgTimeToDecisionMs: avgTimeRow?.avgMs ?? null,
       sendsWithoutRevert: sentCount,
       byDirection,

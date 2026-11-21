@@ -64,18 +64,13 @@ export function loadCredentials(): Credentials {
   if (cached?.at === mtime) return cached.value;
 
   const parsed = parseYaml(readFileSync(path, "utf8")) as unknown;
-  const value =
-    parsed && typeof parsed === "object" ? (parsed as Credentials) : {};
+  const value = parsed && typeof parsed === "object" ? (parsed as Credentials) : {};
   cached = { at: mtime, value };
   return value;
 }
 
 /** Environment first, then the named section of credentials.yml. */
-export function credentialString(
-  section: string,
-  key: string,
-  envVar: string,
-): string | undefined {
+export function credentialString(section: string, key: string, envVar: string): string | undefined {
   const fromEnv = process.env[envVar];
   if (fromEnv) return fromEnv;
   const value = loadCredentials()[section]?.[key];
@@ -116,8 +111,7 @@ export function credentialAccounts(section: string): CredentialAccount[] {
 
   const shared = Object.fromEntries(
     Object.entries(raw).filter(
-      ([key]) =>
-        key !== "accounts" && !(identityKeys as readonly string[]).includes(key),
+      ([key]) => key !== "accounts" && !(identityKeys as readonly string[]).includes(key),
     ),
   );
 
@@ -125,13 +119,9 @@ export function credentialAccounts(section: string): CredentialAccount[] {
   // (a token, mailbox user, phone number). Shared-only blocks do not. It stays
   // first so callers that fall back to "the first source/account" keep using
   // the one the operator already had.
-  const hasFlatIdentity = identityKeys.some(
-    (key) => nonEmptyString(raw[key]) !== undefined,
-  );
+  const hasFlatIdentity = identityKeys.some((key) => nonEmptyString(raw[key]) !== undefined);
   if (hasFlatIdentity) {
-    const config = Object.fromEntries(
-      Object.entries(raw).filter(([key]) => key !== "accounts"),
-    );
+    const config = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "accounts"));
     add("default", config);
   }
 
@@ -173,7 +163,7 @@ export function adapterIdForAccount(base: string, account: string): string {
 
 /** `gmail:work` → `work`; `gmail` → `default`. */
 export function accountFromAdapterId(base: string, id: string): string {
-  return id === base ? "default" : (id.slice(base.length + 1) || "default");
+  return id === base ? "default" : id.slice(base.length + 1) || "default";
 }
 
 /**

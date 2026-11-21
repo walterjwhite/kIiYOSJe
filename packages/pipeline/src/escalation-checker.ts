@@ -16,10 +16,7 @@ import { thoughts, events, newId, logger } from "@mind/core";
 
 const DEFAULT_INTERVAL_MS = 60_000;
 
-export function startEscalationChecker(
-  db: Db,
-  intervalMs = DEFAULT_INTERVAL_MS,
-): NodeJS.Timeout {
+export function startEscalationChecker(db: Db, intervalMs = DEFAULT_INTERVAL_MS): NodeJS.Timeout {
   return setInterval(() => runCheck(db), intervalMs);
 }
 
