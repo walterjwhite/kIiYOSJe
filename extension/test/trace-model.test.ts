@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localOllamaRoot, summarize, type RawEvent } from "../src/trace-model.js";
+import { localOllamaRoot, type RawEvent, summarize } from "../src/trace-model.js";
 
 const call = (operation: string, durationMs: number, extra: Record<string, unknown> = {}) => ({
   operation,
@@ -111,5 +111,39 @@ describe("localOllamaRoot", () => {
   it("refuses remote hosts and garbage", () => {
     expect(localOllamaRoot("https://api.openai.com/v1")).toBeUndefined();
     expect(localOllamaRoot("nonsense")).toBeUndefined();
+  });
+});
+
+describe("where a signal went", () => {
+  const processed = (signalId: string, disposition: string): RawEvent => ({
+    at: "2026-01-01T10:00:00Z",
+    kind: "signal.processed",
+    payload: JSON.stringify({ signalId, disposition, ai: { calls: [] } }),
+  });
+
+  it("names the destination: a linked goal, the Queue, absorbed or filed", () => {
+    const s = summarize(
+      [
+        processed("a", "absorbed"),
+        processed("b", "promoted"),
+        processed("c", "escalated"),
+        processed("d", "promoted"),
+        processed("e", "filed"),
+      ],
+      { d: { id: "g1", title: "Ship Q4 report" } },
+    );
+    const byId = Object.fromEntries(s.records.map((r) => [r.signalId, r.destination]));
+    expect(byId).toEqual({ a: "absorbed", b: "queue", c: "queue", d: "goal:g1", e: "filed" });
+    expect(s.destinations.map((d) => [d.key, d.label, d.count])).toEqual([
+      ["queue", "Queue", 2],
+      ["absorbed", "Absorbed", 1],
+      ["filed", "Filed", 1],
+      ["goal:g1", "Goal \u00b7 Ship Q4 report", 1],
+    ]);
+  });
+
+  it("works without any goal information", () => {
+    const s = summarize([processed("a", "promoted")]);
+    expect(s.records[0]?.destination).toBe("queue");
   });
 });

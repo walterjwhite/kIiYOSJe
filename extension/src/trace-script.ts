@@ -31,6 +31,8 @@ export const TRACE_STYLE = `
   .node .t2 { font-size: 11px; opacity: 0.75; }
   .edge { fill: none; stroke: var(--mind-accent); stroke-linecap: round; stroke-dasharray: 8 8; animation: flow 1.5s linear infinite; opacity: 0.8; cursor: pointer; }
   .edge.bad { stroke: var(--mind-red); }
+  .edge.dest { stroke: var(--mind-green); }
+  .node.dest:not(.sel):not(:hover) rect { stroke: var(--mind-green); }
   .edge.ghost { stroke: var(--vscode-widget-border, #666); animation: none; opacity: 0.6; }
   .edge.dim { opacity: 0.12; }
   .edge:hover { opacity: 1; }
@@ -51,16 +53,21 @@ export const TRACE_SCRIPT = `
   var filter = null;
   var seen = {};
   var firstLoad = true;
+  // Evenly spaced, each box 118 wide with a 12 px gap, so labels never touch.
   var STEPS = [
     { id: 'signal', label: 'Signal', x: 70 },
-    { id: 'match', label: 'Match', x: 195 },
+    { id: 'match', label: 'Match', x: 200 },
     { id: 'classify', label: 'Classify', x: 330, op: true },
-    { id: 'transform', label: 'Transform', x: 480, op: true },
-    { id: 'draft', label: 'Draft', x: 650, op: true },
-    { id: 'link', label: 'Link to goal', x: 780, op: true },
-    { id: 'outcome', label: 'Queue / absorb', x: 890 }
+    { id: 'transform', label: 'Transform', x: 460, op: true },
+    { id: 'draft', label: 'Draft', x: 590, op: true },
+    { id: 'link', label: 'Link to goal', x: 720, op: true },
+    { id: 'outcome', label: 'Outcome', x: 850 }
   ];
-  var SY = 70, MY = 270, W = 100, H = 52;
+  var SY = 70, MY = 270, W = 118, H = 52;
+  // Where signals end up: a column to the right of Outcome.
+  var DX = 1020, DW = 140, DH = 38, DGAP = 50, MAX_GOALS = 3;
+  var MODEL_CENTER = 460;
+  var CHAR_PX = 7.4; // width of one bold 13px character, for sizing boxes to their text
   var graph = document.getElementById('graph');
   var tip = document.getElementById('tip');
   var wrap = document.getElementById('graph-wrap');
@@ -92,12 +99,49 @@ export const TRACE_SCRIPT = `
     target.addEventListener('mouseleave', hideTip);
   }
 
+  function modelLines(m) {
+    return [
+      m.provider + ' \u00b7 ' + m.model,
+      m.count + ' calls \u00b7 avg ' + fmtMs(m.avgMs),
+      m.inputTokens + ' in / ' + m.outputTokens + ' out tokens'
+    ];
+  }
+  // A model box grows to fit its longest line (never narrower than 190).
+  function modelWidth(m) {
+    var longest = Math.max.apply(null, modelLines(m).map(function (l) { return l.length; }));
+    return Math.max(190, Math.round(longest * CHAR_PX) + 28);
+  }
+  // Boxes sit side by side with a gap, centred under the pipeline.
   function modelPositions(models) {
     var pos = {};
-    var n = models.length;
-    models.forEach(function (m, i) { pos[m.key] = n === 1 ? 455 : 160 + i * (590 / (n - 1)); });
+    var gap = 24;
+    var total = models.reduce(function (a, m) { return a + modelWidth(m); }, 0) + gap * Math.max(0, models.length - 1);
+    var x = Math.max(10, MODEL_CENTER - total / 2);
+    models.forEach(function (m) {
+      var w = modelWidth(m);
+      pos[m.key] = x + w / 2;
+      x += w + gap;
+    });
     return pos;
   }
+
+  // Destinations to draw: the first MAX_GOALS goals by count, the rest as one "other goals" node.
+  function shownDestinations() {
+    var list = [];
+    var goals = [];
+    data.summary.destinations.forEach(function (d) { (d.kind === 'goal' ? goals : list).push(d); });
+    goals.slice(0, MAX_GOALS).forEach(function (d) { list.push(d); });
+    var rest = goals.slice(MAX_GOALS);
+    if (rest.length) {
+      list.push({
+        key: 'goals-other', kind: 'goal', label: rest.length + ' other goal' + (rest.length === 1 ? '' : 's'),
+        count: rest.reduce(function (a, d) { return a + d.count; }, 0),
+        members: rest.map(function (d) { return d.key; })
+      });
+    }
+    return list;
+  }
+  function clip(s, n) { return s.length > n ? s.slice(0, n - 1) + '\u2026' : s; }
 
   function setFilter(f) {
     filter = (filter && f && filter.type === f.type && filter.value === f.value) ? null : f;
@@ -131,7 +175,7 @@ export const TRACE_SCRIPT = `
     var edgesG = mk('g', {}, graph);
     if (models.length === 0) {
       ['classify', 'transform', 'draft', 'link'].forEach(function (op) {
-        var x1 = stepX[op], x2 = 455;
+        var x1 = stepX[op], x2 = MODEL_CENTER;
         mk('path', { d: 'M' + x1 + ' ' + (SY + H / 2) + ' C' + x1 + ' ' + (SY + 120) + ',' + x2 + ' ' + (MY - 120) + ',' + x2 + ' ' + (MY - H / 2), 'class': 'edge ghost', 'stroke-width': 2 }, edgesG);
       });
     }
@@ -163,7 +207,7 @@ export const TRACE_SCRIPT = `
       txt(g, st.x, SY - 4, 't1', st.label);
       var sub = '';
       if (st.id === 'signal') sub = s.signals + ' processed';
-      else if (st.id === 'outcome') sub = s.withModel + ' used a model';
+      else if (st.id === 'outcome') sub = s.signals + ' decided';
       else if (st.op) sub = o ? o.count + ' calls \\u00b7 ' + fmtMs(o.avgMs) : 'no calls';
       if (sub) txt(g, st.x, SY + 13, 't2', sub);
       hover(g, function () {
@@ -185,28 +229,62 @@ export const TRACE_SCRIPT = `
     // Model nodes.
     if (models.length === 0) {
       var gg = mk('g', { 'class': 'node idle' }, graph);
-      mk('rect', { x: 455 - 90, y: MY - H / 2, width: 180, height: H, rx: 8, 'stroke-dasharray': '5 4' }, gg);
-      txt(gg, 455, MY - 4, 't1', 'No model calls');
-      txt(gg, 455, MY + 13, 't2', 'in this range');
+      mk('rect', { x: MODEL_CENTER - 90, y: MY - H / 2, width: 180, height: H, rx: 8, 'stroke-dasharray': '5 4' }, gg);
+      txt(gg, MODEL_CENTER, MY - 4, 't1', 'No model calls');
+      txt(gg, MODEL_CENTER, MY + 13, 't2', 'in this range');
     }
     models.forEach(function (m) {
       var x = pos[m.key];
       var g = mk('g', { 'class': 'node model' + (m.errors > 0 ? ' err' : '') + (filter && filter.type === 'model' && filter.value === m.key ? ' sel' : ''), 'data-model': m.key }, graph);
-      mk('rect', { x: x - 95, y: MY - H / 2, width: 190, height: H + 10, rx: 8 }, g);
-      txt(g, x, MY - 6, 't1', m.provider + ' \\u00b7 ' + m.model);
-      txt(g, x, MY + 11, 't2', m.count + ' calls \\u00b7 avg ' + fmtMs(m.avgMs));
-      txt(g, x, MY + 25, 't2', m.inputTokens + ' in / ' + m.outputTokens + ' out tokens');
+      var w = modelWidth(m), lines = modelLines(m);
+      mk('rect', { x: x - w / 2, y: MY - H / 2, width: w, height: H + 10, rx: 8 }, g);
+      txt(g, x, MY - 6, 't1', lines[0]);
+      txt(g, x, MY + 11, 't2', lines[1]);
+      txt(g, x, MY + 25, 't2', lines[2]);
       hover(g, function () {
         return [m.provider + ' ' + m.model, m.endpoint || '(agent, no endpoint)', m.count + ' calls, ' + m.errors + ' failed',
           'avg ' + fmtMs(m.avgMs), m.inputTokens + ' tokens in, ' + m.outputTokens + ' out', 'click to filter calls'];
       });
       g.addEventListener('click', function () { setFilter({ type: 'model', value: m.key }); });
     });
+
+    drawDestinations();
+  }
+
+  // Where signals went: Outcome fans out to the places they ended up.
+  function stepX_(id) {
+    for (var i = 0; i < STEPS.length; i++) if (STEPS[i].id === id) return STEPS[i].x;
+    return 0;
+  }
+  function drawDestinations() {
+    var dests = shownDestinations();
+    var ox = stepX_('outcome') + W / 2;
+    var biggest = dests.reduce(function (a, d) { return Math.max(a, d.count); }, 1);
+    dests.forEach(function (d, i) {
+      var y = SY + i * DGAP;
+      var sel = filter && filter.type === 'dest' && filter.value === d.key;
+      var dim = filter && filter.type === 'dest' && !sel;
+      mk('path', {
+        d: 'M' + ox + ' ' + SY + ' C' + (ox + 40) + ' ' + SY + ',' + (DX - DW / 2 - 40) + ' ' + y + ',' + (DX - DW / 2) + ' ' + y,
+        'class': 'edge dest' + (dim ? ' dim' : ''),
+        'stroke-width': 2 + 8 * d.count / biggest
+      }, graph);
+      var g = mk('g', { 'class': 'node dest' + (sel ? ' sel' : ''), 'data-dest': d.key }, graph);
+      mk('rect', { x: DX - DW / 2, y: y - DH / 2, width: DW, height: DH, rx: 8 }, g);
+      var isGoal = d.kind === 'goal' && d.key !== 'goals-other';
+      var title = isGoal ? d.label.replace(/^Goal \\u00b7 /, '') : d.label;
+      txt(g, DX, y - 2, 't1', clip(title, Math.floor((DW - 16) / CHAR_PX)));
+      txt(g, DX, y + 12, 't2', (isGoal ? 'goal \\u00b7 ' : '') + d.count + (d.count === 1 ? ' signal' : ' signals'));
+      hover(g, function () {
+        return [d.label, d.count + (d.count === 1 ? ' signal' : ' signals') + ' ended here', 'click to list them'];
+      });
+      g.addEventListener('click', function () { setFilter({ type: 'dest', value: d.key, members: d.members }); });
+    });
   }
 
   function visibleCalls() {
     return data.summary.calls.filter(function (c) {
-      if (!filter) return true;
+      if (!filter || filter.type === 'dest' || filter.type === 'node') return true;
       if (filter.type === 'op') return c.operation === filter.value;
       return (c.provider + '|' + c.model + '|' + (c.endpoint || '')) === filter.value;
     });
@@ -231,6 +309,10 @@ export const TRACE_SCRIPT = `
     if (!filter) return 'All model calls';
     if (filter.type === 'op') return filter.value + ' calls';
     if (filter.type === 'model') return 'Calls to ' + filter.value.split('|')[1];
+    if (filter.type === 'dest') {
+      var found = data.summary.destinations.filter(function (d) { return d.key === filter.value; })[0];
+      return 'Signals that went to ' + (found ? found.label : 'other goals');
+    }
     return { signal: 'Signals processed', match: 'Signals matched to a direction', outcome: 'Signals by outcome' }[filter.value];
   }
 
@@ -309,11 +391,12 @@ export const TRACE_SCRIPT = `
   // Processed signals, one row each, for the nodes that are not model steps.
   function drawRecords(box) {
     var recs = data.summary.records.filter(function (r) {
+      if (filter.type === 'dest') return filter.members ? filter.members.indexOf(r.destination) >= 0 : r.destination === filter.value;
       return filter.value !== 'match' || (r.matchedBy && r.matchedBy !== 'fallback');
     });
     header(box, recs.length, 'signals');
     if (recs.length === 0) return empty(box, 'No signals to show.');
-    var tb = table(box, [['When', 'text'], ['Signal', 'text'], ['Direction', 'text'], ['Matched by', 'text'], ['Outcome', 'text'], ['Model calls', 'num'], ['Model time', 'num']]);
+    var tb = table(box, [['When', 'text'], ['Signal', 'text'], ['Direction', 'text'], ['Matched by', 'text'], ['Outcome', 'text'], ['Went to', 'text'], ['Model calls', 'num'], ['Model time', 'num']]);
     recs.slice(0, 300).forEach(function (r) {
       var tr = document.createElement('tr');
       openOnClick(tr, r.signalId);
@@ -322,6 +405,7 @@ export const TRACE_SCRIPT = `
       cell(tr, r.directionId || '\u2014');
       cell(tr, r.matchedBy || '\u2014');
       cell(tr, r.disposition);
+      cell(tr, r.destinationLabel);
       cell(tr, String(r.calls), '', r.calls);
       cell(tr, r.calls ? fmtMs(r.modelMs) : '\u2014', '', r.modelMs);
       tb.appendChild(tr);
@@ -331,7 +415,7 @@ export const TRACE_SCRIPT = `
   function drawTable() {
     var box = document.getElementById('calls');
     box.textContent = '';
-    if (filter && filter.type === 'node') drawRecords(box); else drawCalls(box);
+    if (filter && (filter.type === 'node' || filter.type === 'dest')) drawRecords(box); else drawCalls(box);
   }
 
   function drawStats() {

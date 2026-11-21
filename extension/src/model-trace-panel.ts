@@ -1,8 +1,14 @@
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
-import { localOllamaRoot, summarize, type RawEvent, type TraceSummary } from "./trace-model.js";
+import {
+  type GoalLinks,
+  localOllamaRoot,
+  type RawEvent,
+  summarize,
+  type TraceSummary,
+} from "./trace-model.js";
 import { TRACE_SCRIPT, TRACE_STYLE } from "./trace-script.js";
-import { SectionPanel, esc } from "./webview-base.js";
+import { esc, SectionPanel } from "./webview-base.js";
 
 type TraceRange = "1h" | "4h" | "12h" | "today" | "7d" | "30d";
 
@@ -16,6 +22,12 @@ const RANGE_LABEL: Record<TraceRange, string> = {
 };
 
 const LIVE_INTERVAL_MS = 3000;
+
+interface SignalInfo {
+  sender: string;
+  subject: string | null;
+  thoughtId: string | null;
+}
 
 /**
  * Model Trace — an interactive graph of where model calls go. Built from the
@@ -72,8 +84,8 @@ export class ModelTracePanel extends SectionPanel {
       const events = await apiFetch<RawEvent[]>(
         `/events?kind=signal.processed&range=${this.range}&limit=1000`,
       );
-      this.summary = summarize(events);
       const signals = await this.signalLookup();
+      this.summary = summarize(events, await this.goalLinks(signals));
       this.loadError = undefined;
       void this.panel.webview.postMessage({
         type: "data",
@@ -91,14 +103,33 @@ export class ModelTracePanel extends SectionPanel {
   }
 
   /** Who and what each processed signal was, so a row can say more than an id. Never blocks the graph. */
-  private async signalLookup(): Promise<
-    Record<string, { sender: string; subject: string | null }>
-  > {
+  private async signalLookup(): Promise<Record<string, SignalInfo>> {
     try {
-      const rows = await apiFetch<{ id: string; sender: string; subject: string | null }[]>(
-        `/signals?range=${this.range}`,
+      const rows = await apiFetch<
+        { id: string; sender: string; subject: string | null; thoughtId: string | null }[]
+      >(`/signals?range=${this.range}`);
+      return Object.fromEntries(
+        rows.map((r) => [
+          r.id,
+          { sender: r.sender, subject: r.subject, thoughtId: r.thoughtId ?? null },
+        ]),
       );
-      return Object.fromEntries(rows.map((r) => [r.id, { sender: r.sender, subject: r.subject }]));
+    } catch {
+      return {};
+    }
+  }
+
+  /** The goal each signal is linked to now. Signals that are not stored or not linked are left out. */
+  private async goalLinks(signals: Record<string, SignalInfo>): Promise<GoalLinks> {
+    try {
+      const goals = await apiFetch<{ id: string; title: string }[]>("/thoughts?state=goal");
+      const byId = new Map(goals.map((g) => [g.id, g]));
+      const links: Record<string, { id: string; title: string }> = {};
+      for (const [signalId, info] of Object.entries(signals)) {
+        const goal = info.thoughtId ? byId.get(info.thoughtId) : undefined;
+        if (goal) links[signalId] = { id: goal.id, title: goal.title };
+      }
+      return links;
     } catch {
       return {};
     }
@@ -167,7 +198,7 @@ export class ModelTracePanel extends SectionPanel {
       <div id="verdict"><strong></strong></div>
       <div id="stats" class="stats"></div>
       <div id="graph-wrap">
-        <svg id="graph" viewBox="0 0 960 340" role="img" aria-label="Model call flow graph"></svg>
+        <svg id="graph" viewBox="0 0 1100 340" role="img" aria-label="Model call flow graph"></svg>
         <div id="tip"></div>
       </div>
       <div id="ping" class="meta"></div>

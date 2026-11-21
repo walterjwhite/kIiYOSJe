@@ -128,14 +128,21 @@ the full payload.
 A graph of every model call, drawn from the audit log.
 
 - **Reading it.** The steps run left to right: Signal, Match, Classify, Transform,
-  Draft, Link to goal, Queue/absorb. The lines under them go to the model that
+  Draft, Link to goal, Outcome. The lines under them go to the model that
   served that step. A thicker line is more calls, a faster flow is lower latency,
   and a red line has failures. A dashed empty node means no model was called in
-  that range.
+  that range. Boxes grow to fit their text.
+- **Where signals went.** Green boxes to the right of Outcome show where the
+  processed signals ended up: **Queue**, **Absorbed**, **Filed**, or a **goal**
+  (the goal the signal is linked to now). The three goals with the most signals
+  get a box each; the rest are grouped as "N other goals". A thicker line is
+  more signals. A signal that is no longer stored, or was not linked, is counted
+  under its outcome instead.
 - **Hover** any node or line for its numbers.
 - **Click** a node or line to list the records behind it below the graph, the way
-  Analytics does. Model steps and models list their calls; Signal, Match and
-  Queue/absorb list the processed signals. Click a row to open the signal. Click
+  Analytics does. Model steps and models list their calls; Signal, Match,
+  Outcome and the green boxes list the processed signals, with a "Went to"
+  column. Click a row to open the signal. Click
   the node again, or **clear**, to remove the filter.
 - **Replay** animates the last 40 matching calls. **Live** polls every few
   seconds and animates new calls as they arrive.

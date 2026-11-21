@@ -68,11 +68,45 @@ export interface ProcessedRecord {
   matchedBy: string | null;
   calls: number;
   modelMs: number;
+  /** Where the signal ended up: "absorbed", "filed", "queue", "goal:<id>" or "other:<disposition>". */
+  destination: string;
+  destinationLabel: string;
+}
+
+/** One place signals ended up, with how many. */
+export interface DestinationStat {
+  key: string;
+  kind: "absorbed" | "filed" | "queue" | "goal" | "other";
+  label: string;
+  count: number;
+}
+
+/** The goal a signal is linked to now, by signal id. */
+export type GoalLinks = Readonly<Record<string, { id: string; title: string }>>;
+
+export function destinationOf(
+  disposition: string,
+  goal: { id: string; title: string } | undefined,
+): Pick<DestinationStat, "key" | "kind" | "label"> {
+  if (goal) return { key: `goal:${goal.id}`, kind: "goal", label: `Goal \u00b7 ${goal.title}` };
+  switch (disposition) {
+    case "absorbed":
+      return { key: "absorbed", kind: "absorbed", label: "Absorbed" };
+    case "filed":
+      return { key: "filed", kind: "filed", label: "Filed" };
+    case "promoted":
+    case "escalated":
+      return { key: "queue", kind: "queue", label: "Queue" };
+    default:
+      return { key: `other:${disposition}`, kind: "other", label: disposition };
+  }
 }
 
 export interface TraceSummary {
   /** Newest first. */
   records: ProcessedRecord[];
+  /** Where processed signals ended up: non-goal places first, then goals, biggest first. */
+  destinations: DestinationStat[];
   signals: number;
   withModel: number;
   withoutModel: number;
@@ -113,10 +147,11 @@ function parseCall(raw: unknown, at: string, signalId: string | null): TraceCall
   return call;
 }
 
-export function summarize(evts: RawEvent[]): TraceSummary {
+export function summarize(evts: RawEvent[], goalLinks: GoalLinks = {}): TraceSummary {
   const calls: TraceCall[] = [];
   const records: ProcessedRecord[] = [];
   const skipped: Record<string, number> = {};
+  const destinationCounts = new Map<string, DestinationStat>();
   let signals = 0;
   let withModel = 0;
 
@@ -143,11 +178,18 @@ export function summarize(evts: RawEvent[]): TraceSummary {
       }
     }
     if (any) withModel++;
+    const disposition = str(p["disposition"], "unknown");
+    const dest = destinationOf(disposition, signalId ? goalLinks[signalId] : undefined);
+    const seenDest = destinationCounts.get(dest.key);
+    if (seenDest) seenDest.count++;
+    else destinationCounts.set(dest.key, { ...dest, count: 1 });
     records.push({
+      destination: dest.key,
+      destinationLabel: dest.label,
       at: e.at,
       signalId,
       adapter: str(p["adapter"], "unknown"),
-      disposition: str(p["disposition"], "unknown"),
+      disposition,
       directionId: typeof p["directionId"] === "string" ? p["directionId"] : null,
       matchedBy: typeof p["matchedBy"] === "string" ? p["matchedBy"] : null,
       calls: made,
@@ -248,8 +290,16 @@ export function summarize(evts: RawEvent[]): TraceSummary {
     avgMs: avg(e),
   }));
 
+  const destinations = [...destinationCounts.values()].sort(
+    (a, b) =>
+      Number(a.kind === "goal") - Number(b.kind === "goal") ||
+      b.count - a.count ||
+      a.label.localeCompare(b.label),
+  );
+
   return {
     records,
+    destinations,
     signals,
     withModel,
     withoutModel: signals - withModel,
