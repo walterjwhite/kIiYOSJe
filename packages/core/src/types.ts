@@ -35,6 +35,8 @@ export type SignalDisposition =
 export const ThoughtState = {
   seedling: "seedling",
   active: "active",
+  /** A Goal: a Thought the operator is focusing on. Signals are linked to it in the Queue. */
+  goal: "goal",
   /** Conflicting or missing information: needs me to settle it, not a draft. */
   disputed: "disputed",
   parked: "parked",

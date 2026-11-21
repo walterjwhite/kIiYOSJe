@@ -5,7 +5,6 @@ import { configureNotificationQuietPeriod } from "./notifications-config.js";
 import { NavProvider } from "./nav-provider.js";
 import { QueuePanel } from "./queue-panel.js";
 import { QueueDetailPanel } from "./queue-detail-panel.js";
-import { BriefPanel } from "./brief-panel.js";
 import { SignalsPanel } from "./signals-panel.js";
 import { SignalDetailPanel } from "./signal-detail-panel.js";
 import { DirectionsPanel } from "./directions-panel.js";
@@ -23,7 +22,7 @@ import { ServerController } from "./server-control.js";
 /**
  * The sidebar is one short list of section links (NavProvider) — mirroring
  * the mockup's single top nav bar — not a set of trees each dumping live
- * data into view at rest. Every section (Queue, Today, Signals, Directions,
+ * data into view at rest. Every section (Queue, Signals, Directions,
  * Learnings, Analytics, Journal, Devices) opens as its own webview panel
  * only once clicked, which is where all the detail the mockup shows lives.
  * This keeps the sidebar itself calm: a goal of this tool, not an
@@ -62,9 +61,6 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("mind.queue.item", (itemId: string) =>
       QueueDetailPanel.show(itemId),
     ),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("mind.brief", () => BriefPanel.show()),
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("mind.signals", () => SignalsPanel.show()),

@@ -76,3 +76,21 @@ export async function apiFetch<T>(
     throw err;
   }
 }
+
+/** Fetches a binary response (the rendered summary audio). Bounded by a timeout. */
+export async function apiFetchBytes(urlPath: string, timeoutMs = 60_000): Promise<Buffer> {
+  statusIndicator.begin();
+  try {
+    const res = await fetch(`${serverUrl()}${urlPath}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) throw new Error(`mind API ${res.status} ${urlPath}: ${await res.text()}`);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    statusIndicator.end(true);
+    return bytes;
+  } catch (err) {
+    statusIndicator.end(false);
+    throw err;
+  }
+}

@@ -7,7 +7,15 @@ versions while the project is `0.x`).
 
 ## [Unreleased]
 
+### Removed
+- The Today screen. Overdue and review-due goals, the absorbed count and the summary now live on the Queue. `GET /brief` is unchanged.
+
 ### Added
+- Queue is two columns: Goals (Thoughts in the new `goal` state) on the left, items not linked to a goal on the right. Drag an item onto a goal to link it; Unlink undoes it. Items show one identity line and expand on click.
+- Auto-link: new Queue items are linked to a Goal when the model's confidence meets a threshold (on by default, 0.8, in Settings). Recorded as `signal.thought_linked` with `auto: true`.
+- Daily summary as a transcript and as audio (`GET /summary`, `POST|GET /summary/audio`), rendered locally by Piper. Voice, speed, tone and Piper command are in Settings. A missing voice is downloaded once from huggingface.co when `autoDownload` is on.
+- Model Trace screen: interactive graph of every model call, with a check against a local Ollama.
+- Sortable System Events columns and syntax-highlighted JSON.
 - GitHub Actions for CI, security scanning, agent PR guard, agent issue intake, and releases
 - Issue and PR templates, CODEOWNERS, Dependabot configuration
 - Secret scan, migration immutability, and protected-path scripts

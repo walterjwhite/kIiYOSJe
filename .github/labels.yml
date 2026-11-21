@@ -1,18 +1,19 @@
 # Applied by scripts/setup-github.sh (gh label create --force).
-- { name: ai-ready,              color: 0e8a16, description: "Maintainer-approved for an AI agent to implement" }
-- { name: ai-generated,          color: 5319e7, description: "PR written by an AI agent" }
-- { name: needs-triage,          color: ededed, description: "Not yet reviewed by a maintainer" }
-- { name: needs-human-decision,  color: d93f0b, description: "Product or policy choice; not for agents" }
-- { name: human-approved-scope,  color: fbca04, description: "Maintainer allows this PR to touch protected paths" }
-- { name: deps-approved,         color: fbca04, description: "Maintainer reviewed a dependency change" }
-- { name: no-tests-needed,       color: c5def5, description: "Maintainer waives the test-with-source rule" }
-- { name: security,              color: b60205, description: "Security-relevant; handled by a human" }
-- { name: safety-gate,           color: b60205, description: "Touches send gates, pause flag, or auth" }
-- { name: performance,           color: 1d76db, description: "Latency, memory, or storage" }
-- { name: privacy,               color: 1d76db, description: "Data handling and egress" }
-- { name: ai-quality,            color: 1d76db, description: "Classifier or drafter quality" }
-- { name: launch-blocker,        color: b60205, description: "Must be done before the first release" }
-- { name: dependencies,          color: 0366d6, description: "Dependency update" }
-- { name: ci,                    color: 0366d6, description: "Workflows and automation" }
-- { name: docs,                  color: 0075ca, description: "Documentation" }
-- { name: bug,                   color: d73a4a, description: "Something is broken" }
+# Colors are quoted so YAML cannot read them as numbers (5319e7 is a float).
+- { name: ai-ready,              color: "0e8a16", description: "Maintainer-approved for an AI agent to implement" }
+- { name: ai-generated,          color: "5319e7", description: "PR written by an AI agent" }
+- { name: needs-triage,          color: "ededed", description: "Not yet reviewed by a maintainer" }
+- { name: needs-human-decision,  color: "d93f0b", description: "Product or policy choice; not for agents" }
+- { name: human-approved-scope,  color: "fbca04", description: "Maintainer allows this PR to touch protected paths" }
+- { name: deps-approved,         color: "fbca04", description: "Maintainer reviewed a dependency change" }
+- { name: no-tests-needed,       color: "c5def5", description: "Maintainer waives the test-with-source rule" }
+- { name: security,              color: "b60205", description: "Security-relevant; handled by a human" }
+- { name: safety-gate,           color: "b60205", description: "Touches send gates, pause flag, or auth" }
+- { name: performance,           color: "1d76db", description: "Latency, memory, or storage" }
+- { name: privacy,               color: "1d76db", description: "Data handling and egress" }
+- { name: ai-quality,            color: "1d76db", description: "Classifier or drafter quality" }
+- { name: launch-blocker,        color: "b60205", description: "Must be done before the first release" }
+- { name: dependencies,          color: "0366d6", description: "Dependency update" }
+- { name: ci,                    color: "0366d6", description: "Workflows and automation" }
+- { name: docs,                  color: "0075ca", description: "Documentation" }
+- { name: bug,                   color: "d73a4a", description: "Something is broken" }

@@ -25,6 +25,7 @@ import type {
 import {
   actions,
   aiConfigured,
+  autolinkSettings,
   directions,
   events,
   globalSendEnabled,
@@ -48,6 +49,8 @@ import { classify } from "./classify.js";
 import type { ClassifierOutput } from "./classify.js";
 import { draft } from "./draft.js";
 import { transform } from "./transform.js";
+import { chooseLink, proposeLink } from "./link.js";
+import type { LinkOutput } from "./link.js";
 import type { ModelTrace } from "./model.js";
 import { decide } from "./decide.js";
 import { computeEscalateBy } from "./escalation.js";
@@ -62,6 +65,8 @@ export interface IngestOverrides {
   draftBody?: string | null;
   /** Skip the real transform call and use this value instead. For tests and demo data. */
   transformedSummary?: string | null;
+  /** Skip the real auto-link call and use this result instead. For tests. */
+  linkOutput?: LinkOutput | null;
 }
 
 export interface IngestResult {
@@ -459,6 +464,53 @@ export async function ingest(
         }
       }
     }
+  }
+
+  // ── 6b. Auto-link to a Goal ──────────────────────────────────────────────
+  // A signal that will show up in the Queue may belong to something the
+  // operator is already focused on. Only a confident match is linked; the
+  // link is an event, so it is explainable and can be undone.
+  const autolink = autolinkSettings();
+  const queued = disposition === "promoted" || disposition === "escalated" || actionId !== null;
+  if (queued && autolink.enabled) {
+    const goals = db
+      .select({ id: thoughts.id, title: thoughts.title, body: thoughts.body })
+      .from(thoughts)
+      .where(eq(thoughts.state, "goal"))
+      .all();
+    if (goals.length === 0) aiSkipped["link"] = "no goals to link to";
+    else if (overrides?.linkOutput === undefined && !aiOn) aiSkipped["link"] = "no AI provider configured";
+    const proposed =
+      overrides?.linkOutput !== undefined
+        ? overrides.linkOutput
+        : await proposeLink({
+            signalBody: normalizedBody,
+            sender: signal.sender,
+            subject: signal.subject ?? null,
+            goals,
+            onTrace: (t) => aiCalls.push(t),
+          });
+    const link = chooseLink(proposed, goals, autolink.threshold);
+    if (link) {
+      db.update(signals).set({ thoughtId: link.thoughtId }).where(eq(signals.id, signalId)).run();
+      db.insert(events)
+        .values({
+          id: newId(),
+          actor: "system",
+          kind: "signal.thought_linked",
+          payload: JSON.stringify({
+            signalId,
+            thoughtId: link.thoughtId,
+            previousThoughtId: thoughtId ?? null,
+            auto: true,
+            confidence: link.confidence,
+            threshold: autolink.threshold,
+          }),
+        })
+        .run();
+    }
+  } else if (queued) {
+    aiSkipped["link"] = "auto-link is turned off";
   }
 
   // Audit event — carries the reasoning, not just the outcome, so the Journal

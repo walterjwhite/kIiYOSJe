@@ -26,7 +26,19 @@ node --input-type=module -e '
   import { readFileSync } from "node:fs";
   import { parse } from "yaml";
   const labels = parse(readFileSync(process.argv[1], "utf8"));
-  for (const l of labels) console.log([l.name, l.color, l.description].join("\t"));
+  let bad = 0;
+  for (const l of labels) {
+    // Quote-free colors such as 5319e7 parse as a YAML float; refuse anything
+    // that is not six hex digits instead of sending an invalid color to GitHub.
+    const color = String(l.color);
+    if (!/^[0-9a-f]{6}$/i.test(color)) {
+      console.error(`invalid color ${JSON.stringify(l.color)} for label ${l.name} (quote it in .github/labels.yml)`);
+      bad = 1;
+      continue;
+    }
+    console.log([l.name, color, l.description].join("\t"));
+  }
+  process.exitCode = bad;
 ' "$ROOT/.github/labels.yml" | while IFS=$'\t' read -r name color desc; do
   run gh label create "$name" --color "$color" --description "$desc" --repo "$REPO" --force
 done

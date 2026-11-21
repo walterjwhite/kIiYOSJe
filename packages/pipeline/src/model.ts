@@ -32,7 +32,7 @@ export interface ModelRequest {
   onTrace?: (trace: ModelTrace) => void;
 }
 
-export type ModelOperation = "classify" | "draft" | "transform";
+export type ModelOperation = "classify" | "draft" | "transform" | "link";
 
 /**
  * What happened on one model call: enough to show that the call went to the

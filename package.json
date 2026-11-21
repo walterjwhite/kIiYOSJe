@@ -28,5 +28,9 @@
     "esbuild@0.28.2": true,
     "esbuild@0.25.12": true,
     "better-sqlite3@13.2.0": true
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "@vitest/coverage-v8": "5.1.0"
   }
 }

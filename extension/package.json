@@ -1,7 +1,7 @@
 {
   "name": "mind-vscode",
   "displayName": "mind",
-  "description": "Local attention manager — Queue, Today, Signals, Directions, Learnings, Analytics, Journal, Devices",
+  "description": "Local attention manager — Queue, Signals, Directions, Learnings, Analytics, Journal, Devices",
   "version": "0.0.1",
   "publisher": "mind-local",
   "license": "BSD-3-Clause",
@@ -17,10 +17,6 @@
       {
         "command": "mind.queue",
         "title": "mind: Open Queue"
-      },
-      {
-        "command": "mind.brief",
-        "title": "mind: Open Today Brief"
       },
       {
         "command": "mind.signals",

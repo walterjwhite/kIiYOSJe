@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 /**
- * The sidebar is a short list of buttons, one per screen (Queue, Today,
+ * The sidebar is a short list of buttons, one per screen (Queue,
  * Signals, Directions, Learnings, Analytics, Journal, System Events,
  * Devices) — nothing else. Each click opens that section as its own
  * webview panel in the editor area, where the full detail lives.
@@ -26,16 +26,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     id: "queue",
     label: "Queue",
-    description: "plan and work through what needs action",
+    description: "goals, and what needs action",
     icon: "inbox",
     command: "mind.queue",
-  },
-  {
-    id: "today",
-    label: "Today",
-    description: "the daily brief",
-    icon: "calendar",
-    command: "mind.brief",
   },
   {
     id: "signals",
@@ -96,7 +89,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     id: "settings",
     label: "Settings",
-    description: "which signal fields are shown",
+    description: "audio, auto-linking, what is shown",
     icon: "gear",
     command: "mind.settings",
   },

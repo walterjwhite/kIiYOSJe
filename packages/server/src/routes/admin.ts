@@ -34,6 +34,12 @@ import {
   displaySettings,
   writeDisplaySettings,
   DisplaySettingsSchema,
+  autolinkSettings,
+  writeAutolinkSettings,
+  AutolinkSettingsSchema,
+  audioSettings,
+  writeAudioSettings,
+  AudioSettingsSchema,
 } from "@mind/core";
 
 const AiConfigRequestSchema = z.object({
@@ -125,6 +131,23 @@ export function adminRouter() {
   app.put("/display", zValidator("json", DisplaySettingsSchema), (c) => {
     const body = c.req.valid("json");
     writeDisplaySettings(body);
+    return c.json({ ok: true });
+  });
+
+  // GET/PUT /admin/autolink — whether new signals are linked to Goals
+  // automatically, and how confident the model must be first.
+  // GET/PUT /admin/audio — the voice, speed and tone of the spoken summary, and
+  // how Piper is run. The voice name is validated against a strict pattern
+  // because it decides which file is downloaded.
+  app.get("/audio", (c) => c.json(audioSettings()));
+  app.put("/audio", zValidator("json", AudioSettingsSchema), (c) => {
+    writeAudioSettings(c.req.valid("json"));
+    return c.json({ ok: true });
+  });
+
+  app.get("/autolink", (c) => c.json(autolinkSettings()));
+  app.put("/autolink", zValidator("json", AutolinkSettingsSchema), (c) => {
+    writeAutolinkSettings(c.req.valid("json"));
     return c.json({ ok: true });
   });
 

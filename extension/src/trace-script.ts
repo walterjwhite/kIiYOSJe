@@ -56,14 +56,15 @@ export const TRACE_SCRIPT = `
   var firstLoad = true;
   var selectedCall = null;
   var STEPS = [
-    { id: 'signal', label: 'Signal', x: 80 },
-    { id: 'match', label: 'Match', x: 230 },
-    { id: 'classify', label: 'Classify', x: 380, op: true },
-    { id: 'transform', label: 'Transform', x: 530, op: true },
-    { id: 'draft', label: 'Draft', x: 680, op: true },
-    { id: 'outcome', label: 'Queue / absorb', x: 830 }
+    { id: 'signal', label: 'Signal', x: 70 },
+    { id: 'match', label: 'Match', x: 195 },
+    { id: 'classify', label: 'Classify', x: 330, op: true },
+    { id: 'transform', label: 'Transform', x: 480, op: true },
+    { id: 'draft', label: 'Draft', x: 650, op: true },
+    { id: 'link', label: 'Link to goal', x: 780, op: true },
+    { id: 'outcome', label: 'Queue / absorb', x: 890 }
   ];
-  var SY = 70, MY = 270, W = 110, H = 52;
+  var SY = 70, MY = 270, W = 100, H = 52;
   var graph = document.getElementById('graph');
   var tip = document.getElementById('tip');
   var wrap = document.getElementById('graph-wrap');
@@ -134,7 +135,7 @@ export const TRACE_SCRIPT = `
     // Edges from a step to the model that served it.
     var edgesG = mk('g', {}, graph);
     if (models.length === 0) {
-      ['classify', 'transform', 'draft'].forEach(function (op) {
+      ['classify', 'transform', 'draft', 'link'].forEach(function (op) {
         var x1 = stepX[op], x2 = 455;
         mk('path', { d: 'M' + x1 + ' ' + (SY + H / 2) + ' C' + x1 + ' ' + (SY + 120) + ',' + x2 + ' ' + (MY - 120) + ',' + x2 + ' ' + (MY - H / 2), 'class': 'edge ghost', 'stroke-width': 2 }, edgesG);
       });

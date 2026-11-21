@@ -41,7 +41,7 @@ export function thoughtsRouter(db: Db) {
         title: body.title,
         body: body.body,
         directionId: body.directionId,
-        state: "seedling",
+        state: body.state ?? "seedling",
       })
       .run();
 
@@ -50,7 +50,7 @@ export function thoughtsRouter(db: Db) {
         id: newId(),
         actor: "user",
         kind: "thought.created",
-        payload: JSON.stringify({ thoughtId: id }),
+        payload: JSON.stringify({ thoughtId: id, state: body.state ?? "seedling" }),
       })
       .run();
 

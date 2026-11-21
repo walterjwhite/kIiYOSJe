@@ -23,6 +23,7 @@ export const DirectionAutonomySchema = z.enum(["observe", "draft", "send"]);
 export const ThoughtStateSchema = z.enum([
   "seedling",
   "active",
+  "goal",
   "disputed",
   "parked",
   "closed",
@@ -218,6 +219,8 @@ export const CreateThoughtRequestSchema = z.object({
   title: z.string().min(1),
   body: z.string(),
   directionId: z.string().nullable(),
+  /** "goal" creates a Goal the operator is focusing on; the default is a seedling. */
+  state: z.enum(["seedling", "goal"]).optional(),
 });
 
 export const UpdateThoughtRequestSchema = z.object({

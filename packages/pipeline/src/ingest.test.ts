@@ -367,3 +367,44 @@ describe("ingest", () => {
     expect(ai.modelMs).toBe(0);
   });
 });
+
+describe("ingest auto-link", () => {
+  const addGoal = (db: ReturnType<typeof setup>, id = "goal-1") =>
+    db.insert(schema.thoughts).values({ id, title: "Ship the report", body: "", state: "goal" }).run();
+  const linkedTo = (db: ReturnType<typeof setup>) => db.select().from(schema.signals).get()?.thoughtId;
+
+  it("links a queued signal to a goal when the model is confident enough", async () => {
+    const db = setup("surface");
+    addGoal(db);
+    await ingest(db, signal, new AdapterRegistry(), { ...overrides(), linkOutput: { thoughtId: "goal-1", confidence: 0.9 } });
+
+    expect(linkedTo(db)).toBe("goal-1");
+    const event = db.select().from(schema.events).all().find((e) => e.kind === "signal.thought_linked");
+    expect(JSON.parse(event!.payload)).toMatchObject({ thoughtId: "goal-1", auto: true, confidence: 0.9 });
+  });
+
+  it("leaves the signal on its own thought when confidence is below the threshold", async () => {
+    const db = setup("surface");
+    addGoal(db);
+    await ingest(db, signal, new AdapterRegistry(), { ...overrides(), linkOutput: { thoughtId: "goal-1", confidence: 0.6 } });
+
+    expect(linkedTo(db)).not.toBe("goal-1");
+    expect(db.select().from(schema.events).all().some((e) => e.kind === "signal.thought_linked")).toBe(false);
+  });
+
+  it("ignores a goal id the model made up", async () => {
+    const db = setup("surface");
+    addGoal(db);
+    await ingest(db, signal, new AdapterRegistry(), { ...overrides(), linkOutput: { thoughtId: "invented", confidence: 1 } });
+
+    expect(linkedTo(db)).not.toBe("invented");
+  });
+
+  it("never links to a thought that is not a goal, even an active one", async () => {
+    const db = setup("surface");
+    db.insert(schema.thoughts).values({ id: "seed-1", title: "x", body: "", state: "active" }).run();
+    await ingest(db, signal, new AdapterRegistry(), { ...overrides(), linkOutput: { thoughtId: "seed-1", confidence: 1 } });
+
+    expect(linkedTo(db)).not.toBe("seed-1");
+  });
+});

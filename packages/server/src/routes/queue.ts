@@ -62,6 +62,8 @@ export interface QueueItem {
   actionId: string | null;
   signalId: string;
   thoughtId: string | null;
+  /** The Goal this item is linked to: its thought, when that thought is in the goal state. */
+  goalId: string | null;
   adapter: string;
   account: string | null;
   sender: string;
@@ -190,12 +192,16 @@ function buildItem(
   }
 
   const body = action ? draftBody(action.payload) : "";
+  const linkedThought = signal.thoughtId
+    ? db.select({ state: thoughts.state }).from(thoughts).where(eq(thoughts.id, signal.thoughtId)).get()
+    : undefined;
   return {
     id: action ? `action:${action.id}` : `signal:${signal.id}`,
     type,
     actionId: action?.id ?? null,
     signalId: signal.id,
     thoughtId: signal.thoughtId,
+    goalId: linkedThought?.state === "goal" ? signal.thoughtId : null,
     adapter: signal.adapter,
     account: signal.account,
     sender: signal.sender,

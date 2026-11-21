@@ -19,6 +19,8 @@ export interface QueueItem {
   actionId: string | null;
   signalId: string;
   thoughtId: string | null;
+  /** The Goal this item is linked to, or null when it is unlinked. */
+  goalId: string | null;
   adapter: string;
   account: string | null;
   sender: string;
