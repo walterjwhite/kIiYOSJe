@@ -7,6 +7,9 @@ overview first, then the VS Code extension, then the Android client.
 Hand **§1 Prompt** and **§4 Voiceover script** to the video tool (or to the
 person recording and narrating). The rest is preparation and guardrails.
 
+To produce it from real screenshots instead, with a silent video pass and a
+separate audio pass, see `scripts/demo-video/README.md`.
+
 ## 0. At a glance
 
 | | |

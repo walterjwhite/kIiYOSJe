@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>mind — one local loop</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hidden; }
+  body {
+    background: radial-gradient(circle at 70% 10%, #1b2434 0%, #0d0f13 60%, #090a0d 100%);
+    color: #e6e9ef;
+    font-family: "DejaVu Sans", system-ui, sans-serif;
+    box-sizing: border-box;
+    padding: 90px 120px;
+  }
+  h1 { font-size: 54px; font-weight: 600; margin: 0 0 14px; letter-spacing: -1px; }
+  .sub { color: #aab4c4; font-size: 28px; margin: 0 0 70px; }
+  .flow { display: flex; align-items: stretch; gap: 0; }
+  .box {
+    flex: 1;
+    border: 2px solid #2c3648;
+    border-top: 4px solid #3b82f6;
+    border-radius: 14px;
+    padding: 30px 28px;
+    background: #121620;
+    min-height: 300px;
+  }
+  .box h2 { font-size: 30px; margin: 0 0 16px; }
+  .box p { color: #9aa7ba; font-size: 22px; line-height: 1.5; margin: 0; }
+  .arrow { display: flex; align-items: center; justify-content: center; width: 96px; color: #3b82f6; font-size: 44px; }
+  .note { margin-top: 64px; color: #6f7d92; font-size: 24px; letter-spacing: 1px; text-transform: uppercase; }
+</style>
+</head>
+<body>
+  <h1>One local loop</h1>
+  <p class="sub">Nothing in this picture leaves the machine without you.</p>
+  <div class="flow">
+    <div class="box">
+      <h2>Sources</h2>
+      <p>Mail, calendar, pull requests, and the phone. Captured as signals.</p>
+    </div>
+    <div class="arrow">→</div>
+    <div class="box">
+      <h2>Directions</h2>
+      <p>Your rules: what this kind of signal means and how it should be handled.</p>
+    </div>
+    <div class="arrow">→</div>
+    <div class="box">
+      <h2>Queue</h2>
+      <p>Drafts and decisions. A thought appears only where there is ambiguity.</p>
+    </div>
+    <div class="arrow">→</div>
+    <div class="box">
+      <h2>You</h2>
+      <p>Approve, discard, link, reclassify. Approval is the only send.</p>
+    </div>
+  </div>
+  <div class="note">One server · one SQLite file · local Ollama by default</div>
+</body>
+</html>

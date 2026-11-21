@@ -19,7 +19,7 @@ testing is still not done — see "Not verified" below.
 | P3 Email                     | Implemented, unverified           | drafts in Drafts folder, Message-ID dedupe                                                        | No. Gmail send/reply and Outlook (Graph) draft-then-send are implemented; not yet run against a live mailbox.                                                                                                                                                                                                                                                                                                                                                                 |
 | P4 Autonomy                  | Code complete, no end-to-end path | send only for `autonomy: send`, `mind pause` stops all sends, sends reconstructible from `events` | Partly. Gates and pause are tested with a fake adapter. No real adapter can send.                                                                                                                                                                                                                                                                                                                                                                                             |
 | P5 Learning loop             | Tested with real override data    | first proposal generated from real override data                                                  | Yes, partially. In the same real seed run, two personas' deliberately loose directions accumulated real overrides (simulated operator reactions to real model drafts) and the learning loop generated real `narrow` proposals from that data — confirmed via `GET /proposals`. This is probabilistic: it is not guaranteed on every seed run, because the classification outcomes that drive it are real model output, not scripted.                                          |
-| P6 Mobile, FTS5              | Android client built; FTS5 deferred | `:app:assembleDebug` produces a debug APK in CI and locally                     | Partly. Pairing and the phone client exist and compile; the APK has not been installed or run on a device, and no phone has paired over a LAN. FTS5 is still deferred.                                                                                                                                                                                                                                                                                                        |
+| P6 Mobile, FTS5              | Android client built; FTS5 deferred | `:app:assembleDebug`, `:app:testDebugUnitTest` and `lintDebug` pass in CI and locally                     | Partly. Pairing and the phone client exist and compile; the APK has not been installed or run on a device, and no phone has paired over a LAN. FTS5 is still deferred.                                                                                                                                                                                                                                                                                                        |
 
 ## Mockup reconciliation (this round)
 
@@ -273,7 +273,12 @@ Verified: `npm run lint` and the test suite, including a server suite that pairs
 through the real app, exercises a scoped device, refuses adapter ingress, and
 proves revoking one device leaves another working. The Android client compiles:
 `:app:assembleDebug` with JDK 21, Gradle 8.11.1 and SDK 35 produces a debug APK,
-and the new `android` CI job runs the same task and uploads the APK. **Not
+and the `android` CI job runs Android lint (`:app:lintDebug`, warnings are
+errors), the JVM unit tests
+(`:app:testDebugUnitTest`: seven tests over what the phone does with queue and
+pairing payloads) and the build, all through the committed Gradle wrapper, then
+uploads the APK. `android/deploy-debug.sh` builds,
+installs and launches it on a connected phone. **Not
 verified:** the APK has not been installed or run on a device or emulator, and no
 phone has paired against a real server over a LAN. `MIND_BIND_HOST` has not been
 exercised on a real network interface.

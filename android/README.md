@@ -36,23 +36,56 @@ forgets the token locally — revoke on the server too.
 
 ## Building
 
-Open `android/` in Android Studio (Ladybug or newer), or with JDK 17+ and
-Gradle 8.9+:
+Open `android/` in Android Studio (Ladybug or newer), or with JDK 17+. The
+committed Gradle wrapper downloads the pinned Gradle 8.11.1, so nothing else
+needs installing.
+
+The quickest path is the deploy script. It finds the JDK, the Android SDK and
+the device (or takes `JAVA_HOME` / `ANDROID_HOME` / `--serial`), builds, installs
+over the existing app (keeping the paired token) and launches it:
 
 ```bash
-cd android
-gradle wrapper --gradle-version 8.11.1   # once, if you want ./gradlew
-./gradlew assembleDebug                  # or: gradle assembleDebug
+./deploy-debug.sh                 # build, install, launch on the connected phone
+./deploy-debug.sh --build-only    # just the APK, no phone needed
+```
+
+By hand the same two steps are:
+
+```bash
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 The APK lands in `app/build/outputs/apk/debug/`. Minimum SDK 26, target 35.
 The Gradle and Compose versions are pinned in `build.gradle.kts`; update them
 together when the toolchain moves.
 
-CI builds the debug APK on every pull request and main push: the `android` job
-in `.github/workflows/ci.yml` uses JDK 21, Gradle 8.11.1 and SDK 35, and uploads
-the APK as the `android-debug-apk` artifact. It is a compile check, not a run on
-a device or emulator.
+Unit tests cover what the phone does with a payload — parsing the Queue and the
+pairing response — and run on the JVM, so they need no device:
+
+```bash
+./gradlew :app:testDebugUnitTest
+```
+
+Android lint runs the same way and is configured with `warningsAsErrors = true`
+in `app/build.gradle.kts`, so a warning fails the build exactly like an error:
+
+```bash
+./gradlew :app:lintDebug          # report: app/build/reports/lint-results-debug.html
+```
+
+Three checks are deliberately off, each with its reason in the same `lint` block:
+`GradleDependency` (lint flags every new release immediately, and upgrades are a
+separate change), `InsecureBaseConfiguration` (cleartext on a private network is
+the documented tradeoff below) and `MonochromeLauncherIcon` (the themed icon
+lives in `mipmap-anydpi-v33`, but the check only reads the base icon file).
+Everything else must be clean.
+
+CI runs lint, those tests and the debug build on every pull request and main
+push: the `android` job in `.github/workflows/ci.yml` uses JDK 21, the committed
+Gradle wrapper (8.11.1) and SDK 35, and uploads the APK as the
+`android-debug-apk` artifact. It is a lint, compile and unit-test check, not a
+run on a device or emulator.
 
 ## Network security
 

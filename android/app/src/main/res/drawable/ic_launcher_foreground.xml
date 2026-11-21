@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A speech bubble holding one item: the Queue this phone is paired to. -->
+    <path
+        android:fillColor="#F2EDE6"
+        android:pathData="M40,32h28a10,10 0 0,1 10,10v18a10,10 0 0,1 -10,10H56l-10,9v-9h-6a10,10 0 0,1 -10,-10V42a10,10 0 0,1 10,-10z" />
+    <path
+        android:fillColor="#12100E"
+        android:pathData="M44,46h20v4H44zM44,54h14v4H44z" />
+</vector>

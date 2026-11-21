@@ -19,8 +19,11 @@ versions while the project is `0.x`).
 - An Android client in [`android/`](android/README.md): pair once, then read the
   Queue, capture a thought, acknowledge a signal, and approve or discard a draft
   when the device was granted `send`. The last queue is cached and labelled as
-  cached when the server is unreachable. CI builds the debug APK on every pull
-  request and uploads it as an artifact.
+  cached when the server is unreachable. CI runs Android lint, the unit tests
+  and the debug build on every pull request — lint treats warnings as errors —
+  uploading the APK as an artifact, and
+  `android/deploy-debug.sh` builds, installs and launches it on a connected
+  phone.
 - `MIND_BIND_HOST` lets the server bind beyond loopback so a phone on a private
   network can reach it. The default is still `127.0.0.1`, and every route still
   requires a token.

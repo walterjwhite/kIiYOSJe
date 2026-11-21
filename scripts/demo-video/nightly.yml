@@ -1,0 +1,169 @@
+# DRAFT — deliberately not active.
+#
+# GitHub only runs workflows from .github/workflows/. Moving this file there
+# changes .github/, which AGENTS.md lists as a hard-limit area: it needs an
+# issue labelled human-approved-scope (or your own explicit approval as the
+# maintainer). Until then this file is documentation of the job, not a job.
+#
+# What it does: seeds the synthetic demo database with a real local model,
+# captures the real VS Code panels under Xvfb and the real Android client on
+# an emulator, masks and OCR-checks every frame, then runs the same two passes
+# you run locally and uploads the result as an artifact.
+#
+# Known gaps, on purpose:
+#   * 05-details and 06-approve need a row click inside a webview. There is no
+#     stable selector for that in CI, so the draft cut slates those two beats
+#     (pass1 --allow-missing). It is a review artifact, not a submission.
+#   * The first run downloads qwen2.5:3b-instruct (~2 GB) and seeds the database
+#     with real model calls, so expect 20–40 minutes, not 3.
+#   * Actions here are tag-pinned to match the existing workflows; pin them to
+#     commit SHAs if the security workflow requires it when you move the file.
+name: Demo video (nightly)
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-video
+  cancel-in-progress: false
+
+jobs:
+  video:
+    name: Capture, mask, assemble
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MIND_DB_PATH: /home/runner/.data/kIiYOSJe/mind/demo.db
+      MIND_RETENTION_DAYS: "36500"
+      MIND_BIND_HOST: 0.0.0.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      - name: Install capture and media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg xvfb openbox xdotool maim tesseract-ocr espeak-ng \
+            fonts-dejavu-core curl
+      - name: Install VS Code
+        run: |
+          curl -fL -o /tmp/code.tar.gz "https://update.code.visualstudio.com/latest/linux-x64/stable"
+          mkdir -p /tmp/vscode
+          tar -xzf /tmp/code.tar.gz -C /tmp/vscode --strip-components=1
+          echo "/tmp/vscode/bin" >> "$GITHUB_PATH"
+      - name: Install Piper
+        run: python3 -m pip install --user piper-tts
+      - name: Download the Piper voice
+        run: |
+          mkdir -p scripts/demo-video/models
+          base="https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium"
+          curl -fL --retry 3 -o scripts/demo-video/models/en_US-lessac-medium.onnx "$base.onnx"
+          curl -fL --retry 3 -o scripts/demo-video/models/en_US-lessac-medium.onnx.json "$base.onnx.json"
+
+      - name: Start Ollama and pull the demo model
+        run: |
+          docker run -d --name ollama -p 127.0.0.1:11434:11434 \
+            -v ollama:/root/.ollama ollama/ollama
+          for _ in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:11434/api/pull \
+            -H 'content-type: application/json' \
+            -d '{"name":"qwen2.5:3b-instruct"}'
+
+      - name: Seed the synthetic demo database
+        run: npm run demo:seed
+
+      - name: Build server and extension
+        run: bash scripts/build-extension.sh
+
+      - name: Start the demo server
+        run: |
+          node packages/server/dist/main.js > /tmp/server.log 2>&1 &
+          for _ in $(seq 1 60); do
+            token="$HOME/.config/kIiYOSJe/mind/token"
+            if [ -s "$token" ] && curl -fsS \
+              -H "Authorization: Bearer $(cat "$token")" \
+              http://127.0.0.1:8787/health >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/server.log
+          exit 1
+
+      - name: Render cards
+        env:
+          CHROMIUM: google-chrome
+        run: node scripts/demo-video/build-cards.mjs --force
+
+      - name: Capture VS Code
+        env:
+          MIND_CAPTURE_NO_SANDBOX: "1"
+          MIND_CAPTURE_CONFIRM: demo
+        run: bash scripts/demo-video/capture-vscode.sh --install --xvfb --force
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "tools platform-tools platforms;android-35 build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Assemble debug APK
+        working-directory: android
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Capture Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: bash scripts/demo-video/capture-android.sh --reset --force
+
+      - name: Mask and check for PII
+        run: |
+          node scripts/demo-video/mask.mjs
+          node scripts/demo-video/mask.mjs --check
+
+      - name: Pass 1 — silent video
+        run: node scripts/demo-video/pass1-video.mjs --allow-missing
+
+      - name: Pass 2 — audio and mux
+        run: node scripts/demo-video/pass2-audio.mjs
+
+      - name: Upload the draft
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-video-draft
+          path: |
+            scripts/demo-video/out/demo.mp4
+            scripts/demo-video/out/captions.srt
+            scripts/demo-video/out/manifest.json
+            scripts/demo-video/frames/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Server log
+        if: failure()
+        run: cat /tmp/server.log || true

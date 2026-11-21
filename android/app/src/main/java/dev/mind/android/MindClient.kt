@@ -141,18 +141,27 @@ object Minds {
                 val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
                 if (status !in 200..299) throw MindException(status, errorMessage(text))
 
-                val body = JSONObject(text)
-                val scopes = body.optJSONArray("scopes")?.let { array ->
-                    (0 until array.length())
-                        .map { index -> array.optString(index) }
-                        .filter { value -> value.isNotEmpty() }
-                        .toSet()
-                } ?: emptySet()
-                PairResult(body.getString("token"), body.optString("name", "My Android phone"), scopes)
+                parsePair(text)
             } finally {
                 connection.disconnect()
             }
         }
+
+    /** The pairing response: the device's own token, the name the editor chose, and its scopes. */
+    fun parsePair(json: String): PairResult {
+        val body = JSONObject(json)
+        val scopes = body.optJSONArray("scopes")?.let { array ->
+            (0 until array.length())
+                .map { index -> array.optString(index) }
+                .filter { value -> value.isNotEmpty() }
+                .toSet()
+        } ?: emptySet()
+        return PairResult(
+            token = body.getString("token"),
+            name = body.optString("name", "My Android phone"),
+            scopes = scopes,
+        )
+    }
 
     private fun errorMessage(text: String): String =
         try {

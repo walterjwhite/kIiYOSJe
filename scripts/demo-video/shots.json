@@ -1,0 +1,103 @@
+{
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "shots": [
+    {
+      "id": "01-title",
+      "duration": 10,
+      "caption": "mind — a local attention manager",
+      "narration": "Your attention is spread across mail, a calendar, pull requests, and a phone. mind gives back the part that is just triage."
+    },
+    {
+      "id": "02-overview",
+      "duration": 32,
+      "caption": "One machine · one server · one SQLite file",
+      "narration": "It runs on one machine: one server, one SQLite file, one process. The server is the single source of truth; the editor and the phone are clients. You write Directions — rules for how a kind of signal should be handled. mind matches signals against them, drafts when a reply is needed, and leaves only the real decisions in a Queue. A thought appears only where there is ambiguity or consequence. Nothing is sent until you approve it."
+    },
+    {
+      "id": "03-sidebar",
+      "duration": 10,
+      "caption": "One link per section",
+      "narration": "The VS Code extension is the main client. The mind icon opens a deliberately thin sidebar: one link per section, no live data until you open one."
+    },
+    {
+      "id": "04-queue",
+      "duration": 16,
+      "caption": "Goals on the left, waiting work on the right",
+      "narration": "On the left, your goals. On the right, everything waiting without one. Each item says when it needs you and why. Drag an item onto a goal to link it; new items link themselves when the model is confident."
+    },
+    {
+      "id": "05-details",
+      "duration": 12,
+      "caption": "Transcript, Audio, Details",
+      "narration": "Transcript gives you the day in text. Audio reads exactly that text aloud, rendered on this machine with Piper. Details opens the conversation, the thought, and the history."
+    },
+    {
+      "id": "06-approve",
+      "duration": 16,
+      "caption": "Approval is the only send",
+      "narration": "Approve a draft, and that is the only place a send is authorised. Discard closes it without sending. Nothing leaves the machine until you choose one of these."
+    },
+    {
+      "id": "07-signals",
+      "duration": 8,
+      "caption": "Signals — reclassify anything misrouted",
+      "narration": "Signals lists every signal, inbound and outbound, today by default. If one matched the wrong Direction, reclassify it here."
+    },
+    {
+      "id": "08-directions",
+      "duration": 10,
+      "caption": "Directions are the rules",
+      "narration": "Directions is the rule table. Open a row to edit its standard and its prompts, and Preview dry-runs the saved rule against stored signals."
+    },
+    {
+      "id": "09-learnings",
+      "duration": 6,
+      "caption": "Learnings — proposals from your overrides",
+      "narration": "Learnings shows the policy proposals the learning loop generates from your own overrides."
+    },
+    {
+      "id": "10-analytics",
+      "duration": 14,
+      "caption": "Coverage: absorbed signals vs. Directions in force",
+      "narration": "Analytics puts the coverage curve first: how much is absorbed each week against the number of Directions in force. Click a week to see the signals behind it."
+    },
+    {
+      "id": "11-devices",
+      "duration": 10,
+      "caption": "Each client gets its own scoped credential",
+      "narration": "Devices is where a second client pairs. Name it, choose its permissions, and show a six-digit code."
+    },
+    {
+      "id": "12-android-pair",
+      "duration": 6,
+      "caption": "Not a second inbox",
+      "narration": "The Android client is not a second inbox. It pairs with that code."
+    },
+    {
+      "id": "13-android-queue",
+      "duration": 10,
+      "caption": "Read and capture, on the phone",
+      "narration": "With read and capture it can show the Queue, capture a thought, acknowledge a signal, and keep the last queue on the device."
+    },
+    {
+      "id": "14-android-send",
+      "duration": 6,
+      "caption": "Approve and discard need send",
+      "narration": "Approve and discard appear only when the device was granted send."
+    },
+    {
+      "id": "15-android-stale",
+      "duration": 9,
+      "caption": "Offline, labelled stale",
+      "narration": "Cut the server and the cached queue stays, labelled stale. Revoke the device and it is locked out on its next request."
+    },
+    {
+      "id": "16-close",
+      "duration": 10,
+      "caption": "BSD-3-Clause · local-first",
+      "narration": "One operator, one machine, BSD-3-Clause, local Ollama. Not a notification system or a cloud service — just the few decisions that need a person."
+    }
+  ]
+}
