@@ -4,6 +4,7 @@
  * tests without network access.
  */
 
+import { parseAddressList } from "email-addresses";
 import type { NewSignal } from "@mind/core";
 import { adapterIdForAccount } from "@mind/core";
 
@@ -53,7 +54,26 @@ function findDecoded(part: GmailPart | undefined, mimeType?: string): string | u
   return undefined;
 }
 
+/**
+ * Address list from a From/To/Cc header, as lowercase addresses.
+ *
+ * Parsed with `email-addresses` (MIT, RFC 5322), so a quoted display name with a
+ * comma ("Doe, Jane" <jane@example.test>) and address groups are read correctly.
+ * Real mail headers are sometimes malformed; then the older comma split is used,
+ * so one bad header never drops a sender.
+ */
 export function parseAddresses(value: string): string[] {
+  const parsed = parseAddressList(value);
+  if (parsed === null) return splitAddresses(value);
+  return parsed
+    .flatMap((entry) =>
+      entry.type === "group" ? entry.addresses.map((a) => a.address) : [entry.address],
+    )
+    .map((address) => address.trim().toLowerCase())
+    .filter((address) => address.includes("@"));
+}
+
+function splitAddresses(value: string): string[] {
   return value
     .split(",")
     .map((address) => {

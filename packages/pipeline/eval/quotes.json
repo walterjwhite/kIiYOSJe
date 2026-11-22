@@ -1,0 +1,92 @@
+[
+  {
+    "id": "gmail-simple",
+    "note": "Gmail reply: one-line header, > quoted lines",
+    "raw": "Thursday at 10 works for me.\n\nOn Mon, Mar 2, 2026 at 9:00 AM Sam Lee <sam@corp.test> wrote:\n> Are you free for the planning call on Thursday?\n> Let me know.\n",
+    "expected": "Thursday at 10 works for me."
+  },
+  {
+    "id": "gmail-wrapped-header",
+    "note": "Gmail header wrapped onto two lines",
+    "raw": "Yes, approved.\n\nOn Mon, Mar 2, 2026 at 9:00 AM Sam Lee\n<sam@corp.test> wrote:\n\n> Can you approve the budget?\n",
+    "expected": "Yes, approved."
+  },
+  {
+    "id": "apple-mail",
+    "note": "Apple Mail header with \"at\"",
+    "raw": "Sounds good, see you then.\n\nOn Mar 2, 2026, at 9:00 AM, Sam Lee <sam@corp.test> wrote:\n\n> Lunch at noon?\n> Same place.\n",
+    "expected": "Sounds good, see you then."
+  },
+  {
+    "id": "outlook-header-block",
+    "note": "Outlook: From/Sent/To/Subject block, quoted text not marked with >",
+    "raw": "I will send the file tomorrow.\n\nFrom: Sam Lee <sam@corp.test>\nSent: Monday, March 2, 2026 9:00 AM\nTo: Me <me@corp.test>\nSubject: Quarterly file\n\nCan you send the quarterly file?\nThanks, Sam\n",
+    "expected": "I will send the file tomorrow."
+  },
+  {
+    "id": "original-message",
+    "note": "-----Original Message----- separator",
+    "raw": "Please see below, I agree.\n\n-----Original Message-----\nFrom: Sam Lee\nSent: Monday, March 2, 2026 9:00 AM\nSubject: Proposal\n\nHere is the proposal for review.\n",
+    "expected": "Please see below, I agree."
+  },
+  {
+    "id": "signature-dashes",
+    "note": "Signature after \"-- \"",
+    "raw": "Can you review the draft by Friday?\n\n-- \nSam Lee\nOperations Manager\nCorp Test Ltd\n+1 555 0100\n",
+    "expected": "Can you review the draft by Friday?"
+  },
+  {
+    "id": "mobile-footer",
+    "note": "\"Sent from my iPhone\" footer",
+    "raw": "On my way, 10 minutes.\n\nSent from my iPhone\n",
+    "expected": "On my way, 10 minutes."
+  },
+  {
+    "id": "inline-reply",
+    "note": "Inline answers between quoted lines: the answers are the new content",
+    "raw": "See my answers below.\n\nOn Mon, Mar 2, 2026 at 9:00 AM Sam Lee <sam@corp.test> wrote:\n> Is the date fixed?\nYes, it is fixed.\n> Is the venue booked?\nNot yet.\n",
+    "expected": "See my answers below.\n\nYes, it is fixed.\n\nNot yet."
+  },
+  {
+    "id": "forwarded",
+    "note": "Forwarded message: the operator wrote one line on top",
+    "raw": "FYI, please handle this.\n\n---------- Forwarded message ---------\nFrom: Kim Vo <kim@vendor.test>\nDate: Mon, Mar 2, 2026 at 8:00 AM\nSubject: Invoice 1001\nTo: Sam Lee <sam@corp.test>\n\nYour invoice is attached.\n",
+    "expected": "FYI, please handle this."
+  },
+  {
+    "id": "disclaimer",
+    "note": "Legal disclaimer footer after the message",
+    "raw": "The numbers are final.\n\nThis email and any attachments are confidential and intended solely for the addressee. If you have received it in error, please notify the sender.\n",
+    "expected": "The numbers are final."
+  },
+  {
+    "id": "german",
+    "note": "German header \"schrieb\"",
+    "raw": "Ja, das passt.\n\nAm 02.03.2026 um 09:00 Uhr schrieb Sam Lee <sam@corp.test>:\n> Passt Donnerstag?\n",
+    "expected": "Ja, das passt."
+  },
+  {
+    "id": "spanish",
+    "note": "Spanish header \"escribió\"",
+    "raw": "Perfecto, gracias.\n\nEl lun, 2 mar 2026 a las 9:00, Sam Lee <sam@corp.test> escribió:\n> ¿Jueves a las 10?\n",
+    "expected": "Perfecto, gracias."
+  },
+  {
+    "id": "no-quote",
+    "note": "A plain first message: nothing to strip, nothing may be lost",
+    "raw": "Hello,\n\nCould you send last month's report? I need it for the board.\n\nThanks,\nPat",
+    "expected": "Hello,\n\nCould you send last month's report? I need it for the board.\n\nThanks,\nPat"
+  },
+  {
+    "id": "quoted-greater-in-body",
+    "note": "A \">\" that is part of the content, not a quote",
+    "raw": "Rule of thumb: if latency > 200 ms, page someone.\nThe threshold is set in the config.",
+    "expected": "Rule of thumb: if latency > 200 ms, page someone.\nThe threshold is set in the config."
+  },
+  {
+    "id": "top-post-long-chain",
+    "note": "Two levels of earlier replies",
+    "raw": "Agreed.\n\nOn Tue, Mar 3, 2026 at 10:00 AM Pat Ng <pat@corp.test> wrote:\n> Sounds right to me.\n>\n> On Mon, Mar 2, 2026 at 9:00 AM Sam Lee <sam@corp.test> wrote:\n> > Shall we move the launch?\n",
+    "expected": "Agreed."
+  }
+]

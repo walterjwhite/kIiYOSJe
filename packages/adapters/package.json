@@ -19,7 +19,9 @@
   },
   "dependencies": {
     "@mind/core": "*",
-    "@mind/pipeline": "*"
+    "@mind/pipeline": "*",
+    "email-addresses": "5.0.0",
+    "node-ical": "0.27.6"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -62,14 +62,14 @@ class TokenStore(context: Context) {
         prefs.getString("scopes", "")?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
 
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit { clear() }
     }
 
     fun cacheQueue(json: String) {
-        prefs.edit()
-            .putString("queueJson", json)
-            .putLong("queueAt", System.currentTimeMillis())
-            .apply()
+        prefs.edit {
+            putString("queueJson", json)
+            putLong("queueAt", System.currentTimeMillis())
+        }
     }
 
     /** Last successful queue payload and when it was fetched, for honest offline display. */

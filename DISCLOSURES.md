@@ -62,6 +62,13 @@ layer is not installed. No code from it is copied or modified in this repository
 `stemmer` 2.0.1 (MIT, no dependencies) reduces words to a stem so "approving
 budgets" matches "approve budget". No code from it is copied or modified.
 
+Also, all unmodified and none with install scripts: `cockatiel` 4.0.0 (MIT; retry,
+timeout, circuit breaker, and concurrency cap for model calls), `chrono-node` 2.10.3
+(MIT; reads deadlines from message text), `email-reply-parser` 3.0.0 (MIT; removes
+quoted replies and signatures), `email-addresses` 5.0.0 (MIT; parses address headers),
+and `node-ical` 0.27.6 (Apache-2.0; reads calendar feeds, with `rrule-temporal` and
+`temporal-polyfill`, MIT). Why each was chosen is in `.kiro/specs/build-vs-buy`.
+
 ## Authorship
 
 TODO: list contributors. State any contributor honestly; do not claim sole

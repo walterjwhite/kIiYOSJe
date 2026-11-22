@@ -337,7 +337,7 @@ export class CalendarAdapter implements Adapter {
   private async fromIcs(url: string, label: string, range: TimeRange): Promise<CalendarEvent[]> {
     const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
     if (!response.ok) throw new Error(`iCal feed returned ${response.status}`);
-    return parseIcs(await response.text(), label).filter(
+    return parseIcs(await response.text(), label, range).filter(
       (event) => event.startsAt >= range.from && event.startsAt <= range.to,
     );
   }

@@ -45,6 +45,34 @@ describe("extractHtmlBody", () => {
   });
 });
 
+describe("parseAddresses: RFC 5322 headers", () => {
+  it("keeps a quoted display name that contains a comma", () => {
+    expect(parseAddresses('"Doe, Jane" <JANE@example.test>, Bob <bob@example.test>')).toEqual([
+      "jane@example.test",
+      "bob@example.test",
+    ]);
+  });
+
+  it("reads the real address when the display name contains an @", () => {
+    expect(parseAddresses('"ceo@corp.test" <attacker@evil.test>')).toEqual(["attacker@evil.test"]);
+  });
+
+  it("flattens address groups and skips an empty group", () => {
+    expect(parseAddresses("undisclosed-recipients:;, team: a@b.test, c@d.test;")).toEqual([
+      "a@b.test",
+      "c@d.test",
+    ]);
+  });
+
+  it("falls back to the comma split for a malformed header instead of dropping it", () => {
+    expect(parseAddresses("Alice <alice@example.test>,, <>")).toEqual(["alice@example.test"]);
+  });
+
+  it("returns nothing for an empty header", () => {
+    expect(parseAddresses("")).toEqual([]);
+  });
+});
+
 describe("parseAddresses", () => {
   it("extracts bare and angled addresses, lower-cased", () => {
     expect(parseAddresses("Alice <Alice@Example.com>, bob@example.com")).toEqual([

@@ -74,6 +74,10 @@ export class JsonRpcPeer {
       return;
     }
     for (const listener of this.listeners) listener(message);
+    if (message.method && message.id !== undefined) {
+      this.refuse(message);
+      return;
+    }
     if (message.id === undefined || message.method) return;
 
     const pending = this.pending.get(message.id);
@@ -84,6 +88,26 @@ export class JsonRpcPeer {
     } else {
       pending.resolve(message.result);
     }
+  }
+
+  /**
+   * The agent asked this client to do something. mind is a plain text client: it
+   * advertises no file, terminal, or tool capability, so it answers every such
+   * request itself. A permission request is cancelled, never granted, and any
+   * other request is an unknown method. An unanswered request would leave the
+   * agent waiting; a granted one would let a model act on this machine.
+   */
+  private refuse(request: RpcMessage): void {
+    if (this.closed) return;
+    const reply =
+      request.method === "session/request_permission"
+        ? { jsonrpc: "2.0", id: request.id, result: { outcome: { outcome: "cancelled" } } }
+        : {
+            jsonrpc: "2.0",
+            id: request.id,
+            error: { code: -32601, message: "Method not supported by this client" },
+          };
+    this.output.write(`${JSON.stringify(reply)}\n`);
   }
 
   private failAll(error: Error): void {

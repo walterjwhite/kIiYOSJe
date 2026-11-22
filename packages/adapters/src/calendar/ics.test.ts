@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseIcs, parseIcsDate } from "./ics.js";
+import { parseIcs } from "./ics.js";
 
 const FEED = [
   "BEGIN:VCALENDAR",
@@ -49,16 +49,130 @@ describe("parseIcs", () => {
   });
 });
 
-describe("parseIcsDate", () => {
-  it("treats a bare date as local midnight", () => {
-    const date = parseIcsDate("20261224");
-    expect(date?.getFullYear()).toBe(2026);
-    expect(date?.getMonth()).toBe(11);
-    expect(date?.getDate()).toBe(24);
+const window = { from: new Date("2026-11-01T00:00:00Z"), to: new Date("2026-12-31T00:00:00Z") };
+
+function feed(...events: string[][]): string {
+  return ["BEGIN:VCALENDAR", "VERSION:2.0", ...events.flat(), "END:VCALENDAR"].join("\r\n");
+}
+
+describe("parseIcs: time zones and date forms", () => {
+  it("resolves a TZID to the right instant whatever this machine's zone is", () => {
+    const [event] = parseIcs(
+      feed([
+        "BEGIN:VEVENT",
+        "UID:tz",
+        "SUMMARY:Call",
+        "DTSTART;TZID=America/New_York:20261109T090000",
+        "DTEND;TZID=America/New_York:20261109T093000",
+        "END:VEVENT",
+      ]),
+      "ics",
+      window,
+    );
+    expect(event?.startsAt.toISOString()).toBe("2026-11-09T14:00:00.000Z");
+    expect(event?.endsAt?.toISOString()).toBe("2026-11-09T14:30:00.000Z");
   });
 
-  it("returns null for junk", () => {
-    expect(parseIcsDate("next tuesday")).toBeNull();
-    expect(parseIcsDate(undefined)).toBeNull();
+  it("reads a UTC time, and a date-only start as a local all-day event", () => {
+    const [utc, allDay] = parseIcs(
+      feed(
+        ["BEGIN:VEVENT", "UID:u", "SUMMARY:A", "DTSTART:20261115T140000Z", "END:VEVENT"],
+        ["BEGIN:VEVENT", "UID:d", "SUMMARY:B", "DTSTART;VALUE=DATE:20261224", "END:VEVENT"],
+      ),
+      "ics",
+      window,
+    );
+    expect(utc?.startsAt.toISOString()).toBe("2026-11-15T14:00:00.000Z");
+    expect(allDay?.allDay).toBe(true);
+    expect(allDay?.startsAt.getFullYear()).toBe(2026);
+    expect(allDay?.startsAt.getMonth()).toBe(11);
+    expect(allDay?.startsAt.getDate()).toBe(24);
+  });
+
+  it("keeps a multi-day all-day event's end", () => {
+    const [event] = parseIcs(
+      feed([
+        "BEGIN:VEVENT",
+        "UID:trip",
+        "SUMMARY:Trip",
+        "DTSTART;VALUE=DATE:20261201",
+        "DTEND;VALUE=DATE:20261204",
+        "END:VEVENT",
+      ]),
+      "ics",
+      window,
+    );
+    expect(event?.endsAt).not.toBeNull();
+  });
+
+  it("reads a title that carries a parameter", () => {
+    const [event] = parseIcs(
+      feed([
+        "BEGIN:VEVENT",
+        "UID:l",
+        "SUMMARY;LANGUAGE=en:Holiday",
+        "DTSTART;VALUE=DATE:20261224",
+        "END:VEVENT",
+      ]),
+      "ics",
+      window,
+    );
+    expect(event?.title).toBe("Holiday");
+  });
+
+  it("returns no events for text that is not a calendar", () => {
+    expect(parseIcs("this is not a calendar", "ics", window)).toEqual([]);
+    expect(parseIcs("", "ics", window)).toEqual([]);
+  });
+});
+
+describe("parseIcs: recurring events", () => {
+  const weekly = [
+    "BEGIN:VEVENT",
+    "UID:weekly",
+    "SUMMARY:Standup",
+    "DTSTART;TZID=America/New_York:20261109T090000",
+    "DTEND;TZID=America/New_York:20261109T093000",
+    "RRULE:FREQ=WEEKLY;COUNT=4;BYDAY=MO",
+    "EXDATE;TZID=America/New_York:20261116T090000",
+    "END:VEVENT",
+  ];
+
+  it("expands the rule inside the window and honours EXDATE", () => {
+    const events = parseIcs(feed(weekly), "ics", window);
+    expect(events.map((e) => e.startsAt.toISOString())).toEqual([
+      "2026-11-09T14:00:00.000Z",
+      "2026-11-23T14:00:00.000Z",
+      "2026-11-30T14:00:00.000Z",
+    ]);
+    expect(new Set(events.map((e) => e.id))).toEqual(new Set(["weekly"]));
+  });
+
+  it("returns only the occurrences inside the window", () => {
+    const events = parseIcs(feed(weekly), "ics", {
+      from: new Date("2026-11-20T00:00:00Z"),
+      to: new Date("2026-12-01T00:00:00Z"),
+    });
+    expect(events).toHaveLength(2);
+  });
+
+  it("skips a hostile rule instead of flooding, and keeps the rest of the feed", () => {
+    const events = parseIcs(
+      feed(
+        [
+          "BEGIN:VEVENT",
+          "UID:flood",
+          "SUMMARY:Flood",
+          "DTSTART:20261101T000000Z",
+          "RRULE:FREQ=SECONDLY",
+          "END:VEVENT",
+        ],
+        ["BEGIN:VEVENT", "UID:ok", "SUMMARY:Fine", "DTSTART:20261115T140000Z", "END:VEVENT"],
+      ),
+      "ics",
+      window,
+    );
+    expect(events.filter((e) => e.id === "flood").length).toBeLessThanOrEqual(500);
+    expect(events.some((e) => e.id === "ok")).toBe(true);
   });
 });

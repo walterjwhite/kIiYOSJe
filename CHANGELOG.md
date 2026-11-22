@@ -9,6 +9,15 @@ versions while the project is `0.x`).
 
 ### Added
 
+- Model calls are protected by one shared policy (`cockatiel`): a time limit, retries
+  with backoff for a temporary failure (timeout, 429, 5xx, dropped connection), a
+  pause after several failures in a row, and a cap on calls at once. Defaults: 120 s,
+  2 retries, pause 60 s after 5 failures, 2 at once. Change them in Settings, under
+  Model calls (`resilience.json`, `GET/PUT /admin/resilience`); they apply to the next
+  call. While paused, a message is held for you, never answered.
+- Deadlines are read from the message ("by Friday", "no later than March 5", "within 24
+  hours"), resolved against when it arrived, and win over the model's date. A model
+  date in the past or years away is dropped. The event records `deadlineSource`.
 - Sensitive topics. A list in Settings (legal, financial, and health by default,
   plus your own) holds a message that mentions one: it is never absorbed, drafted,
   or sent, and becomes a Thought with the reason "sensitive topic: <name>". Matching
@@ -36,6 +45,26 @@ versions while the project is `0.x`).
 
 ### Changed
 
+- Quoted replies and signatures are removed with `email-reply-parser`: it handles
+  Gmail, Apple Mail, and Outlook headers, "Original Message", signatures, and German
+  and Spanish headers. On 15 synthetic message shapes it matched 13, against 6 for the
+  old stripper. A forwarded message and a legal disclaimer are still kept.
+- Gmail address headers are parsed as RFC 5322 (`email-addresses`), so a quoted name
+  with a comma is read correctly.
+- Calendar feeds are read with `node-ical`: a `TZID` is honoured (9:00 New York is the
+  right instant on any machine), recurring events are expanded with `EXDATE`, and a
+  hostile repeat rule is skipped.
+- The ACP client answers requests from the agent itself. A permission request is
+  cancelled, never granted; any other request is refused. Before, the agent waited
+  until the timeout.
+- Android: targets Android 17 (API 37) with Android Gradle plugin 9.5.2, Gradle 9.9.2
+  (pinned with its checksum), Kotlin 2.4.21, and current Compose, activity, lifecycle,
+  and coroutines libraries. Compiles against platform 37.2, which Compose 1.13 needs.
+
+### Fixed
+
+- A failed model call no longer writes the prompt, the sender address, or the provider's
+  reply to the log. It logs the error type and HTTP status.
 - Direction matching also accepts word forms: a topic or project scope, or a
   `matchPrompt` phrase, matches "approving budgets" for "approve budget" (stemmed,
   whole words, in order). Literal substring matching is unchanged, so nothing that
