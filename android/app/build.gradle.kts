@@ -7,7 +7,12 @@ plugins {
 
 android {
     namespace = "dev.mind.android"
-    compileSdk = 37
+    // Compose 1.13 needs the 37.1 or later platform. targetSdk stays at the major API level.
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
     buildToolsVersion = "37.0.0"
 
     defaultConfig {
