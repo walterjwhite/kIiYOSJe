@@ -9,6 +9,8 @@
  * provider, so classify() calls a real model out of the box at zero cost.
  */
 
+import { unclassified } from "./classifier-stub.js";
+import { DATA_RULE, untrusted } from "./prompt-data.js";
 import { ModelDeferral, deferralReason, describeModelError } from "./resilience.js";
 import {
   ClassifierOutputSchema,
@@ -34,6 +36,8 @@ export interface ClassifyInput {
   matchPrompt?: string | null;
   /** Operator learnings for this stage (learnings.ts), already delimited. Empty or absent adds nothing. */
   learnings?: string;
+  /** Names of the operator's enabled sensitive topics. The model tags a message with the exact names that apply. */
+  sensitiveTopicNames?: readonly string[];
   /** Receives a trace of the model call (timing, model, provider). */
   onTrace?: (trace: ModelTrace) => void;
 }
@@ -51,7 +55,18 @@ Be conservative:
   from general knowledge, or a task that is clearly defined and can be handled
   without human input.
 - Set answerable=false if the message involves sensitive topics, requires
-  personal authority, or cannot be resolved without information you don't have.`;
+  personal authority, or cannot be resolved without information you don't have.
+
+${DATA_RULE}`;
+
+function topicContext(names: readonly string[] | undefined): string {
+  const list = (names ?? []).map((n) => n.replace(/\s+/g, " ").trim()).filter((n) => n !== "");
+  if (list.length === 0) return "";
+  return `
+The operator treats these topics as sensitive: ${list.join(", ")}.
+For sensitiveTopics, list the exact name of each topic above that the message is about, even if it does not use that word (for example a biopsy result is "health"). Use only these names. Return an empty list when none apply.
+`;
+}
 
 function buildPrompt(input: ClassifyInput): string {
   const directionContext = input.standard
@@ -63,11 +78,10 @@ function buildPrompt(input: ClassifyInput): string {
 
   return `Current date/time (use this to resolve relative deadlines): ${input.receivedAt.toISOString()}
 
-${directionContext}${matchContext}${input.learnings ? `\n${input.learnings}` : ""}
+${directionContext}${matchContext}${input.learnings ? `\n${input.learnings}` : ""}${topicContext(input.sensitiveTopicNames)}
 From: ${input.sender}
 
-Message:
-${input.signalBody}
+${untrusted(input.signalBody)}
 
 Classify this message and return all required fields.
 For escalateBy: if the message contains an explicit deadline (e.g. "by Friday",
@@ -86,7 +100,7 @@ For answerBlocker: if answerable=false, name the single thing that blocks an ans
 export async function classify(input: ClassifyInput): Promise<ClassifierOutput> {
   if (!aiConfigured()) {
     logger.debug({ sender: input.sender }, "classify: no provider configured, returning stub");
-    return stub();
+    return unclassified();
   }
 
   try {
@@ -124,26 +138,6 @@ export async function classify(input: ClassifyInput): Promise<ClassifierOutput> 
       { error: describeModelError(err), provider: aiProvider() },
       "classify: LLM call failed, falling back to stub",
     );
-    return stub();
+    return unclassified();
   }
-}
-
-/** The answer used when the model could not judge a signal. Confidence 0 never absorbs. */
-export function unclassified(): ClassifierOutput {
-  return stub();
-}
-
-function stub(): ClassifierOutput {
-  return {
-    confidence: 0,
-    intent: "unclassified — no API key or LLM error",
-    signalKind: "other",
-    urgency: "low",
-    commitment: null,
-    commitmentDueDate: null,
-    escalateBy: null,
-    sensitiveTopics: [],
-    answerable: false,
-    answerBlocker: "classifier not configured",
-  };
 }

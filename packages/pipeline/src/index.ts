@@ -26,3 +26,5 @@ export * from "./deferral.js";
 export * from "./deferred-retry.js";
 export * from "./resilience.js";
 export * from "./deadlines.js";
+export * from "./prompt-versions.js";
+export * from "./classifier-stub.js";

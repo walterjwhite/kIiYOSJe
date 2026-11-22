@@ -6,6 +6,7 @@
  * threshold. Anything else leaves the signal unlinked.
  */
 
+import { DATA_RULE, untrusted } from "./prompt-data.js";
 import { describeModelError } from "./resilience.js";
 import { aiConfigured, contextTokens, logger } from "@mind/core";
 import { z } from "zod";
@@ -34,7 +35,7 @@ export interface LinkDecision {
 }
 
 /** Recorded on each automatic link so a change in behaviour can be traced to a prompt change. */
-export const LINK_PROMPT_VERSION = 2;
+export const LINK_PROMPT_VERSION = 3;
 
 /** Pure gate: only a known Goal at or above the threshold becomes a link. */
 export function chooseLink(
@@ -60,7 +61,9 @@ Be conservative: a wrong link hides a message inside the wrong piece of work.
 - A sub-goal is shown as "Parent > Sub-goal". Prefer the more specific one when the message fits it.
 - Return null when no candidate clearly fits, or when two fit about equally well.
 - Confidence is how sure you are, from 0 to 1. Use below 0.5 when guessing.
-- Ids must be copied exactly from the list.`;
+- Ids must be copied exactly from the list.
+
+${DATA_RULE}`;
 
 export interface LinkInput {
   signalBody: string;
@@ -91,7 +94,7 @@ function buildPrompt(input: LinkInput): string {
       return lines.join("\n");
     })
     .join("\n");
-  return `Candidate goals:\n${goals}\n\nFrom: ${input.sender}\n${input.subject ? `Subject: ${input.subject}\n` : ""}Message:\n${input.signalBody}\n\nWhich Goal does this message belong to, if any?`;
+  return `Candidate goals:\n${goals}\n\nFrom: ${input.sender}\n${input.subject ? `Subject: ${input.subject}\n` : ""}${untrusted(input.signalBody)}\n\nWhich Goal does this message belong to, if any?`;
 }
 
 /** Asks the model. Returns null when AI is not configured, there are no Goals, or the call fails. */

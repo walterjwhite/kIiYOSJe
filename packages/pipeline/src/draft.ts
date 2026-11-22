@@ -6,6 +6,7 @@
  * Returns null only when no provider is configured at all.
  */
 
+import { DATA_RULE, untrusted } from "./prompt-data.js";
 import { describeModelError } from "./resilience.js";
 import { aiConfigured, aiProvider, contextTokens, logger } from "@mind/core";
 import type { ClassifierOutput } from "./classify.js";
@@ -31,7 +32,9 @@ const DRAFT_ANSWER_TOKENS = 800;
 
 const SYSTEM = `You are a professional assistant drafting replies on behalf of the message recipient.
 Follow the direction standard exactly. Be concise. Never commit to dates not given.
-Return only the reply body — no greeting, no sign-off.`;
+Return only the reply body — no greeting, no sign-off.
+
+${DATA_RULE}`;
 
 function buildPrompt(input: DraftInput): string {
   const co = input.classifierOutput;
@@ -66,7 +69,7 @@ Classifier notes:
 Task guidance: ${taskGuidance}
 
 Original message from ${input.sender}:
-${input.senderBody}
+${untrusted(input.senderBody)}
 
 Write a reply that satisfies the standard and the task guidance above.`;
 }

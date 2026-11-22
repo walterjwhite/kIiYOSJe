@@ -23,6 +23,7 @@ import { loadDirections } from "../directions-loader.js";
 import { ensureFallbackDirection } from "../fallback-direction.js";
 import { type IngestOverrides, ingest } from "../ingest.js";
 import { LINK_PROMPT_VERSION } from "../link.js";
+import { CLASSIFY_PROMPT_VERSION, DRAFT_PROMPT_VERSION } from "../prompt-versions.js";
 import { evalDataDir, type Fixture } from "./fixtures.js";
 import { computeMetrics, type FixtureOutcome, type Metrics } from "./metrics.js";
 
@@ -57,6 +58,8 @@ export interface EvalReport {
   readonly date: string;
   readonly live: boolean;
   readonly fixtures: number;
+  /** Fixtures whose recorded answer only a live run can confirm. */
+  readonly liveChecks: number;
   readonly outcomes: readonly FixtureOutcome[];
   readonly metrics: Metrics;
 }
@@ -179,12 +182,13 @@ export async function runEval(
     // Classify and draft prompts are not versioned yet (ai-quality.md asks for it).
     promptVersions: {
       link: String(LINK_PROMPT_VERSION),
-      classify: "unversioned",
-      draft: "unversioned",
+      classify: String(CLASSIFY_PROMPT_VERSION),
+      draft: String(DRAFT_PROMPT_VERSION),
     },
     date: (options.now ?? (() => new Date()))().toISOString().slice(0, 10),
     live,
     fixtures: fixtures.length,
+    liveChecks: fixtures.filter((f) => f.liveCheck).length,
     outcomes,
     metrics: computeMetrics(outcomes, adapter.sends),
   };

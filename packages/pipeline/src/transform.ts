@@ -15,6 +15,7 @@
  * degrade-quietly behaviour as classify()/draft().
  */
 
+import { DATA_RULE, untrusted } from "./prompt-data.js";
 import { describeModelError } from "./resilience.js";
 import { aiConfigured, aiProvider, contextTokens, logger } from "@mind/core";
 import { bodyBudget, fitToTokens, withShrinkingBody } from "./fit.js";
@@ -39,7 +40,9 @@ const TRANSFORM_ANSWER_TOKENS = 200;
 const SYSTEM = `You rewrite a message into a short, plain-language summary for someone
 scanning a list of many signals. Follow the rewrite instructions exactly. State only what
 the instructions ask for, filled in from the actual message — never invent a value that
-isn't in the message. One line, no greeting, no explanation of what you did.`;
+isn't in the message. One line, no greeting, no explanation of what you did.
+
+${DATA_RULE}`;
 
 function buildPrompt(input: TransformInput): string {
   return `Rewrite instructions:
@@ -47,8 +50,7 @@ ${input.transformPrompt}
 
 From: ${input.sender}
 ${input.recipients && input.recipients.length > 0 ? `To: ${input.recipients.join(", ")}\n` : ""}${input.subject ? `Subject: ${input.subject}\n` : ""}
-Message:
-${input.signalBody}
+${untrusted(input.signalBody)}
 
 Produce the rewritten one-line summary described by the instructions above.`;
 }

@@ -14,6 +14,9 @@ export function formatReport(report: EvalReport): string {
       .map(([k, v]) => `${k}=${v}`)
       .join(", ")}`,
     `Fixtures: ${report.fixtures} (${m.counted} counted, ${m.known.length} known)`,
+    ...(report.live
+      ? []
+      : [`Recorded answers a live run must confirm: ${report.liveChecks} (run with --live)`]),
     "",
     `Surface recall      ${pct(m.surfaceRecall)}   target >= 95%`,
     `Surface precision   ${pct(m.surfacePrecision)}   target >= 60%`,

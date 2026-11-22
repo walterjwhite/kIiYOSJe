@@ -35,6 +35,11 @@ export const FixtureSchema = z.object({
   }),
   /** Why the pipeline is known to disagree with the label. Excluded from the floors. */
   known: z.string().nullable().default(null),
+  /**
+   * The recorded classifier answer is what a good model should say, so a recorded
+   * run checks the pipeline's reaction to it, and only `--live` checks the model.
+   */
+  liveCheck: z.boolean().default(false),
 });
 export type Fixture = z.infer<typeof FixtureSchema>;
 

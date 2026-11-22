@@ -46,7 +46,8 @@ import { and, desc, eq, gte, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { AdapterRegistry } from "./adapter-registry.js";
 import { learningsForPrompt } from "./learnings.js";
 import type { ClassifierOutput } from "./classify.js";
-import { classify, unclassified } from "./classify.js";
+import { classify } from "./classify.js";
+import { unclassified } from "./classifier-stub.js";
 import { decide } from "./decide.js";
 import { dedupeKey, isDuplicate } from "./dedupe.js";
 import { draft } from "./draft.js";
@@ -62,6 +63,7 @@ import { MAX_DEFER_ATTEMPTS, deferSignal } from "./deferral.js";
 import { INJECTION_HOLD, scanForInjection } from "./injection.js";
 import { findSensitiveTopics } from "./sensitive.js";
 import { normalize } from "./normalize.js";
+import { CLASSIFY_PROMPT_VERSION, DRAFT_PROMPT_VERSION } from "./prompt-versions.js";
 import { ModelDeferral } from "./resilience.js";
 import { transform } from "./transform.js";
 
@@ -162,6 +164,9 @@ export async function ingest(
         receivedAt: signal.receivedAt,
         matchPrompt: match?.direction.matchPrompt ?? null,
         learnings: classifyLearnings.text,
+        sensitiveTopicNames: sensitiveSettings()
+          .topics.filter((t) => t.enabled)
+          .map((t) => t.name),
         onTrace: (t) => aiCalls.push(t),
       }));
   } catch (err) {
@@ -648,6 +653,7 @@ export async function ingest(
         commitmentStatus: commitment?.status ?? null,
         commitmentSuperseded: commitmentEvent?.kind === "commitment.superseded",
         escalateBy,
+        promptVersions: { classify: CLASSIFY_PROMPT_VERSION, draft: DRAFT_PROMPT_VERSION },
         deadlineSource: deadline.source,
         deadlineDropped: deadline.droppedModelDate,
         sensitive,
