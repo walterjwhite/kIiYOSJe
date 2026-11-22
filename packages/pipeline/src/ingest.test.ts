@@ -588,3 +588,52 @@ describe("ingest: sensitive topics", () => {
     }
   });
 });
+
+describe("ingest: deadline grounding", () => {
+  const stale = new Date(2023, 2, 6, 17).toISOString();
+  const withModelDate = { ...classifier, escalateBy: stale, urgency: "medium" as const };
+
+  function eventPayload(db: ReturnType<typeof setup>) {
+    const event = db
+      .select()
+      .from(schema.events)
+      .all()
+      .find((e) => e.kind === "signal.processed");
+    return JSON.parse(event?.payload ?? "{}") as {
+      escalateBy: string | null;
+      deadlineSource: string | null;
+      deadlineDropped: boolean;
+    };
+  }
+
+  it("reads the deadline from the message when the model resolved it to the wrong year", async () => {
+    const db = setup("absorb", 0.5);
+    const asked: NewSignal = {
+      ...signal,
+      externalId: "m-friday",
+      body: "Please send the report by Friday.",
+    };
+    await ingest(db, asked, new AdapterRegistry(), {
+      classifierOutput: withModelDate,
+      draftBody: "On it.",
+    });
+    const p = eventPayload(db);
+    expect(p.deadlineSource).toBe("text");
+    // Received Friday 2026-11-14 morning: "by Friday" resolves to a date from this year on.
+    expect(new Date(p.escalateBy ?? "").getFullYear()).toBe(2026);
+  });
+
+  it("drops an implausible model date and falls back to the urgency deadline", async () => {
+    const db = setup("absorb", 0.5);
+    const asked: NewSignal = { ...signal, externalId: "m-nodate", body: "Any update on this?" };
+    await ingest(db, asked, new AdapterRegistry(), {
+      classifierOutput: withModelDate,
+      draftBody: "Working on it.",
+    });
+    const p = eventPayload(db);
+    expect(p.deadlineDropped).toBe(true);
+    expect(p.deadlineSource).toBeNull();
+    const when = new Date(p.escalateBy ?? "").getTime();
+    expect(when).toBeGreaterThan(asked.receivedAt.getTime());
+  });
+});

@@ -57,6 +57,7 @@ import { rankGoals } from "./link-candidates.js";
 import { loadLinkContext } from "./link-context.js";
 import { matchSignal } from "./match.js";
 import type { ModelTrace } from "./model.js";
+import { groundDeadline, isPlausibleDate } from "./deadlines.js";
 import { INJECTION_HOLD, scanForInjection } from "./injection.js";
 import { findSensitiveTopics } from "./sensitive.js";
 import { normalize } from "./normalize.js";
@@ -141,7 +142,7 @@ export async function ingest(
     );
   } else if (overrides?.classifierOutput) aiSkipped["classify"] = "override supplied";
   else if (!aiOn) aiSkipped["classify"] = "no AI provider configured";
-  const classifierOut =
+  const modelOut =
     (injection ? INJECTION_HOLD : undefined) ??
     overrides?.classifierOutput ??
     (await classify({
@@ -153,6 +154,27 @@ export async function ingest(
       learnings: classifyLearnings.text,
       onTrace: (t) => aiCalls.push(t),
     }));
+
+  // ── 4a. Ground the dates ─────────────────────────────────────────────────
+  // A date read from the message ("by Friday", resolved against when it arrived)
+  // wins over the model's. A model date that is in the past or years away is
+  // dropped, not trusted (deadlines.ts).
+  const deadline = injection
+    ? { value: modelOut.escalateBy, source: null, droppedModelDate: false }
+    : groundDeadline(
+        `${signal.subject ?? ""}\n${normalizedBody}`,
+        signal.receivedAt,
+        modelOut.escalateBy,
+      );
+  const classifierOut: ClassifierOutput = {
+    ...modelOut,
+    escalateBy: deadline.value,
+    commitmentDueDate:
+      modelOut.commitmentDueDate &&
+      isPlausibleDate(new Date(modelOut.commitmentDueDate), signal.receivedAt)
+        ? modelOut.commitmentDueDate
+        : null,
+  };
 
   // ── 4b. Compute escalation deadline ──────────────────────────────────────
   const escalateBy = computeEscalateBy(classifierOut, signal.receivedAt);
@@ -590,6 +612,8 @@ export async function ingest(
         commitmentStatus: commitment?.status ?? null,
         commitmentSuperseded: commitmentEvent?.kind === "commitment.superseded",
         escalateBy,
+        deadlineSource: deadline.source,
+        deadlineDropped: deadline.droppedModelDate,
         sensitive,
         injection: injection
           ? { risk: injection.risk, patterns: injection.patterns, categories: injection.categories }
