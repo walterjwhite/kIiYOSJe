@@ -9,7 +9,7 @@
  * provider, so classify() calls a real model out of the box at zero cost.
  */
 
-import { describeModelError } from "./resilience.js";
+import { ModelDeferral, deferralReason, describeModelError } from "./resilience.js";
 import {
   ClassifierOutputSchema,
   aiConfigured,
@@ -108,12 +108,29 @@ export async function classify(input: ClassifyInput): Promise<ClassifierOutput> 
     });
     return ClassifierOutputSchema.parse(object);
   } catch (err) {
+    // A provider that is down or slow is not a judgement about the message. The
+    // caller holds the signal and tries again later (deferred-retry.ts).
+    const reason = deferralReason(err);
+    if (reason !== null) {
+      logger.warn(
+        { error: describeModelError(err), provider: aiProvider() },
+        "classify: model unavailable, signal will be retried",
+      );
+      throw new ModelDeferral(reason);
+    }
+    // A rejected key or an answer that is not valid structure: retrying will not
+    // help, so the signal is held for the operator with zero confidence.
     logger.warn(
       { error: describeModelError(err), provider: aiProvider() },
       "classify: LLM call failed, falling back to stub",
     );
     return stub();
   }
+}
+
+/** The answer used when the model could not judge a signal. Confidence 0 never absorbs. */
+export function unclassified(): ClassifierOutput {
+  return stub();
 }
 
 function stub(): ClassifierOutput {

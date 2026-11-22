@@ -33,7 +33,7 @@ export function buildApp(db: Db, adapters: AdapterRegistry) {
   app.use("/*", bodyLimit);
   app.onError(errorResponse);
 
-  app.route("/health", healthRouter(adapters));
+  app.route("/health", healthRouter(adapters, db));
   app.route("/brief", briefRouter(db));
   app.route("/thoughts", thoughtsRouter(db));
   app.route("/directions", directionsRouter(db));

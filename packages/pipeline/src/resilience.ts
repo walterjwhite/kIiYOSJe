@@ -221,3 +221,24 @@ export function describeModelError(err: unknown): {
     ...(err instanceof ModelUnavailableError ? { code: err.code } : {}),
   };
 }
+
+/**
+ * The provider could not answer even after the policy's retries (or the circuit
+ * is open). The signal is not judged: it is held and tried again later
+ * (deferred-retry.ts). `reason` is log-safe: a status, a network code, or a
+ * policy code, never message text.
+ */
+export class ModelDeferral extends Error {
+  constructor(readonly reason: string) {
+    super(`model unavailable: ${reason}`);
+    this.name = "ModelDeferral";
+  }
+}
+
+/** Short, log-safe reason for a failure that should be retried later, or null if retrying will not help. */
+export function deferralReason(err: unknown): string | null {
+  if (!(err instanceof ModelUnavailableError) && !isRetryableModelError(err)) return null;
+  const d = describeModelError(err);
+  if (d.statusCode !== undefined) return `http_${d.statusCode}`;
+  return d.code ?? d.type;
+}

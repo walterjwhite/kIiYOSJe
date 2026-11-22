@@ -46,7 +46,7 @@ import { and, desc, eq, gte, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { AdapterRegistry } from "./adapter-registry.js";
 import { learningsForPrompt } from "./learnings.js";
 import type { ClassifierOutput } from "./classify.js";
-import { classify } from "./classify.js";
+import { classify, unclassified } from "./classify.js";
 import { decide } from "./decide.js";
 import { dedupeKey, isDuplicate } from "./dedupe.js";
 import { draft } from "./draft.js";
@@ -58,9 +58,11 @@ import { loadLinkContext } from "./link-context.js";
 import { matchSignal } from "./match.js";
 import type { ModelTrace } from "./model.js";
 import { groundDeadline, isPlausibleDate } from "./deadlines.js";
+import { MAX_DEFER_ATTEMPTS, deferSignal } from "./deferral.js";
 import { INJECTION_HOLD, scanForInjection } from "./injection.js";
 import { findSensitiveTopics } from "./sensitive.js";
 import { normalize } from "./normalize.js";
+import { ModelDeferral } from "./resilience.js";
 import { transform } from "./transform.js";
 
 type DirectionRow = typeof directions.$inferSelect;
@@ -74,6 +76,12 @@ export interface IngestOverrides {
   transformedSummary?: string | null;
   /** Skip the real auto-link call and use this result instead. For tests. */
   linkOutput?: LinkOutput | null;
+  /**
+   * Process a signal that was held because the model was unavailable
+   * (deferral.ts). The signal row already exists; this run fills it in instead of
+   * inserting a second one. `attempt` is how many tries it has had so far.
+   */
+  resume?: { signalId: string; attempt: number };
 }
 
 export interface IngestResult {
@@ -100,7 +108,7 @@ export async function ingest(
   const log = logger.child({ component: "pipeline", dedupeKey: key });
 
   // ── 1. Dedupe ────────────────────────────────────────────────────────────
-  if (isDuplicate(db, key)) {
+  if (!overrides?.resume && isDuplicate(db, key)) {
     log.debug("duplicate signal, dropping");
     return {
       disposition: "duplicate",
@@ -142,18 +150,41 @@ export async function ingest(
     );
   } else if (overrides?.classifierOutput) aiSkipped["classify"] = "override supplied";
   else if (!aiOn) aiSkipped["classify"] = "no AI provider configured";
-  const modelOut =
-    (injection ? INJECTION_HOLD : undefined) ??
-    overrides?.classifierOutput ??
-    (await classify({
-      signalBody: normalizedBody,
-      sender: signal.sender,
-      standard: match?.direction.standard ?? null,
-      receivedAt: signal.receivedAt,
-      matchPrompt: match?.direction.matchPrompt ?? null,
-      learnings: classifyLearnings.text,
-      onTrace: (t) => aiCalls.push(t),
-    }));
+  let modelOut: ClassifierOutput;
+  try {
+    modelOut =
+      (injection ? INJECTION_HOLD : undefined) ??
+      overrides?.classifierOutput ??
+      (await classify({
+        signalBody: normalizedBody,
+        sender: signal.sender,
+        standard: match?.direction.standard ?? null,
+        receivedAt: signal.receivedAt,
+        matchPrompt: match?.direction.matchPrompt ?? null,
+        learnings: classifyLearnings.text,
+        onTrace: (t) => aiCalls.push(t),
+      }));
+  } catch (err) {
+    if (!(err instanceof ModelDeferral)) throw err;
+    const attempt = overrides?.resume?.attempt ?? 0;
+    if (attempt < MAX_DEFER_ATTEMPTS) {
+      // The provider is down or slow. That says nothing about the message, so it
+      // is stored and tried again later, never absorbed and never lost.
+      return deferSignal(db, {
+        signal,
+        normalizedBody,
+        dedupeKey: key,
+        directionId: match?.direction.id ?? null,
+        reason: err.reason,
+        attempt: attempt + 1,
+        ...(overrides?.resume ? { existingSignalId: overrides.resume.signalId } : {}),
+      });
+    }
+    // Out of tries: it must not wait for ever. Zero confidence never absorbs, so
+    // the operator sees it, and the event says why.
+    aiSkipped["classify"] = `model unavailable after ${attempt} tries (${err.reason})`;
+    modelOut = unclassified();
+  }
 
   // ── 4a. Ground the dates ─────────────────────────────────────────────────
   // A date read from the message ("by Friday", resolved against when it arrived)
@@ -201,7 +232,7 @@ export async function ingest(
           })
         : null;
 
-  const signalId = newId();
+  const signalId = overrides?.resume?.signalId ?? newId();
 
   // ── 4c. Commitment reconciliation ────────────────────────────────────────
   // One open commitment per thread. A later message either verifies it, or
@@ -361,32 +392,37 @@ export async function ingest(
 
   let actionId: string | null = null;
 
-  db.insert(signals)
-    .values({
-      id: signalId,
-      adapter: signal.adapter,
-      account: signal.account ?? null,
-      externalId: signal.externalId,
-      threadId: signal.threadId,
-      sender: signal.sender,
-      recipients: JSON.stringify(signal.recipients),
-      cc: signal.cc && signal.cc.length > 0 ? JSON.stringify(signal.cc) : null,
-      bcc: signal.bcc && signal.bcc.length > 0 ? JSON.stringify(signal.bcc) : null,
-      kind: signal.kind,
-      subject: signal.subject ?? null,
-      body: normalizedBody,
-      htmlBody: signal.htmlBody ?? null,
-      transformedSummary,
-      receivedAt: signal.receivedAt.toISOString(),
-      urgencyHint: signal.urgencyHint,
-      disposition,
-      directionId: match?.direction.id ?? null,
-      thoughtId,
-      signalKind: classifierOut.signalKind,
-      escalateBy,
-      dedupeKey: key,
-    })
-    .run();
+  const row = {
+    adapter: signal.adapter,
+    account: signal.account ?? null,
+    externalId: signal.externalId,
+    threadId: signal.threadId,
+    sender: signal.sender,
+    recipients: JSON.stringify(signal.recipients),
+    cc: signal.cc && signal.cc.length > 0 ? JSON.stringify(signal.cc) : null,
+    bcc: signal.bcc && signal.bcc.length > 0 ? JSON.stringify(signal.bcc) : null,
+    kind: signal.kind,
+    subject: signal.subject ?? null,
+    body: normalizedBody,
+    htmlBody: signal.htmlBody ?? null,
+    transformedSummary,
+    receivedAt: signal.receivedAt.toISOString(),
+    urgencyHint: signal.urgencyHint,
+    disposition,
+    directionId: match?.direction.id ?? null,
+    thoughtId,
+    signalKind: classifierOut.signalKind,
+    escalateBy,
+    dedupeKey: key,
+  };
+  if (overrides?.resume) {
+    // The row was stored when the signal was deferred; fill it in.
+    db.update(signals).set(row).where(eq(signals.id, signalId)).run();
+  } else {
+    db.insert(signals)
+      .values({ id: signalId, ...row })
+      .run();
+  }
 
   if (commitmentEvent) {
     db.insert(events)

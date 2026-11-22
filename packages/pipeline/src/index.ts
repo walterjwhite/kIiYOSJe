@@ -22,3 +22,7 @@ export * from "./learning-insight.js";
 export * from "./learning-cycle.js";
 export * from "./learnings.js";
 export * from "./coverage.js";
+export * from "./deferral.js";
+export * from "./deferred-retry.js";
+export * from "./resilience.js";
+export * from "./deadlines.js";

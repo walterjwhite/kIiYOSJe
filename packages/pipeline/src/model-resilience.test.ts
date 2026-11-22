@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { logger, writeAiConfig, writeResilienceSettings } from "@mind/core";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { classify } from "./classify.js";
-import { resetResilience, resilienceState } from "./resilience.js";
+import { ModelDeferral, resetResilience, resilienceState } from "./resilience.js";
 
 process.env["HOME"] = mkdtempSync(join(tmpdir(), "mind-model-resilience-"));
 process.env["MIND_CONFIG_DIR"] = mkdtempSync(join(tmpdir(), "mind-model-resilience-config-"));
@@ -115,31 +115,30 @@ describe("classify through a failing provider", () => {
   it("does not stack the SDK's own retries on top of the policy's", async () => {
     writeResilienceSettings({ ...settings, retries: 0 });
     script = [503, 503, 503];
-    const out = await classify(input);
-    // One request, then the held-for-review stub: never an invented answer.
+    // One request, then the signal is deferred: never an invented answer.
+    await expect(classify(input)).rejects.toBeInstanceOf(ModelDeferral);
     expect(requests).toBe(1);
-    expect(out.confidence).toBe(0);
   });
 
-  it("does not retry a rejected key", async () => {
+  it("holds the signal for the operator, not for a retry, when the key is rejected", async () => {
     writeResilienceSettings(settings);
     script = [401];
     const out = await classify(input);
+    // Asking again cannot fix a rejected key.
     expect(requests).toBe(1);
     expect(out.confidence).toBe(0);
   });
 
-  it("stops calling a provider that keeps failing, and answers with the stub at once", async () => {
+  it("stops calling a provider that keeps failing, and defers at once", async () => {
     writeResilienceSettings({ ...settings, retries: 0, breakerFailures: 2 });
     script = [500, 500, 500, 500];
-    await classify(input);
-    await classify(input);
+    await expect(classify(input)).rejects.toBeInstanceOf(ModelDeferral);
+    await expect(classify(input)).rejects.toBeInstanceOf(ModelDeferral);
     expect(resilienceState().circuit).toBe("open");
 
     const before = requests;
-    const out = await classify(input);
+    await expect(classify(input)).rejects.toMatchObject({ reason: "circuit_open" });
     expect(requests).toBe(before);
-    expect(out.confidence).toBe(0);
   });
 
   it("logs the failure without the prompt, the sender, or the provider's reply", async () => {
@@ -147,9 +146,9 @@ describe("classify through a failing provider", () => {
     script = [500];
     const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
     try {
-      await classify(input);
+      await classify(input).catch(() => undefined);
       const logged = JSON.stringify(warn.mock.calls);
-      expect(logged).toContain("classify: LLM call failed");
+      expect(logged).toContain("classify: model unavailable");
       expect(logged).toContain("500");
       expect(logged).not.toContain("rollout");
       expect(logged).not.toContain("alice@example.test");

@@ -54,6 +54,22 @@ describe("/health", () => {
     const res = await app.request("/health");
     expect(res.status).toBe(401);
   });
+
+  it("reports whether model calls are flowing and how many signals are waiting", async () => {
+    const db = openTestDb();
+    const app = buildApp(db, new AdapterRegistry());
+    const res = await app.request("/health", {
+      headers: { Authorization: `Bearer ${auth.getToken()}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      model: { circuit: string; running: number; queued: number; deferred: number };
+    };
+    expect(body.model.circuit).toBe("closed");
+    expect(body.model.running).toBe(0);
+    expect(body.model.queued).toBe(0);
+    expect(body.model.deferred).toBe(0);
+  });
 });
 
 describe("/thoughts", () => {

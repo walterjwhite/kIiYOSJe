@@ -13,6 +13,7 @@ import {
   loadDirections,
   startBackupJob,
   startEscalationChecker,
+  startDeferredRetry,
   startLearningLoop,
   startRetentionJob,
   startStatusWriter,
@@ -69,6 +70,7 @@ export async function startServer(): Promise<void> {
   startBackupJob();
   startStatusWriter(db, adapters);
   startLearningLoop(db);
+  startDeferredRetry(db, adapters);
 
   const app = buildApp(db, adapters);
   const host = serverBindHost();
