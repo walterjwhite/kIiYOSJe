@@ -48,7 +48,7 @@ forgets the token locally — revoke on the server too.
 ## Building
 
 Open `android/` in Android Studio (Ladybug or newer), or with JDK 17+. The
-committed Gradle wrapper downloads the pinned Gradle 8.11.1, so nothing else
+committed Gradle wrapper downloads the pinned Gradle 9.9.2, so nothing else
 needs installing.
 
 The quickest path is the deploy script. It finds a JDK 17 or newer — `JAVA_HOME`

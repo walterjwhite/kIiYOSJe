@@ -77,7 +77,7 @@ if [ -z "${GRADLE:-}" ]; then
         GRADLE=$(command -v gradle)
     else
         echo "Error: no ./gradlew in $PROJECT_DIR and no gradle on PATH." >&2
-        echo "The wrapper is normally committed; restore it, or install Gradle 8.11.1" >&2
+        echo "The wrapper is normally committed; restore it, or install Gradle 9.9.2" >&2
         echo "and run 'gradle wrapper --gradle-version 8.11.1' to recreate it." >&2
         exit 1
     fi
