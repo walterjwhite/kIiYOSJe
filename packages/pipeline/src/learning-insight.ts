@@ -16,6 +16,7 @@
  * proposals still work exactly as before, same fallback as classify/draft.
  */
 
+import { describeModelError } from "./resilience.js";
 import { aiConfigured, aiProvider, logger } from "@mind/core";
 import type { DirectionProposal } from "./learning-loop.js";
 import { generateReply } from "./model.js";
@@ -56,7 +57,10 @@ export async function generateLearningInsight(
     const text = await generateReply({ system: SYSTEM, prompt: buildPrompt(proposals) });
     return text.length > 0 ? text : null;
   } catch (err) {
-    logger.warn({ err, provider: aiProvider() }, "learning-insight: LLM call failed");
+    logger.warn(
+      { error: describeModelError(err), provider: aiProvider() },
+      "learning-insight: LLM call failed",
+    );
     return null;
   }
 }

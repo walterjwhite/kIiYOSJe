@@ -75,3 +75,34 @@ describe("/admin/sensitive", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("/admin/resilience", () => {
+  it("requires the token", async () => {
+    expect((await appWithDb().request("/admin/resilience")).status).toBe(401);
+  });
+
+  it("returns the defaults, saves a change, and rejects an out-of-range value", async () => {
+    const app = appWithDb();
+    const first = (await (
+      await app.request("/admin/resilience", { headers: headers() })
+    ).json()) as { retries: number; maxConcurrent: number };
+    expect(first.retries).toBe(2);
+    expect(first.maxConcurrent).toBe(2);
+
+    const put = (body: unknown) =>
+      app.request("/admin/resilience", {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify(body),
+      });
+    expect((await put({ retries: 4, maxConcurrent: 1 })).status).toBe(200);
+    const again = (await (
+      await app.request("/admin/resilience", { headers: headers() })
+    ).json()) as { retries: number; maxConcurrent: number; timeoutSeconds: number };
+    expect(again.retries).toBe(4);
+    expect(again.maxConcurrent).toBe(1);
+    expect(again.timeoutSeconds).toBe(120);
+
+    expect((await put({ maxConcurrent: 50 })).status).toBe(400);
+  });
+});

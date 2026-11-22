@@ -6,6 +6,7 @@
  * threshold. Anything else leaves the signal unlinked.
  */
 
+import { describeModelError } from "./resilience.js";
 import { aiConfigured, contextTokens, logger } from "@mind/core";
 import { z } from "zod";
 import { bodyBudget, fitToTokens, withShrinkingBody } from "./fit.js";
@@ -114,7 +115,7 @@ export async function proposeLink(input: LinkInput): Promise<LinkOutput | null> 
     });
   } catch (err) {
     logger.warn(
-      { err, sender: input.sender },
+      { error: describeModelError(err) },
       "link: model call failed, leaving the signal unlinked",
     );
     return null;

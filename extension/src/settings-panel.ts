@@ -15,6 +15,15 @@ interface AutolinkSettings {
   threshold: number;
 }
 
+interface ResilienceSettings {
+  timeoutSeconds: number;
+  retries: number;
+  retryDelayMs: number;
+  breakerFailures: number;
+  breakerResetSeconds: number;
+  maxConcurrent: number;
+}
+
 interface SensitiveTopic {
   name: string;
   keywords: string[];
@@ -65,6 +74,18 @@ const SETTINGS_SCRIPT = `
       minGapMinutes: Number(val('li-gap'))
     });
   });
+  var resilience = document.getElementById('save-resilience');
+  if (resilience) resilience.addEventListener('click', function () {
+    post({
+      command: 'saveResilience',
+      timeoutSeconds: Number(val('rs-timeout')),
+      retries: Number(val('rs-retries')),
+      retryDelayMs: Number(val('rs-delay')),
+      breakerFailures: Number(val('rs-failures')),
+      breakerResetSeconds: Number(val('rs-reset')),
+      maxConcurrent: Number(val('rs-concurrent'))
+    });
+  });
   var sensitive = document.getElementById('save-sensitive');
   if (sensitive) sensitive.addEventListener('click', function () {
     var topics = [];
@@ -105,6 +126,7 @@ export class SettingsPanel extends SectionPanel {
   private autolink: AutolinkSettings | undefined;
   private learning: LearningSettings | undefined;
   private sensitive: SensitiveSettings | undefined;
+  private resilience: ResilienceSettings | undefined;
   private notice: string | undefined;
   private loadError: string | undefined;
 
@@ -142,6 +164,12 @@ export class SettingsPanel extends SectionPanel {
       minNewDecisions?: number;
       minGapMinutes?: number;
       topics?: { name?: string; keywords?: string; enabled?: boolean }[];
+      timeoutSeconds?: number;
+      retries?: number;
+      retryDelayMs?: number;
+      breakerFailures?: number;
+      breakerResetSeconds?: number;
+      maxConcurrent?: number;
     };
     if (m.command === "refresh") this.load();
     else if (m.command === "toggleField" && m.field) this.toggleField(m.field);
@@ -171,6 +199,20 @@ export class SettingsPanel extends SectionPanel {
         },
         "Learning settings saved.",
         (v) => (this.learning = v),
+      );
+    } else if (m.command === "saveResilience" && this.resilience) {
+      void this.save(
+        "/admin/resilience",
+        {
+          timeoutSeconds: Number(m.timeoutSeconds),
+          retries: Number(m.retries),
+          retryDelayMs: Number(m.retryDelayMs),
+          breakerFailures: Number(m.breakerFailures),
+          breakerResetSeconds: Number(m.breakerResetSeconds),
+          maxConcurrent: Number(m.maxConcurrent),
+        },
+        "Model call settings saved.",
+        (v) => (this.resilience = v),
       );
     } else if (m.command === "saveSensitive" && this.sensitive) {
       const rows = Array.isArray(m.topics) ? m.topics : [];
@@ -205,6 +247,7 @@ export class SettingsPanel extends SectionPanel {
           apiFetch<AutolinkSettings>("/admin/autolink"),
           apiFetch<LearningSettings>("/admin/learning"),
           apiFetch<SensitiveSettings>("/admin/sensitive"),
+          apiFetch<ResilienceSettings>("/admin/resilience"),
         ],
       );
       this.loadError = undefined;
@@ -270,7 +313,8 @@ export class SettingsPanel extends SectionPanel {
     const l = this.autolink;
     const w = this.learning;
     const sens = this.sensitive;
-    if (!s || !a || !l || !w || !sens) return;
+    const r = this.resilience;
+    if (!s || !a || !l || !w || !sens || !r) return;
 
     const topicRow = (t: SensitiveTopic | undefined, i: number) => `
         <tr class="st-row">
@@ -327,6 +371,25 @@ export class SettingsPanel extends SectionPanel {
         <div class="sub">A decision is a reply you approve, a draft you discard, or a signal you move to another Direction. Idle means no signal was processed and nothing was decided for the idle time.</div>
         <span></span>
         <div><button id="save-learning">Save learning settings</button></div>
+      </div>
+
+      <h2>Model calls</h2>
+      <p class="sub">How mind protects itself from a slow or failing model. Each call has a time limit and retries a temporary failure (timeout, rate limit, server error) with a growing wait. After several failures in a row it stops calling the model for a while, and messages wait for you instead of being answered. At most this many calls run at once. Changes apply to the next call.</p>
+      <div class="form">
+        <label for="rs-timeout">Time limit (seconds)</label>
+        <input id="rs-timeout" type="number" min="5" max="900" step="1" value="${r.timeoutSeconds}" />
+        <label for="rs-retries">Retries</label>
+        <input id="rs-retries" type="number" min="0" max="5" step="1" value="${r.retries}" />
+        <label for="rs-delay">First wait before a retry (ms)</label>
+        <input id="rs-delay" type="number" min="100" max="30000" step="100" value="${r.retryDelayMs}" />
+        <label for="rs-failures">Failures in a row that pause calls</label>
+        <input id="rs-failures" type="number" min="1" max="50" step="1" value="${r.breakerFailures}" />
+        <label for="rs-reset">Pause length (seconds)</label>
+        <input id="rs-reset" type="number" min="5" max="3600" step="1" value="${r.breakerResetSeconds}" />
+        <label for="rs-concurrent">Calls at once</label>
+        <input id="rs-concurrent" type="number" min="1" max="8" step="1" value="${r.maxConcurrent}" />
+        <span></span>
+        <div><button id="save-resilience">Save model call settings</button></div>
       </div>
 
       <h2>Sensitive topics</h2>

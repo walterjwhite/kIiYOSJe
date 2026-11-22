@@ -6,6 +6,7 @@
  * Returns null only when no provider is configured at all.
  */
 
+import { describeModelError } from "./resilience.js";
 import { aiConfigured, aiProvider, contextTokens, logger } from "@mind/core";
 import type { ClassifierOutput } from "./classify.js";
 import { bodyBudget, fitToTokens, withShrinkingBody } from "./fit.js";
@@ -94,7 +95,10 @@ export async function draft(input: DraftInput): Promise<string | null> {
     });
     return text.length > 0 ? text : null;
   } catch (err) {
-    logger.warn({ err, provider: aiProvider() }, "draft: LLM call failed");
+    logger.warn(
+      { error: describeModelError(err), provider: aiProvider() },
+      "draft: LLM call failed",
+    );
     return null;
   }
 }

@@ -37,6 +37,9 @@ import {
   DisplaySettingsSchema,
   autolinkSettings,
   sensitiveSettings,
+  resilienceSettings,
+  writeResilienceSettings,
+  ResilienceSettingsSchema,
   writeSensitiveSettings,
   SensitiveSettingsSchema,
   writeAutolinkSettings,
@@ -158,6 +161,14 @@ export function adminRouter() {
   app.get("/autolink", (c) => c.json(autolinkSettings()));
   app.put("/autolink", zValidator("json", AutolinkSettingsSchema), (c) => {
     writeAutolinkSettings(c.req.valid("json"));
+    return c.json({ ok: true });
+  });
+
+  // GET/PUT /admin/resilience — timeout, retries, circuit breaker, and the cap on
+  // simultaneous model calls. Applies to the next call; no restart.
+  app.get("/resilience", (c) => c.json(resilienceSettings()));
+  app.put("/resilience", zValidator("json", ResilienceSettingsSchema), (c) => {
+    writeResilienceSettings(c.req.valid("json"));
     return c.json({ ok: true });
   });
 

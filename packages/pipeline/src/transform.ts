@@ -15,6 +15,7 @@
  * degrade-quietly behaviour as classify()/draft().
  */
 
+import { describeModelError } from "./resilience.js";
 import { aiConfigured, aiProvider, contextTokens, logger } from "@mind/core";
 import { bodyBudget, fitToTokens, withShrinkingBody } from "./fit.js";
 import { generateReply } from "./model.js";
@@ -59,7 +60,11 @@ export async function transform(input: TransformInput): Promise<string | null> {
   }
 
   try {
-    const budget = bodyBudget(contextTokens(), SYSTEM + buildPrompt({ ...input, signalBody: "" }), TRANSFORM_ANSWER_TOKENS);
+    const budget = bodyBudget(
+      contextTokens(),
+      SYSTEM + buildPrompt({ ...input, signalBody: "" }),
+      TRANSFORM_ANSWER_TOKENS,
+    );
     const text = await withShrinkingBody(budget, (tokens) => {
       const body = fitToTokens(input.signalBody, tokens);
       return generateReply({
@@ -72,7 +77,10 @@ export async function transform(input: TransformInput): Promise<string | null> {
     });
     return text.length > 0 ? text : null;
   } catch (err) {
-    logger.warn({ err, provider: aiProvider() }, "transform: LLM call failed");
+    logger.warn(
+      { error: describeModelError(err), provider: aiProvider() },
+      "transform: LLM call failed",
+    );
     return null;
   }
 }

@@ -9,6 +9,7 @@
  * provider, so classify() calls a real model out of the box at zero cost.
  */
 
+import { describeModelError } from "./resilience.js";
 import {
   ClassifierOutputSchema,
   aiConfigured,
@@ -108,7 +109,7 @@ export async function classify(input: ClassifyInput): Promise<ClassifierOutput> 
     return ClassifierOutputSchema.parse(object);
   } catch (err) {
     logger.warn(
-      { err, sender: input.sender, provider: aiProvider() },
+      { error: describeModelError(err), provider: aiProvider() },
       "classify: LLM call failed, falling back to stub",
     );
     return stub();
