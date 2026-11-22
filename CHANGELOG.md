@@ -9,6 +9,24 @@ versions while the project is `0.x`).
 
 ### Added
 
+- Sensitive topics. A list in Settings (legal, financial, and health by default,
+  plus your own) holds a message that mentions one: it is never absorbed, drafted,
+  or sent, and becomes a Thought with the reason "sensitive topic: <name>". Matching
+  is on whole words and word forms; the classifier can also tag a topic by name.
+  Stored in `sensitive.json`; `GET/PUT /admin/sensitive`. More topics mean more
+  Thoughts, so keep the lists short.
+- Injection tripwire. Inbound text is scanned for known prompt-injection phrasing
+  (`@stackone/defender`, pattern layer, Apache-2.0, in process, no network). A hit
+  is held for you: no model sees it, no draft or send is made, and it becomes a
+  Thought with the reason "possible prompt injection". The event records pattern
+  names only. It does not catch a paraphrased instruction; the delimited prompts
+  and the send gates remain the defense.
+- Evaluation harness: `node packages/pipeline/dist/eval/cli.js [--live] [--json]`
+  runs 22 labelled synthetic signals through the real `ingest()` with recorded
+  model output and reports surface recall, surface precision, false-absorb rate,
+  direction accuracy, gate violations, and signals per Thought. Three fixtures
+  document known gaps (no injection detector, literal substring matching,
+  `sensitiveTopics` not read by `decide()`). A test holds the floors in CI.
 - The learning loop also runs when the system is idle: no activity for 10
   minutes, at least 5 new decisions (approved or discarded replies, moved
   signals) since the last run, and at least 60 minutes since any run. All four
@@ -18,6 +36,10 @@ versions while the project is `0.x`).
 
 ### Changed
 
+- Direction matching also accepts word forms: a topic or project scope, or a
+  `matchPrompt` phrase, matches "approving budgets" for "approve budget" (stemmed,
+  whole words, in order). Literal substring matching is unchanged, so nothing that
+  matched before stops matching. Synonyms still go in `matchPrompt`.
 - Model Trace updates itself. Live is on by default: every 3 seconds the panel
   asks for the newest `signal.processed` event (one row) and reloads only when
   it changed or the data is a minute old. It pauses while the panel is hidden.

@@ -1,0 +1,68 @@
+# Requirements — use a public library where one fits
+
+## Introduction
+
+`tech.md` says never add a dependency for something the standard library does.
+The other half of that rule is this spec: do not hand-write what a maintained,
+permissively licensed library already does well, especially where an error is a
+security or correctness problem. This file is the standing audit and the rule
+for deciding.
+
+## Requirement 1 — The decision rule
+
+A hand-written implementation SHALL be replaced by a library when all of these hold:
+
+1. The library's license is Allowed in `licensing.md` (MPL-2.0 is Review: only
+   unmodified, preferably dev-only).
+2. It has a recent release and a public issue tracker, and its code does not need
+   to be copied or modified.
+3. Its footprint fits the budgets: no native binaries or install scripts unless
+   the operator accepts them, and no large idle memory cost (`performance.md`).
+4. A test or an evaluation fixture shows it does better than the current code on
+   our inputs. "Popular" is not evidence.
+5. A dependency change carries `deps-approved`, passes `npm run license:check` and
+   `npm audit`, is pinned exactly, and is listed in `DISCLOSURES.md`.
+
+A hand-written implementation SHALL stay when the extension's zero-runtime-
+dependency rule applies, when the library is much larger than the code it
+replaces, or when the code is a protected path (auth, send gates) that needs
+explicit human approval to change.
+
+## Requirement 2 — The audit
+
+Verdicts come from reading the code and from `npm view` on the date below. A
+claim marked "not verified" has not been run against our inputs.
+
+Audit date: 2026-11-22.
+
+| Area                                                                       | Current code                                                                                                                                                                             | Candidate (license, size)                                                  | Verdict                                                                                                                                                                                    |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Prompt-injection scan                                                      | none                                                                                                                                                                                     | `@stackone/defender` Tier 1 (Apache-2.0)                                   | **Done.** Pattern layer only; see `injection-detection`.                                                                                                                                   |
+| Word matching for Directions and sensitive topics                          | substring checks in `match.ts`                                                                                                                                                           | `stemmer` 2.0.1 (MIT, 13 KB) plus built-in `Intl.Segmenter`                | **Done.** Union with the old substring match, so nothing stops matching.                                                                                                                   |
+| Model calls: timeout, retry with backoff, circuit breaker, concurrency cap | none in `model.ts` or `classify.ts` (no retry, no timeout, no abort). A provider error becomes a zero-confidence stub. `performance.md` requires all four and says to defer, never drop. | `cockatiel` 4.0.0 (MIT, 262 KB): retry, timeout, circuit breaker, bulkhead | **High.** A real gap, not a style choice, and it matters on a free cloud tier with rate limits. Evaluate against a fake provider that fails and stalls.                                    |
+| Quote and signature stripping                                              | `normalize.ts`, 60 lines: lines starting with `>` and a one-line "On ... wrote:". No signatures (STATUS gap 2), no "From: ... Sent:" blocks, no wrapped headers.                         | `email-reply-parser` 3.0.0 (MIT, 32 KB); `planer` 1.2.0 (MIT, 105 KB)      | **High.** Fewer tokens and cleaner classification. Try both on fixtures of real-shaped mail (synthetic) and keep the better one. Which handles HTML bodies is not verified.                |
+| Deadline grounding                                                         | The model returns an ISO `escalateBy`. It once resolved "by Friday" to 2023 (STATUS gap 13). `normalize()` returns empty `deadlines`.                                                    | `chrono-node` 2.10.3 (MIT, 3.2 MB) with `receivedAt` as the reference date | **Medium.** Use it to parse the message and cross-check or replace the model's date, so a date is never invented. Size is large for a text parser; not verified how much loads at runtime. |
+| Email address parsing                                                      | `parseAddresses` in the Gmail mapper splits on commas, then takes `<...>`. A quoted display name with a comma is handled by luck.                                                        | `email-addresses` 5.0.0 (MIT, 130 KB)                                      | **Low to medium.** Correct RFC 5322 parsing, and the sender decides which Direction matches. Check Outlook's mapper for the same pattern.                                                  |
+| iCalendar parsing                                                          | `calendar/ics.ts`, 115 lines, "minimal": no recurrence rules, no time zones beyond Z.                                                                                                    | `node-ical` 0.27.6 (Apache-2.0, 454 KB); `ical.js` 2.2.1 (MPL-2.0, Review) | **Medium.** The Google private feed pre-expands recurrences. An arbitrary ICS URL does not. Decide after seeing a real feed.                                                               |
+| ACP over stdio                                                             | `json-rpc.ts` and `acp.ts`, about 230 lines, hand-written client                                                                                                                         | `@agentclientprotocol/sdk` 2.9.1 (Apache-2.0, 5.2 MB)                      | **Medium.** The protocol is still evolving, so a maintained client is safer. Compare against the Kiro and Copilot agents. Not verified that it fits a spawn-per-call usage.                |
+| QR code for device pairing                                                 | `extension/src/qr.ts`, 503 lines, tested against an independent decoder                                                                                                                  | `qrcode-generator` 2.0.4 (MIT, 556 KB)                                     | **Keep.** The extension ships with no runtime dependencies on purpose, and the encoder is verified.                                                                                        |
+| Learnings front matter                                                     | `learnings.ts`, uses the `yaml` package already, plus zod                                                                                                                                | `gray-matter` 4.0.3 (MIT, 39 KB)                                           | **Keep.** It would add a second YAML parser.                                                                                                                                               |
+| Token estimate                                                             | `fit.ts`, `chars / 3`, deliberately pessimistic                                                                                                                                          | `gpt-tokenizer`, `js-tiktoken`                                             | **Keep.** Tokenizers are model specific, and the margin is intentional.                                                                                                                    |
+| HTML email display                                                         | iframe with `sandbox=""` and `srcdoc`                                                                                                                                                    | `sanitize-html` 2.18.2 (MIT, 87 KB)                                        | **Keep, verify.** `sandbox=""` blocks scripts. Not verified whether remote images or trackers load; check before adding a library.                                                         |
+| Relative time ("3 h ago")                                                  | `format.ts`                                                                                                                                                                              | `Intl.RelativeTimeFormat` (standard library)                               | **Low.** Matches the app's wording today. Not worth changing alone.                                                                                                                        |
+| Bearer auth, body limits                                                   | `auth.ts` in the server                                                                                                                                                                  | Hono middleware                                                            | **Not now.** Auth is a protected path and needs human approval.                                                                                                                            |
+
+## Requirement 3 — Order
+
+1. Model-call resilience (`cockatiel`): a requirement in `performance.md` that is not met.
+2. Quote and signature stripping: improves every classification.
+3. Deadline grounding with `chrono-node`: removes a known failure.
+4. `email-addresses`, `node-ical`, the ACP SDK: when a real input shows a failure.
+
+Each is its own issue with a before and after from the evaluation harness or a
+unit test, and each goes through Requirement 1.
+
+## Out of scope
+
+Embeddings and a vector store (see `knowledge-base`), the ML layer of the
+injection scan, and anything that touches send gates, auth, or migrations.

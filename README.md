@@ -305,6 +305,27 @@ re-querying by adapter and external id.
 npm test
 ```
 
+### Evaluation
+
+A labelled set of synthetic signals runs through the real pipeline (match,
+decide, gates, record) with recorded model output, and reports how well it
+surfaces the right few and absorbs the rest. No model is called and nothing is
+sent.
+
+```bash
+npx tsc --build
+node packages/pipeline/dist/eval/cli.js            # text report
+node packages/pipeline/dist/eval/cli.js --json     # JSON report
+node packages/pipeline/dist/eval/cli.js --live     # the configured model; manual, not run in CI
+```
+
+The report gives surface recall, surface precision, false-absorb rate, direction
+accuracy, gate violations (must be 0), and signals per Thought. Fixtures marked
+`known` are documented gaps and are listed apart, not counted. The recorded run
+checks the pipeline's plumbing and its rules. It says nothing about model quality
+until a `--live` run is attached to a change. Fixtures live in
+`packages/pipeline/eval/`.
+
 ## License
 
 BSD-3-Clause. See [LICENSE](LICENSE).

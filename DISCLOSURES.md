@@ -54,6 +54,14 @@ and license. If none, write "None."
 See `package-lock.json`. `npm run license:check` verifies the license set;
 `npm sbom` produces a bill of materials for each release.
 
+Notable runtime dependency: `@stackone/defender` 0.9.6 (Apache-2.0, depends only
+on `nanoid`, MIT). Its pattern layer scans inbound message text for known
+prompt-injection phrasing, in process, with no network call. Its optional ML
+layer is not installed. No code from it is copied or modified in this repository.
+
+`stemmer` 2.0.1 (MIT, no dependencies) reduces words to a stem so "approving
+budgets" matches "approve budget". No code from it is copied or modified.
+
 ## Authorship
 
 TODO: list contributors. State any contributor honestly; do not claim sole

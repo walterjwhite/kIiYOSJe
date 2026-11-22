@@ -8,4 +8,4 @@
 - [ ] 6. Warning when ratio and false-absorb rate rise together
 - [x] 7. Rejected proposals are not re-proposed within the period (fixed 30 days; configurable period is open, see `learnings-files` task 12)
 - [ ] 8. Dated series kept for the write-up; negative findings recorded in STATUS.md
-- [ ] 9. Labelled evaluation set and harness (issue: "Build a labelled evaluation set and harness")
+- [x] 9. Labelled evaluation set and harness with recorded model output (`.kiro/specs/eval-harness`). A live-model run is still to do (eval-harness task 9).
