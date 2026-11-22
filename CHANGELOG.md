@@ -7,6 +7,15 @@ versions while the project is `0.x`).
 
 ## [Unreleased]
 
+### Added
+
+- The learning loop also runs when the system is idle: no activity for 10
+  minutes, at least 5 new decisions (approved or discarded replies, moved
+  signals) since the last run, and at least 60 minutes since any run. All four
+  values, and an on/off switch, are in Settings under Learning loop and in
+  `learning.json`. Runs started this way show "when idle" in the Learnings view.
+  Existing `learning.json` files keep working and get the defaults.
+
 ### Changed
 
 - Model Trace updates itself. Live is on by default: every 3 seconds the panel

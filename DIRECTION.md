@@ -133,7 +133,9 @@ the shape of the metric, so the sooner the per-operator curve exists the less
 retrofitting the reporting needs; call handling adds a channel but not a shape.
 
 **Deferred:** FTS5 retrieval, multi-user, call handling, second model provider
-verification. The Android client now exists (`android/`) and device pairing
+verification, and a knowledge base for recalling information while actioning
+signals (likely a separate product that ingests an export from `mind`; see
+`.kiro/specs/knowledge-base/HANDOFF.md`). The Android client now exists (`android/`) and device pairing
 covers remote access with per-device credentials, but neither has been verified
 on a real phone over a real network.
 

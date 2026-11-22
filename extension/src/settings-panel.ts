@@ -18,6 +18,10 @@ interface AutolinkSettings {
 interface LearningSettings {
   windowStart: string;
   windowEnd: string;
+  idleEnabled: boolean;
+  idleMinutes: number;
+  minNewDecisions: number;
+  minGapMinutes: number;
 }
 
 const SETTINGS_STYLE = `
@@ -41,7 +45,15 @@ const SETTINGS_SCRIPT = `
   });
   var learning = document.getElementById('save-learning');
   if (learning) learning.addEventListener('click', function () {
-    post({ command: 'saveLearning', windowStart: val('lw-start'), windowEnd: val('lw-end') });
+    post({
+      command: 'saveLearning',
+      windowStart: val('lw-start'),
+      windowEnd: val('lw-end'),
+      idleEnabled: document.getElementById('li-enabled').checked,
+      idleMinutes: Number(val('li-idle')),
+      minNewDecisions: Number(val('li-decisions')),
+      minGapMinutes: Number(val('li-gap'))
+    });
   });
   var link = document.getElementById('save-threshold');
   if (link) link.addEventListener('click', function () {
@@ -102,6 +114,10 @@ export class SettingsPanel extends SectionPanel {
       threshold?: number;
       windowStart?: string;
       windowEnd?: string;
+      idleEnabled?: boolean;
+      idleMinutes?: number;
+      minNewDecisions?: number;
+      minGapMinutes?: number;
     };
     if (m.command === "refresh") this.load();
     else if (m.command === "toggleField" && m.field) this.toggleField(m.field);
@@ -121,8 +137,15 @@ export class SettingsPanel extends SectionPanel {
     } else if (m.command === "saveLearning" && this.learning) {
       void this.save(
         "/admin/learning",
-        { windowStart: String(m.windowStart ?? ""), windowEnd: String(m.windowEnd ?? "") },
-        "Learning window saved.",
+        {
+          windowStart: String(m.windowStart ?? ""),
+          windowEnd: String(m.windowEnd ?? ""),
+          idleEnabled: m.idleEnabled === true,
+          idleMinutes: Number(m.idleMinutes),
+          minNewDecisions: Number(m.minNewDecisions),
+          minGapMinutes: Number(m.minGapMinutes),
+        },
+        "Learning settings saved.",
         (v) => (this.learning = v),
       );
     } else if (m.command === "saveThreshold" && this.autolink) {
@@ -228,14 +251,24 @@ export class SettingsPanel extends SectionPanel {
       </div>
 
       <h2>Learning loop</h2>
-      <p class="sub">Once a night the learning loop reads the last 7 days of your decisions and suggests changes to Directions. It may also ask the AI model for an explanation, so it runs while you are likely away. Times are 24-hour, in this computer's time zone. If the end is earlier than the start, the window crosses midnight.</p>
+      <p class="sub">The learning loop reads the last 7 days of your decisions and suggests changes to Directions. It may also ask the AI model for an explanation. It runs once a night inside the window below, and also when you have been idle and enough new decisions have come in. Times are 24-hour, in this computer's time zone. If the end is earlier than the start, the window crosses midnight.</p>
       <div class="form">
         <label for="lw-start">Window starts</label>
         <input id="lw-start" type="time" value="${esc(w.windowStart)}" />
         <label for="lw-end">Window ends</label>
         <input id="lw-end" type="time" value="${esc(w.windowEnd)}" />
+        <label for="li-enabled">Run when idle</label>
+        <div><input id="li-enabled" type="checkbox"${w.idleEnabled ? " checked" : ""} /></div>
+        <label for="li-idle">Idle after (minutes)</label>
+        <input id="li-idle" type="number" min="1" max="240" step="1" value="${w.idleMinutes}" />
+        <label for="li-decisions">New decisions needed</label>
+        <input id="li-decisions" type="number" min="1" max="1000" step="1" value="${w.minNewDecisions}" />
+        <label for="li-gap">At least this many minutes apart</label>
+        <input id="li-gap" type="number" min="5" max="1440" step="1" value="${w.minGapMinutes}" />
         <span></span>
-        <div><button id="save-learning">Save learning window</button></div>
+        <div class="sub">A decision is a reply you approve, a draft you discard, or a signal you move to another Direction. Idle means no signal was processed and nothing was decided for the idle time.</div>
+        <span></span>
+        <div><button id="save-learning">Save learning settings</button></div>
       </div>
 
       <h2>Audio summary</h2>

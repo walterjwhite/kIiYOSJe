@@ -6,7 +6,12 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { describe, expect, it } from "vitest";
-import { lastLearningRun, runLearningCycle, scheduledRunDue } from "./learning-cycle.js";
+import {
+  idleRunDue,
+  lastLearningRun,
+  runLearningCycle,
+  scheduledRunDue,
+} from "./learning-cycle.js";
 import { runLearningLoop } from "./learning-loop.js";
 
 const MIGRATIONS_DIR = join(
@@ -156,5 +161,83 @@ describe("scheduledRunDue", () => {
     expect(scheduledRunDue(db, night, window)).toBe(true);
     expect(lastLearningRun(db)?.trigger).toBe("manual");
     expect(lastLearningRun(db, "schedule")).toBeNull();
+  });
+});
+
+describe("idleRunDue", () => {
+  const settings = {
+    windowStart: "00:00",
+    windowEnd: "04:00",
+    idleEnabled: true,
+    idleMinutes: 10,
+    minNewDecisions: 3,
+    minGapMinutes: 60,
+  };
+  const now = new Date("2026-03-01T12:00:00.000Z");
+  const minsAgo = (m: number) => new Date(now.getTime() - m * 60_000).toISOString();
+
+  function addEvent(db: TestDb, kind: string, at: string) {
+    db.insert(events)
+      .values({ id: `e-${Math.random()}`, at, actor: "user", kind, payload: "{}" })
+      .run();
+  }
+  function addRun(db: TestDb, at: string) {
+    db.insert(events)
+      .values({
+        id: `r-${Math.random()}`,
+        at,
+        actor: "system",
+        kind: "learning.run",
+        payload: JSON.stringify({ at, trigger: "manual", proposalCount: 0, insight: false }),
+      })
+      .run();
+  }
+
+  it("is due when idle, enough new decisions, and no recent run", () => {
+    const db = openTestDb();
+    for (const m of [30, 25, 20]) addEvent(db, "action.discarded", minsAgo(m));
+    expect(idleRunDue(db, now, settings)).toBe(true);
+  });
+
+  it("is not due while there was activity inside the idle time", () => {
+    const db = openTestDb();
+    for (const m of [30, 25, 5]) addEvent(db, "action.sent", minsAgo(m));
+    expect(idleRunDue(db, now, settings)).toBe(false);
+  });
+
+  it("is not due with fewer new decisions than the minimum", () => {
+    const db = openTestDb();
+    for (const m of [30, 25]) addEvent(db, "action.sent", minsAgo(m));
+    addEvent(db, "signal.processed", minsAgo(20));
+    expect(idleRunDue(db, now, settings)).toBe(false);
+  });
+
+  it("counts only decisions since the last run", () => {
+    const db = openTestDb();
+    for (const m of [200, 190, 180]) addEvent(db, "action.sent", minsAgo(m));
+    addRun(db, minsAgo(120));
+    addEvent(db, "action.sent", minsAgo(30));
+    expect(idleRunDue(db, now, settings)).toBe(false);
+  });
+
+  it("waits the minimum gap after any run", () => {
+    const db = openTestDb();
+    addRun(db, minsAgo(30));
+    for (const m of [29, 28, 27]) addEvent(db, "signal.reclassified", minsAgo(m));
+    expect(idleRunDue(db, now, settings)).toBe(false);
+    expect(idleRunDue(db, now, { ...settings, minGapMinutes: 20 })).toBe(true);
+  });
+
+  it("ignores the loop's own events when judging idle", () => {
+    const db = openTestDb();
+    for (const m of [30, 25, 20]) addEvent(db, "action.sent", minsAgo(m));
+    addEvent(db, "direction.proposal", minsAgo(1));
+    expect(idleRunDue(db, now, settings)).toBe(true);
+  });
+
+  it("is never due when switched off", () => {
+    const db = openTestDb();
+    for (const m of [30, 25, 20]) addEvent(db, "action.sent", minsAgo(m));
+    expect(idleRunDue(db, now, { ...settings, idleEnabled: false })).toBe(false);
   });
 });

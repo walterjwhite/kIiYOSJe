@@ -4,8 +4,10 @@
  * The loop reads a week of decisions and may call the configured model for an
  * insight, so it runs overnight, when the operator is least likely to be using
  * the app or the extension. The default window is 00:00 to 04:00 in the
- * server's local time zone. Change it in the extension's Settings, or by
- * editing `learning.json` in the config directory.
+ * server's local time zone. It also runs when the system is idle and enough new
+ * decisions have arrived (idleMinutes, minNewDecisions, minGapMinutes). Change
+ * these in the extension's Settings, or by editing `learning.json` in the
+ * config directory.
  */
 
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -20,12 +22,25 @@ export const LearningSettingsSchema = z.object({
   windowStart: TimeOfDay,
   /** End of the nightly window (exclusive). May be earlier than the start to cross midnight. */
   windowEnd: TimeOfDay,
+  /** Also run when the system has been quiet and enough new decisions have come in. */
+  idleEnabled: z.boolean().default(true),
+  /** Minutes with no activity before the system counts as idle. */
+  idleMinutes: z.number().int().min(1).max(240).default(10),
+  /** New decisions (sent, discarded, moved) since the last run needed to trigger an idle run. */
+  minNewDecisions: z.number().int().min(1).max(1000).default(5),
+  /** Least minutes between any two runs started by the idle trigger. */
+  minGapMinutes: z.number().int().min(5).max(1440).default(60),
 });
-export type LearningSettings = z.infer<typeof LearningSettingsSchema>;
+export type LearningSettings = z.output<typeof LearningSettingsSchema>;
+export type LearningSettingsInput = z.input<typeof LearningSettingsSchema>;
 
 export const DEFAULT_LEARNING_SETTINGS: LearningSettings = {
   windowStart: "00:00",
   windowEnd: "04:00",
+  idleEnabled: true,
+  idleMinutes: 10,
+  minNewDecisions: 5,
+  minGapMinutes: 60,
 };
 
 export function learningSettingsPath(): string {
@@ -67,7 +82,7 @@ function minutes(hhmm: string): number {
  */
 export function isWithinLearningWindow(
   now: Date,
-  settings: LearningSettings = learningSettings(),
+  settings: Pick<LearningSettings, "windowStart" | "windowEnd"> = learningSettings(),
 ): boolean {
   const start = minutes(settings.windowStart);
   const end = minutes(settings.windowEnd);

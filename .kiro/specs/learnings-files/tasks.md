@@ -13,3 +13,4 @@
 - [ ] 11. Live-model check that a learning changes a classification or a draft. Unit tests show the text reaches the prompt, not that a model follows it.
 - [ ] 12. Make the 30-day cooldown operator-configurable
 - [ ] 13. Draft a learning from the operator's corrections, for the operator to edit and commit
+- [x] 14. Idle trigger with `idleEnabled`, `idleMinutes`, `minNewDecisions`, `minGapMinutes` settings; run runtime recorded; one run at a time (`learning-cycle.ts`, `learning-settings.ts`, Settings view)

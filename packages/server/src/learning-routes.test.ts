@@ -44,7 +44,14 @@ describe("/admin/learning (nightly window)", () => {
   it("defaults to 00:00 to 04:00, and saves a new window", async () => {
     const app = appWithDb();
     const first = await app.request("/admin/learning", { headers: headers() });
-    expect(await first.json()).toEqual({ windowStart: "00:00", windowEnd: "04:00" });
+    expect(await first.json()).toEqual({
+      windowStart: "00:00",
+      windowEnd: "04:00",
+      idleEnabled: true,
+      idleMinutes: 10,
+      minNewDecisions: 5,
+      minGapMinutes: 60,
+    });
 
     const put = await app.request("/admin/learning", {
       method: "PUT",
@@ -53,7 +60,37 @@ describe("/admin/learning (nightly window)", () => {
     });
     expect(put.status).toBe(200);
     const again = await app.request("/admin/learning", { headers: headers() });
-    expect(await again.json()).toEqual({ windowStart: "01:00", windowEnd: "05:30" });
+    expect(await again.json()).toMatchObject({ windowStart: "01:00", windowEnd: "05:30" });
+  });
+
+  it("saves the idle trigger settings and rejects out-of-range values", async () => {
+    const app = appWithDb();
+    const put = (body: unknown) =>
+      app.request("/admin/learning", {
+        method: "PUT",
+        headers: { ...headers(), "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    const window = { windowStart: "00:00", windowEnd: "04:00" };
+    expect(
+      (
+        await put({
+          ...window,
+          idleEnabled: false,
+          idleMinutes: 20,
+          minNewDecisions: 8,
+          minGapMinutes: 120,
+        })
+      ).status,
+    ).toBe(200);
+    const saved = await app.request("/admin/learning", { headers: headers() });
+    expect(await saved.json()).toMatchObject({
+      idleEnabled: false,
+      idleMinutes: 20,
+      minNewDecisions: 8,
+      minGapMinutes: 120,
+    });
+    expect((await put({ ...window, idleMinutes: 0 })).status).toBe(400);
   });
 
   it("rejects a malformed time", async () => {

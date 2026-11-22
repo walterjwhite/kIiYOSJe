@@ -112,4 +112,24 @@ describe("describeSchedule", () => {
       "Running now.",
     );
   });
+
+  it("describes the idle trigger and its settings", () => {
+    const idleWindow = {
+      ...window,
+      idleEnabled: true,
+      idleMinutes: 10,
+      minNewDecisions: 5,
+      minGapMinutes: 60,
+    };
+    const s = describeSchedule(
+      { window: idleWindow, lastRun: { at: "T", trigger: "idle", proposalCount: 1 } },
+      fmt,
+    );
+    expect(s).toContain("idle for 10 min and at least 5 new decisions came in");
+    expect(s).toContain("at most once every 1 h");
+    expect(s).toContain("Last run: at T, when idle,");
+    expect(
+      describeSchedule({ window: { ...idleWindow, idleEnabled: false }, lastRun: null }, fmt),
+    ).not.toContain("idle for");
+  });
 });

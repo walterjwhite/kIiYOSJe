@@ -103,10 +103,17 @@ export function describeProposal(p: ProposalView): ProposalText {
 }
 
 export interface ScheduleView {
-  window: { windowStart: string; windowEnd: string };
+  window: {
+    windowStart: string;
+    windowEnd: string;
+    idleEnabled?: boolean;
+    idleMinutes?: number;
+    minNewDecisions?: number;
+    minGapMinutes?: number;
+  };
   lastRun: {
     at: string;
-    trigger: "schedule" | "manual";
+    trigger: "schedule" | "idle" | "manual";
     proposalCount: number;
     durationMs?: number;
   } | null;
@@ -119,10 +126,19 @@ export function describeSchedule(s: ScheduleView, format: (iso: string) => strin
     s.window.windowStart === s.window.windowEnd
       ? "at any time of day"
       : `between ${s.window.windowStart} and ${s.window.windowEnd}`;
-  const next = `Runs by itself once a night ${window}, in this computer's time. Change it in Settings.`;
+  const w = s.window;
+  const idle = w.idleEnabled
+    ? ` It also runs when you have been idle for ${w.idleMinutes} min and at least ${plural(w.minNewDecisions ?? 0, "new decision")} came in, at most once every ${duration((w.minGapMinutes ?? 0) * 60_000)}.`
+    : "";
+  const next = `Runs by itself once a night ${window}, in this computer's time.${idle} Change it in Settings.`;
   const now = s.running ? " Running now." : "";
   if (!s.lastRun) return `${next} It has not run yet.${now}`;
-  const who = s.lastRun.trigger === "schedule" ? "overnight" : "by you";
+  const who =
+    s.lastRun.trigger === "schedule"
+      ? "overnight"
+      : s.lastRun.trigger === "idle"
+        ? "when idle"
+        : "by you";
   const took = s.lastRun.durationMs === undefined ? "" : `took ${duration(s.lastRun.durationMs)}, `;
   return `${next} Last run: ${format(s.lastRun.at)}, ${who}, ${took}${plural(s.lastRun.proposalCount, "new suggestion")}.${now}`;
 }

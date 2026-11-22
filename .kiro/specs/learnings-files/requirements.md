@@ -38,7 +38,7 @@ loop runs, how repeated suggestions are suppressed, and how suggestions are show
 6. Each `signal.processed` event SHALL list the ids of the learnings used for
    classify and for draft. It SHALL NOT contain their text.
 
-## Requirement 3 — The loop runs overnight
+## Requirement 3 — The loop runs overnight and when idle
 
 1. The learning loop SHALL run on its own at most once per night, when the
    server's local time is inside the operator's window.
@@ -48,9 +48,21 @@ loop runs, how repeated suggestions are suppressed, and how suggestions are show
    start crosses midnight.
 3. A scheduled run SHALL NOT start when a scheduled run finished in the last 20
    hours. A manual run SHALL NOT count toward that limit.
-4. Each run, scheduled or manual, SHALL write a `learning.run` event with the
-   time, the trigger and the number of new suggestions.
+4. Each run (`schedule`, `idle` or `manual`) SHALL write a `learning.run` event
+   with the time, the trigger, the number of new suggestions and the runtime
+   in milliseconds.
 5. A failing run SHALL be logged and SHALL NOT stop the server.
+6. The loop SHALL also run on its own (trigger `idle`) when all of these hold:
+   the operator has not turned it off; no run of any trigger started in the last
+   `minGapMinutes`; no event other than `learning.*` and `direction.proposal`
+   was written in the last `idleMinutes`; and at least `minNewDecisions` events
+   of kind `action.sent`, `action.discarded` or `signal.reclassified` were
+   written since the last run.
+7. The defaults SHALL be on, 10 minutes idle, 5 new decisions and 60 minutes
+   between runs. The operator SHALL be able to change them in Settings or in
+   `learning.json`. Ranges: idle 1 to 240, decisions 1 to 1000, gap 5 to 1440.
+8. Only one run SHALL be in progress at a time. A manual run during a run SHALL
+   be refused with 409, and the scheduler SHALL skip its tick.
 
 ## Requirement 4 — A suggestion is not repeated
 

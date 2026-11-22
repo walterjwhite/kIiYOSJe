@@ -5,18 +5,23 @@
  * insight (learning-insight.ts), recorded as a `learning.run` event. The
  * scheduler wakes every few minutes, and runs once per night when the clock is
  * inside the operator's window (core: learning-settings.ts, default 00:00 to
- * 04:00 local). A manual run from the extension goes through the same function
- * and does not use up the night's scheduled run.
+ * 04:00 local). An idle run also starts when nothing has happened for a while
+ * and enough new decisions have come in since the last run (idleRunDue). A
+ * manual run from the extension goes through the same function and does not use
+ * up the night's scheduled run.
  */
 
 import type { Db, LearningSettings } from "@mind/core";
 import { events, isWithinLearningWindow, learningSettings, logger, newId } from "@mind/core";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { generateLearningInsight } from "./learning-insight.js";
 import type { DirectionProposal } from "./learning-loop.js";
 import { runLearningLoop } from "./learning-loop.js";
 
-export type LearningTrigger = "schedule" | "manual";
+/** The nightly window part of the settings. */
+type LearningWindow = Pick<LearningSettings, "windowStart" | "windowEnd">;
+
+export type LearningTrigger = "schedule" | "idle" | "manual";
 
 export interface LearningRun {
   at: string;
@@ -107,11 +112,48 @@ export function lastLearningRun(db: Db, trigger?: LearningTrigger): LearningRun 
 }
 
 /** True when a scheduled run is due: inside the window and none in the last 20 hours. */
-export function scheduledRunDue(db: Db, now: Date, settings: LearningSettings): boolean {
+export function scheduledRunDue(db: Db, now: Date, settings: LearningWindow): boolean {
   if (!isWithinLearningWindow(now, settings)) return false;
   const last = lastLearningRun(db, "schedule");
   if (!last) return true;
   return now.getTime() - Date.parse(last.at) >= MIN_HOURS_BETWEEN_SCHEDULED * 3_600_000;
+}
+
+/** Events that are the operator's decisions, counted toward an idle run. */
+const DECISION_KINDS = ["action.sent", "action.discarded", "signal.reclassified"];
+
+/**
+ * True when an idle run is due: the switch is on, no run in the last
+ * minGapMinutes (any trigger), nothing happened for idleMinutes, and at least
+ * minNewDecisions decisions came in since the last run. The loop's own
+ * `learning.*` and `direction.proposal` events do not count as activity.
+ */
+export function idleRunDue(db: Db, now: Date, settings: LearningSettings): boolean {
+  if (!settings.idleEnabled) return false;
+  const last = lastLearningRun(db);
+  if (last && now.getTime() - Date.parse(last.at) < settings.minGapMinutes * 60_000) return false;
+
+  const newest = db
+    .select({ at: sql<string | null>`max(${events.at})` })
+    .from(events)
+    .where(sql`${events.kind} not like 'learning.%' and ${events.kind} != 'direction.proposal'`)
+    .get();
+  if (newest?.at && now.getTime() - Date.parse(newest.at) < settings.idleMinutes * 60_000) {
+    return false;
+  }
+
+  const since = last?.at ?? new Date(0).toISOString();
+  const counted = db
+    .select({ n: sql<number>`count(*)` })
+    .from(events)
+    .where(
+      sql`${events.kind} in (${sql.join(
+        DECISION_KINDS.map((k) => sql`${k}`),
+        sql`, `,
+      )}) and ${events.at} > ${since}`,
+    )
+    .get();
+  return (counted?.n ?? 0) >= settings.minNewDecisions;
 }
 
 export function startLearningLoop(db: Db, checkIntervalMs = CHECK_INTERVAL_MS): NodeJS.Timeout {
@@ -119,10 +161,16 @@ export function startLearningLoop(db: Db, checkIntervalMs = CHECK_INTERVAL_MS): 
   const tick = async () => {
     if (running) return;
     const now = new Date();
-    if (!scheduledRunDue(db, now, learningSettings())) return;
+    const settings = learningSettings();
+    const trigger: LearningTrigger | null = scheduledRunDue(db, now, settings)
+      ? "schedule"
+      : idleRunDue(db, now, settings)
+        ? "idle"
+        : null;
+    if (!trigger || isLearningRunning()) return;
     running = true;
     try {
-      await runLearningCycle(db, "schedule", now);
+      await runLearningCycle(db, trigger, now);
     } catch (err) {
       logger.error({ err }, "learning loop: error");
     } finally {
