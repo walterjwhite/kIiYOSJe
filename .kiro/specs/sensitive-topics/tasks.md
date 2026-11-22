@@ -8,6 +8,6 @@
 - [x] 6. Stemmed phrase matching for topic, project, and `matchPrompt` (`match.ts`, `text-match.ts`)
 - [x] 7. Evaluation fixtures: sensitive topic held, stemmed scope match
 - [ ] 8. Update `privacy-data.md` (data inventory: `sensitive.json`) and `product.md` (policy steering: needs `human-approved-scope`)
-- [ ] 9. Tell the classifier the topic names so it tags them; evaluate first
+- [x] 9. The classifier prompt lists the operator's topic names and asks for exact tags (classify prompt version 2). Four fixtures marked `liveCheck` need a `--live` run before this is trusted
 - [ ] 10. Per-Direction topic lists, if the global list proves too blunt
 - [ ] 11. Measure holds per topic in `/metrics` once there is real traffic

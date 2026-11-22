@@ -9,6 +9,14 @@ versions while the project is `0.x`).
 
 ### Added
 
+- A signal that arrives while the model is unavailable is held, not guessed. It is stored,
+  the reason and the next try are recorded, and a worker retries it after a minute,
+  doubling up to an hour, for up to 8 tries, then escalates it with the reason. While
+  the circuit is paused the worker waits, so a pause does not use up tries.
+- `GET /health` reports the model circuit (`closed`, `open`, `half-open`), calls running
+  and queued, and how many signals are held for the model.
+- Prompt versions are recorded on every `signal.processed` event (`promptVersions`),
+  and the evaluation report prints them.
 - Model calls are protected by one shared policy (`cockatiel`): a time limit, retries
   with backoff for a temporary failure (timeout, 429, 5xx, dropped connection), a
   pause after several failures in a row, and a cap on calls at once. Defaults: 120 s,
@@ -45,6 +53,11 @@ versions while the project is `0.x`).
 
 ### Changed
 
+- Message text in the classify, draft, transform, and link prompts is wrapped in
+  `<message>` tags with a rule that it is data, and a message cannot close the tag. The
+  classifier is given the names of your sensitive topics and asked to tag a message with
+  the exact names that apply, even when it does not use the word. Classify and draft
+  prompts are version 2, the link prompt version 3. Run `--live` before relying on it.
 - Quoted replies and signatures are removed with `email-reply-parser`: it handles
   Gmail, Apple Mail, and Outlook headers, "Original Message", signatures, and German
   and Spanish headers. On 15 synthetic message shapes it matched 13, against 6 for the

@@ -1,0 +1,241 @@
+diff --git a/.kiro/steering/ai-quality.md b/.kiro/steering/ai-quality.md
+index dcdda41..8c20189 100644
+--- a/.kiro/steering/ai-quality.md
++++ b/.kiro/steering/ai-quality.md
+@@ -25,9 +25,13 @@ date and model.
+ ## Evaluation
+ 
+ - `packages/pipeline/eval` holds labelled synthetic signals (expected Direction,
+-  posture, needs-human) and a runner.
++  surfaced or not) and the runner is `packages/pipeline/src/eval`. Run it with
++  `node packages/pipeline/dist/eval/cli.js` after `npx tsc --build`; add `--json` for
++  JSON and `--live` for the configured model.
+ - CI runs the suite with a stub model to guard plumbing. A live-model run is a
+-  documented manual command whose results are written to the PR.
++  documented manual command whose results are written to the PR. A fixture marked
++  `liveCheck` has a recorded answer that only a live run can confirm; the report counts
++  them. A fixture marked `known` is a documented gap, listed apart and not counted.
+ - Compare models and prompts on the same fixtures. Report the metrics above, not
+   anecdotes.
+ - Add a fixture for every misclassification found in real use (after making it
+@@ -35,8 +39,9 @@ date and model.
+ 
+ ## Versioning and change control
+ 
+-- Prompts are versioned constants. Each `actions` row stores the prompt version
+-  and model id.
++- Prompts are versioned constants (`prompt-versions.ts`, and `LINK_PROMPT_VERSION`
++  in `link.ts`). Each `signal.processed` event records them as `promptVersions`; the
++  `actions` row does not store them yet.
+ - A prompt or model change ships with eval results before and after. A drop in
+   surface recall or a rise in false-absorb blocks the change.
+ - Pin the default model name in config docs; Ollama default is
+@@ -44,8 +49,11 @@ date and model.
+ 
+ ## Failure behavior
+ 
+-- Model unavailable, timing out, or returning invalid structure: defer the
+-  signal, record why, retry with backoff. Never auto-absorb or auto-send on failure.
++- Model unavailable, timing out, or rate limiting: the signal is stored (disposition
++  `new`), a `signal.deferred` event records a log-safe reason and the next try, and a
++  worker retries it after 1 minute, doubling to at most 1 hour, up to 8 tries, then
++  escalates it with the reason. A rejected key or invalid structure holds it for the
++  operator with confidence 0. Never auto-absorb or auto-send on failure.
+ - Structured output is parsed with zod; a parse failure is a recorded outcome,
+   not a crash.
+ - Deadlines are grounded against `receivedAt`, not the current time.
+diff --git a/.kiro/steering/observability.md b/.kiro/steering/observability.md
+index 946007c..35c4399 100644
+--- a/.kiro/steering/observability.md
++++ b/.kiro/steering/observability.md
+@@ -14,7 +14,8 @@ analytics. The operator's tools are logs, the `events` and `actions` tables,
+ - Standard fields: `correlationId` (one per signal), `adapter`, `account`
+   (a label, not an address), `stage`, `durationMs`, `outcome`.
+ - Never log message bodies, subjects, addresses, prompts, model output text,
+-  tokens, or credentials. If a field might hold any of these, do not log it.
++  tokens, or credentials. If a field might hold any of these, do not log it. Never
++  log an error object from a model call: it carries the prompt. Use `describeModelError`.
+ - `error` level means something needs the operator. A single unreachable provider
+   is `warn` with backoff, not a stream of errors.
+ - Use child loggers per module; do not construct new pino instances.
+@@ -29,7 +30,7 @@ the Direction, posture, gate results, model id, and prompt version, not content.
+ 
+ | Route          | Purpose                                                                                                                                                                |
+ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+-| `GET /health`  | process up, DB reachable, per adapter: id, account label, state (`not configured`, `observe`, `ok`, `failing`), last success time                                      |
++| `GET /health`  | process up, DB reachable, per adapter: id, account label, state (`not configured`, `observe`, `ok`, `failing`), last success time; model: circuit state, calls running and queued, signals held                |
+ | `GET /metrics` | signals, Thoughts, and the weekly ratio (signals ÷ thoughts) with a trailing series; absorb rate per Direction; model latency percentiles; deferred count; token usage |
+ 
+ Both require the bearer token. Neither exposes content.
+diff --git a/.kiro/steering/performance.md b/.kiro/steering/performance.md
+index 7022f8a..db1891f 100644
+--- a/.kiro/steering/performance.md
++++ b/.kiro/steering/performance.md
+@@ -35,9 +35,11 @@ Model latency is outside these budgets but is bounded (below).
+ 
+ ## Model calls
+ 
+-- Concurrency cap (default 2), per-call timeout, bounded retry with exponential
+-  backoff and jitter, and a circuit breaker. Defer, never drop, a signal when the
+-  provider is unavailable.
++- Concurrency cap (default 2), per-call timeout (default 120 s), bounded retry with
++  exponential backoff and jitter (default 2), and a circuit breaker (5 failures in a
++  row, 60 s). Implemented in `resilience.ts` with `cockatiel`; the operator changes
++  them in Settings (`resilience.json`). Defer, never drop, a signal when the provider
++  is unavailable (`deferral.ts`).
+ - Dedupe and match before inference; never call the model for a duplicate or for
+   a signal a Direction absorbs without needing classification.
+ - Truncate and strip quoted history before building prompts. Track token counts.
+diff --git a/.kiro/steering/privacy-data.md b/.kiro/steering/privacy-data.md
+index 1f37caf..cab5a56 100644
+--- a/.kiro/steering/privacy-data.md
++++ b/.kiro/steering/privacy-data.md
+@@ -17,6 +17,9 @@ egress needs, and let the operator delete or export everything.
+ | Directions                           | YAML under `directions/`     | operator-owned                       | No                                                                                            |
+ | Learnings                            | Markdown under `learnings/`  | operator-owned                       | Yes: the text of each applicable learning is added to classifier and drafting prompts         |
+ | Learning window                      | `learning.json` in config    | operator-owned                       | No                                                                                            |
++| Sensitive topics                     | `sensitive.json` in config   | operator-owned                       | Topic names go into the classifier prompt (names only, never the keywords)                    |
++| Model call settings                  | `resilience.json` in config  | operator-owned                       | No                                                                                            |
++| Signals held for the model           | SQLite                       | until processed, then as signals     | Sent to the model provider when retried, like any signal                                      |
+ | Credentials, token                   | `~/.config/kIiYOSJe/mind/`   | until revoked                        | Credentials go only to their own provider                                                     |
+ | Logs                                 | stdout / operator's log sink | operator-owned                       | No, and contain no content                                                                    |
+ | Backups                              | operator-chosen path         | operator-owned                       | No                                                                                            |
+@@ -35,7 +38,8 @@ Keep this table current whenever a column, file, or adapter is added.
+    personal data in them. Never include credentials, other
+    people's addresses beyond the thread, or attachments unless a Direction needs them.
+ 3. **No content in logs, errors, metrics, or issue reports.** Error messages the
+-   operator may paste into a bug must be safe by construction.
++   operator may paste into a bug must be safe by construction. A model call's error
++   object carries the prompt, so it is logged as type, status, and code only.
+ 4. **Retention is enforced,** not advisory. The default is finite. Deleting a
+    signal deletes derived content; audit rows keep ids and decisions only.
+ 5. **Operator controls:** `mind export`, `mind purge`, backup, and restore exist
+diff --git a/.kiro/steering/product.md b/.kiro/steering/product.md
+index 9132223..2e6cb3b 100644
+--- a/.kiro/steering/product.md
++++ b/.kiro/steering/product.md
+@@ -39,6 +39,10 @@ design should change, not the prompts.
+   `MIND_SEND_ENABLED=true`, and no pause flag. Any one gate stops a send.
+ - Human approval in the Queue is the only place a send is authorized.
+ - An empty draft is never auto-sent.
++- A message that mentions one of the operator's sensitive topics (legal, financial,
++  health by default, editable in Settings), or that contains known injection
++  phrasing, is held for the operator: never absorbed, drafted, or sent.
++- When the model is unavailable, a signal is stored and retried. It is never guessed.
+ - No badge counts, status-bar counters, or notifications. Absence is the feature.
+   A status-bar indicator that reports whether a request is in flight is not a
+   counter: it reports activity, not an amount, and only while the operator is
+diff --git a/.kiro/steering/security.md b/.kiro/steering/security.md
+index 85b2404..05e5c36 100644
+--- a/.kiro/steering/security.md
++++ b/.kiro/steering/security.md
+@@ -29,8 +29,13 @@ text, and every HTTP request (even from localhost).
+    (DNS rebinding), reject unexpected `Origin`, and never send CORS headers.
+ 2. **Model output and message text are data.** They may choose a posture within
+    what the Direction allows. They never grant autonomy, change a Direction, pick a
+-   recipient outside the thread, or authorize a send. Bodies are wrapped as data
+-   in prompts; the injection corpus in the pipeline tests must stay green.
++   recipient outside the thread, or authorize a send. Bodies are wrapped
++   in `<message>` tags with a rule that they are data (`prompt-data.ts`), and known
++   override phrasing is held before any model call (`injection.ts`, the pattern layer
++   of `@stackone/defender`). Both lower the chance a model obeys a message. Neither
++   stops one that is fooled and the pattern layer misses paraphrases, so the gates in
++   rule 3 are the defense that holds. The injection corpus in the pipeline tests must
++   stay green.
+ 3. **Sends are authorized by the conjunction of gates only.** Adapter capability,
+    `autonomy: send`, `MIND_SEND_ENABLED=true`, no pause flag, non-empty draft.
+    Do not add a code path that sends without going through them. Sends are
+@@ -47,7 +52,9 @@ text, and every HTTP request (even from localhost).
+    Prefer read-only until a send path is verified. Missing token means
+    "not configured", never an error that stops other adapters.
+ 9. **Subprocesses** (`kiro-cli`, `copilot`) use argument arrays, never a shell
+-   string, with a fixed binary path from config and a scrubbed environment.
++   string, with a fixed binary path from config and a scrubbed environment. The ACP
++   client advertises no file, terminal, or tool capability and answers every request
++   from the agent itself: a permission request is cancelled, never granted.
+ 10. **Webviews** use a nonce CSP with `default-src 'none'`, no remote resources,
+     and escape all message-derived text. No `innerHTML` with unescaped content.
+ 11. **Dependencies** are pinned, audited (`npm audit`, dependency review),
+@@ -55,12 +62,21 @@ text, and every HTTP request (even from localhost).
+ 12. **Supply chain:** workflows have least-privilege tokens, actions are pinned,
+     releases carry provenance and an SBOM, and install scripts are allowlisted
+     (`allowScripts` in package.json).
++13. **A model failure is not a judgement.** When the provider is down, slow, or
++    rate limiting, the signal is stored and retried (`deferral.ts`); it is never
++    absorbed, drafted, or sent on a guess. A rejected key or an invalid answer holds
++    it for the operator with confidence 0.
++14. **Never log an error object from a model call.** An AI SDK error carries the
++    request body, which is the prompt and so the message text, and the provider's
++    reply. Log `describeModelError(err)`: the type, HTTP status, and network code.
+ 
+ ## Threat model summary
+ 
+ | Threat                                      | Mitigation                                    | Test             |
+ | ------------------------------------------- | --------------------------------------------- | ---------------- |
+-| Hostile email instructs the model to send   | injection guard, gates, human approval        | injection corpus |
++| Hostile email instructs the model to send   | pattern hold, data tags, gates, human approval | injection corpus, eval harness |
++| Model provider down, slow, or rate limiting | timeout, retry, breaker, defer and retry      | resilience and deferral tests |
++| Sensitive subject answered automatically    | operator topic list holds the message         | ingest and eval tests |
+ | Web page calls the local API                | token, Host/Origin checks, no CORS            | server tests     |
+ | Token or credential file readable by others | mode check at startup                         | core tests       |
+ | Replay or crash causes double send          | intent recorded first, idempotency key        | autosend tests   |
+diff --git a/.kiro/steering/structure.md b/.kiro/steering/structure.md
+index 5a0ac19..ff7eb87 100644
+--- a/.kiro/steering/structure.md
++++ b/.kiro/steering/structure.md
+@@ -7,6 +7,8 @@
+ ```
+ packages/core       schema, config, credentials, logger, typed HTTP helpers
+ packages/pipeline   dedupe → normalize → match → classify → decide → record
++                    eval/ holds labelled fixtures and eval Directions (data only);
++                    src/eval/ holds the runner
+ packages/adapters   gmail, outlook (Graph), gmessages (Matrix), calendar
+ packages/server     Hono app, routes, auth, startup
+ packages/cli        `mind` client for the local API
+diff --git a/.kiro/steering/tech.md b/.kiro/steering/tech.md
+index f0ce418..3153933 100644
+--- a/.kiro/steering/tech.md
++++ b/.kiro/steering/tech.md
+@@ -21,6 +21,10 @@
+ | Validation | `zod` — one schema for config, HTTP, and LLM structured output                                                      |
+ | LLM        | Vercel AI SDK (`ai`, `@ai-sdk/*`), plus ACP over stdio for `kiro-cli`/`copilot`                                     |
+ | Logging    | `pino` (JSON; redact paths in `logger.ts` censor tokens, keys, cookies, and auth headers; never log message bodies) |
++| Resilience | `cockatiel`: timeout, retry, circuit breaker, concurrency cap for model calls                                      |
++| Text       | `stemmer` (word forms), `chrono-node` (deadlines), `email-reply-parser` (quotes, signatures), `email-addresses` (headers) |
++| Calendar   | `node-ical` (TZID, recurrence)                                                                                      |
++| Injection  | `@stackone/defender`, pattern layer only                                                                            |
+ | Tests      | `vitest`, headless                                                                                                  |
+ | UI         | VS Code extension: tree views + webviews, no framework                                                              |
+ 
+@@ -49,6 +53,7 @@ npm run lint     # tsc --build, then Biome on files changed vs origin/main
+ npm run lint:all # Biome lint rules over the whole tree
+ npm run format   # Biome formatter
+ npm run license:check   # offline license audit of the lockfile
++node packages/pipeline/dist/eval/cli.js   # evaluation report (after npx tsc --build); --live for the model
+ sh scripts/build-server.sh
+ bash scripts/build-extension.sh
+ ```
+diff --git a/.kiro/steering/testing.md b/.kiro/steering/testing.md
+index e7933c3..e0668fa 100644
+--- a/.kiro/steering/testing.md
++++ b/.kiro/steering/testing.md
+@@ -25,7 +25,7 @@ fileMatchPattern: "**/*.test.ts"
+ | Safety    | send gates, pause flag, empty draft, injection corpus                                   | `decide.test.ts`, `autosend.test.ts`, `guards.test.ts` |
+ | API       | routes through `buildApp` with `MIND_TEST_TOKEN`                                        | `packages/server`                                      |
+ | Migration | empty and populated upgrade, idempotent re-run                                          | `packages/core`                                        |
+-| Eval      | labelled signals, stub model in CI, live model manual                                   | `packages/pipeline/eval`                               |
++| Eval      | labelled signals, stub model in CI, live model manual                                   | `packages/pipeline/eval` (data), `src/eval` (runner)   |
+ | Extension | command wiring, CSP, escaping                                                           | `extension/test`                                       |
+ 
+ ## Rules
+@@ -41,6 +41,10 @@ fileMatchPattern: "**/*.test.ts"
+ - Property-style tests for parsers and normalizers where input is open-ended
+   (quote stripping, dedupe keys, deadline grounding).
+ - Flaky test: fix or quarantine in a labelled issue within a day. No retry loops.
++- Vitest transforms imports, so a CommonJS package's named import can pass every test
++  and still fail when Node loads the compiled server. CI starts the built server and
++  checks `/health`; run `node packages/server/dist/main.js` once after adding a
++  dependency.
+ 
+ ## Gates
+ 

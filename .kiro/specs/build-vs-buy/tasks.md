@@ -3,13 +3,13 @@
 - [x] 1. Injection scan: `@stackone/defender` Tier 1 (`injection-detection`)
 - [x] 2. Word matching: `stemmer` and `Intl.Segmenter` (`text-match.ts`, `match.ts`, `sensitive.ts`)
 - [x] 3. Model calls: timeout, retry with backoff, circuit breaker, concurrency cap with `cockatiel`; settings in `resilience.json`
-- [ ] 3a. Hold a signal and retry it later when the provider is down (`ai-quality.md`: defer, record why, retry with backoff). Today a failed call escalates the signal with confidence 0, which is safe but is not a retry.
-- [ ] 3b. Show the circuit state (`closed`, `open`) in `/health`
+- [x] 3a. Hold a signal and retry it later when the provider is down (`deferral.ts`, `deferred-retry.ts`): stored as `new`, retried after 1 min doubling to 1 h, 8 tries, then escalated with the reason
+- [x] 3b. `/health` reports the circuit state, calls running and queued, and signals held
 - [x] 4. Quote and signature stripping: `email-reply-parser` chosen on 15 synthetic cases (13 against 6 and 9)
 - [ ] 4a. Run the same comparison on a week of real mail shapes (redacted) before trusting the 13 of 15; the cases are synthetic
 - [ ] 4b. A forwarded message and a legal disclaimer are still kept; decide whether either should be stripped
 - [x] 5. Deadline grounding with `chrono-node` against `receivedAt`
-- [ ] 5a. Add a deadline case to the evaluation set that fails when the grounding is removed
+- [x] 5a. Covered by ingest tests that fail without the grounding (a 2023 model date, and a date from the text). The evaluation set scores disposition, not dates, so it is not the place for it
 - [x] 6. Address parsing with `email-addresses` in the Gmail mapper (Outlook needs none)
 - [x] 7. iCalendar with `node-ical`: TZID, RRULE, EXDATE, hostile rules
 - [ ] 7a. Run it against a real ICS feed from your calendar
