@@ -12,6 +12,7 @@ import type { Db } from "@mind/core";
 import { directions } from "@mind/core";
 import type { NewSignal } from "@mind/core";
 import { FALLBACK_DIRECTION_ID } from "./fallback-direction.js";
+import { containsPhrase } from "./text-match.js";
 
 type DirectionRow = typeof directions.$inferSelect;
 
@@ -66,11 +67,17 @@ function matchesScope(dir: DirectionRow, signal: NewSignal): boolean {
     case "thread":
       return signal.threadId?.toLowerCase() === v;
     case "project":
-      return signal.body.toLowerCase().includes(v) || signal.sender.toLowerCase().includes(v);
+      return (
+        signal.body.toLowerCase().includes(v) ||
+        signal.sender.toLowerCase().includes(v) ||
+        containsPhrase(signal.body, v)
+      );
     case "topic":
       // Empty scopeValue is reserved for the catch-all; skip here.
       if (!v) return false;
-      return signal.body.toLowerCase().includes(v);
+      // The literal substring is kept so nothing that matched before stops
+      // matching. The stemmed phrase match adds "approving budgets" for "approve budget".
+      return signal.body.toLowerCase().includes(v) || containsPhrase(signal.body, v);
     default:
       return false;
   }
@@ -82,7 +89,8 @@ function matchesScope(dir: DirectionRow, signal: NewSignal): boolean {
  * direction's author a place to list the phrases/synonyms that should also
  * count as a match, without requiring an LLM call in this synchronous step.
  * Treated as a plain list of phrases, one per line or comma-separated;
- * any phrase found in the signal body is enough.
+ * any phrase found in the signal body is enough, literally or as the same
+ * words in other forms (text-match.ts). Synonyms still have to be listed.
  */
 function matchesPrompt(dir: DirectionRow, signal: NewSignal): boolean {
   if (!dir.matchPrompt) return false;
@@ -91,5 +99,5 @@ function matchesPrompt(dir: DirectionRow, signal: NewSignal): boolean {
     .split(/[\n,;]+/)
     .map((p) => p.trim().toLowerCase())
     .filter((p) => p.length > 0);
-  return phrases.some((p) => body.includes(p));
+  return phrases.some((p) => body.includes(p) || containsPhrase(signal.body, p));
 }

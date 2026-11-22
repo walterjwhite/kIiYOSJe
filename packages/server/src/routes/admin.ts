@@ -36,6 +36,9 @@ import {
   writeDisplaySettings,
   DisplaySettingsSchema,
   autolinkSettings,
+  sensitiveSettings,
+  writeSensitiveSettings,
+  SensitiveSettingsSchema,
   writeAutolinkSettings,
   AutolinkSettingsSchema,
   audioSettings,
@@ -155,6 +158,14 @@ export function adminRouter() {
   app.get("/autolink", (c) => c.json(autolinkSettings()));
   app.put("/autolink", zValidator("json", AutolinkSettingsSchema), (c) => {
     writeAutolinkSettings(c.req.valid("json"));
+    return c.json({ ok: true });
+  });
+
+  // GET/PUT /admin/sensitive — the topics (legal, financial, health, your own)
+  // whose messages are held for you instead of being absorbed or drafted.
+  app.get("/sensitive", (c) => c.json(sensitiveSettings()));
+  app.put("/sensitive", zValidator("json", SensitiveSettingsSchema), (c) => {
+    writeSensitiveSettings(c.req.valid("json"));
     return c.json({ ok: true });
   });
 

@@ -33,6 +33,7 @@ import {
   newCommitment,
   newId,
   operatorAddresses,
+  sensitiveSettings,
   parseCommitment,
   sameCommitmentText,
   serializeCommitment,
@@ -56,6 +57,8 @@ import { rankGoals } from "./link-candidates.js";
 import { loadLinkContext } from "./link-context.js";
 import { matchSignal } from "./match.js";
 import type { ModelTrace } from "./model.js";
+import { INJECTION_HOLD, scanForInjection } from "./injection.js";
+import { findSensitiveTopics } from "./sensitive.js";
 import { normalize } from "./normalize.js";
 import { transform } from "./transform.js";
 
@@ -127,9 +130,19 @@ export async function ingest(
     classify: classifyLearnings.ids,
     draft: [],
   };
-  if (overrides?.classifierOutput) aiSkipped["classify"] = "override supplied";
+  // Known injection phrasing is held for the operator before any model sees it.
+  // No model call, no draft, no send: the signal becomes a Thought.
+  const injection = scanForInjection(signal.subject, normalizedBody);
+  if (injection) {
+    aiSkipped["classify"] = "possible prompt injection, held for review";
+    log.warn(
+      { patterns: injection.patterns, categories: injection.categories },
+      "possible prompt injection, held for review",
+    );
+  } else if (overrides?.classifierOutput) aiSkipped["classify"] = "override supplied";
   else if (!aiOn) aiSkipped["classify"] = "no AI provider configured";
   const classifierOut =
+    (injection ? INJECTION_HOLD : undefined) ??
     overrides?.classifierOutput ??
     (await classify({
       signalBody: normalizedBody,
@@ -145,12 +158,15 @@ export async function ingest(
   const escalateBy = computeEscalateBy(classifierOut, signal.receivedAt);
 
   // ── 4d. Transform (optional display rewrite, never changes routing) ──────
-  if (overrides?.transformedSummary !== undefined) aiSkipped["transform"] = "override supplied";
+  if (injection) aiSkipped["transform"] = "possible prompt injection, held for review";
+  else if (overrides?.transformedSummary !== undefined)
+    aiSkipped["transform"] = "override supplied";
   else if (!match?.direction.transformPrompt)
     aiSkipped["transform"] = "direction has no transformPrompt";
   else if (!aiOn) aiSkipped["transform"] = "no AI provider configured";
-  const transformedSummary =
-    overrides?.transformedSummary !== undefined
+  const transformedSummary = injection
+    ? null
+    : overrides?.transformedSummary !== undefined
       ? overrides.transformedSummary
       : match?.direction.transformPrompt
         ? await transform({
@@ -219,6 +235,18 @@ export async function ingest(
     }
   }
 
+  // ── 4e. Sensitive topics ─────────────────────────────────────────────────
+  // The operator's own list (legal, financial, health, anything they add). A
+  // topic in the message, or a classifier tag naming one, keeps it out of
+  // absorption. Names only are recorded, never text.
+  const sensitive = injection
+    ? []
+    : findSensitiveTopics(
+        `${signal.subject ?? ""}\n${normalizedBody}`,
+        classifierOut.sensitiveTopics,
+        sensitiveSettings(),
+      );
+
   // ── 5. Decide ─────────────────────────────────────────────────────────────
   let disposition: SignalDisposition;
   let disputed = false;
@@ -250,6 +278,14 @@ export async function ingest(
     if (outcome.disposition === "escalated" && outcome.disputed) {
       disputed = true;
       reason = classifierOut.answerBlocker ?? "needs my judgement";
+    }
+    if (injection) reason = "possible prompt injection";
+    else if (sensitive.length > 0 && disposition === "absorbed") {
+      // A sensitive topic is never absorbed, drafted, or sent. Applied after
+      // decide() so the send gates themselves are untouched.
+      disposition = "escalated";
+      shouldSend = false;
+      reason = `sensitive topic: ${sensitive.join(", ")}`;
     }
   }
 
@@ -461,7 +497,8 @@ export async function ingest(
   // link is an event, so it is explainable and can be undone.
   const autolink = autolinkSettings();
   const queued = disposition === "promoted" || disposition === "escalated" || actionId !== null;
-  if (queued && autolink.enabled) {
+  if (injection) aiSkipped["link"] = "possible prompt injection, held for review";
+  if (queued && autolink.enabled && !injection) {
     // Shortlist the best few goals first, so the model sees three choices and
     // the operator's earlier manual links, not every goal. A message that
     // resembles no goal never reaches the model.
@@ -553,6 +590,10 @@ export async function ingest(
         commitmentStatus: commitment?.status ?? null,
         commitmentSuperseded: commitmentEvent?.kind === "commitment.superseded",
         escalateBy,
+        sensitive,
+        injection: injection
+          ? { risk: injection.risk, patterns: injection.patterns, categories: injection.categories }
+          : null,
         thoughtId,
         actionId,
         replyReceivedFrom: replyAnsweredThread ? signal.sender : null,

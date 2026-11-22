@@ -1,5 +1,6 @@
 export * from "./audio-settings.js";
 export * from "./autolink-settings.js";
+export * from "./sensitive-settings.js";
 export * from "./clock.js";
 export * from "./commitments.js";
 export * from "./config.js";

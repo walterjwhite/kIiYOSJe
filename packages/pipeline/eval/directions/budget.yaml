@@ -1,0 +1,9 @@
+name: budget
+scope:
+  kind: topic
+  value: "approve budget"
+posture: draft
+autonomy: draft
+confidenceMin: 0.7
+standard: |
+  Acknowledge budget approvals and say they are queued for the next review.

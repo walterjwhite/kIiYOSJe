@@ -175,4 +175,53 @@ describe("matchSignal", () => {
     const result = matchSignal(db, signal);
     expect(result?.direction.id).toBe(FALLBACK_DIRECTION_ID);
   });
+
+  describe("inflected wording", () => {
+    function withTopic(scopeValue: string, matchPrompt: string | null = null) {
+      const db = openTestDb();
+      ensureFallbackDirection(db);
+      db.insert(directions)
+        .values({
+          id: "topic/x",
+          name: "x",
+          scopeKind: "topic",
+          scopeValue,
+          posture: "absorb",
+          standard: "s",
+          autonomy: "draft",
+          confidenceMin: 0.7,
+          guards: null,
+          matchPrompt,
+          enabled: true,
+          version: 1,
+        })
+        .run();
+      return db;
+    }
+    const say = (body: string): NewSignal => ({ ...signal, body });
+
+    it("matches a scope phrase through different word forms", () => {
+      const db = withTopic("approve budget");
+      expect(matchSignal(db, say("Approving budgets is on the agenda."))?.direction.id).toBe(
+        "topic/x",
+      );
+    });
+
+    it("still matches the literal substring it matched before", () => {
+      const db = withTopic("standup");
+      expect(matchSignal(db, say("Moving the standups to 9"))?.direction.id).toBe("topic/x");
+    });
+
+    it("matches matchPrompt phrases through different word forms", () => {
+      const db = withTopic("zzz", "send invoice");
+      expect(matchSignal(db, say("We are sending invoices on Friday"))?.direction.id).toBe(
+        "topic/x",
+      );
+    });
+
+    it("does not match words in a different order or non-adjacent", () => {
+      const db = withTopic("approve budget");
+      expect(matchSignal(db, say("Approve the budget"))?.isFallback).toBe(true);
+    });
+  });
 });

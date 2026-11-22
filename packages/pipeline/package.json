@@ -22,7 +22,9 @@
     "@ai-sdk/google": "4.0.121",
     "@ai-sdk/openai": "4.0.118",
     "@mind/core": "*",
+    "@stackone/defender": "0.9.6",
     "ai": "7.0.173",
+    "stemmer": "2.0.1",
     "yaml": "^2.9.0",
     "zod": "4.6.7"
   },

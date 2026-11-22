@@ -15,6 +15,16 @@ interface AutolinkSettings {
   threshold: number;
 }
 
+interface SensitiveTopic {
+  name: string;
+  keywords: string[];
+  enabled: boolean;
+}
+
+interface SensitiveSettings {
+  topics: SensitiveTopic[];
+}
+
 interface LearningSettings {
   windowStart: string;
   windowEnd: string;
@@ -55,6 +65,18 @@ const SETTINGS_SCRIPT = `
       minGapMinutes: Number(val('li-gap'))
     });
   });
+  var sensitive = document.getElementById('save-sensitive');
+  if (sensitive) sensitive.addEventListener('click', function () {
+    var topics = [];
+    document.querySelectorAll('.st-row').forEach(function (row) {
+      topics.push({
+        name: row.querySelector('.st-name').value,
+        keywords: row.querySelector('.st-kw').value,
+        enabled: row.querySelector('.st-on').checked
+      });
+    });
+    post({ command: 'saveSensitive', topics: topics });
+  });
   var link = document.getElementById('save-threshold');
   if (link) link.addEventListener('click', function () {
     post({ command: 'saveThreshold', threshold: Number(val('l-threshold')) });
@@ -82,6 +104,7 @@ export class SettingsPanel extends SectionPanel {
   private audio: AudioSettings | undefined;
   private autolink: AutolinkSettings | undefined;
   private learning: LearningSettings | undefined;
+  private sensitive: SensitiveSettings | undefined;
   private notice: string | undefined;
   private loadError: string | undefined;
 
@@ -118,6 +141,7 @@ export class SettingsPanel extends SectionPanel {
       idleMinutes?: number;
       minNewDecisions?: number;
       minGapMinutes?: number;
+      topics?: { name?: string; keywords?: string; enabled?: boolean }[];
     };
     if (m.command === "refresh") this.load();
     else if (m.command === "toggleField" && m.field) this.toggleField(m.field);
@@ -148,6 +172,25 @@ export class SettingsPanel extends SectionPanel {
         "Learning settings saved.",
         (v) => (this.learning = v),
       );
+    } else if (m.command === "saveSensitive" && this.sensitive) {
+      const rows = Array.isArray(m.topics) ? m.topics : [];
+      // A row with no name is dropped, which is how a topic is removed.
+      const topics = rows
+        .filter((r) => typeof r.name === "string" && r.name.trim() !== "")
+        .map((r) => ({
+          name: String(r.name).trim(),
+          keywords: String(r.keywords ?? "")
+            .split("\n")
+            .map((k) => k.trim())
+            .filter((k) => k !== ""),
+          enabled: r.enabled === true,
+        }));
+      void this.save(
+        "/admin/sensitive",
+        { topics },
+        "Sensitive topics saved.",
+        (v) => (this.sensitive = v),
+      );
     } else if (m.command === "saveThreshold" && this.autolink) {
       void this.saveAutolink({ ...this.autolink, threshold: Number(m.threshold) });
     }
@@ -155,12 +198,15 @@ export class SettingsPanel extends SectionPanel {
 
   private async load(): Promise<void> {
     try {
-      [this.settings, this.audio, this.autolink, this.learning] = await Promise.all([
-        apiFetch<DisplaySettings>("/admin/display"),
-        apiFetch<AudioSettings>("/admin/audio"),
-        apiFetch<AutolinkSettings>("/admin/autolink"),
-        apiFetch<LearningSettings>("/admin/learning"),
-      ]);
+      [this.settings, this.audio, this.autolink, this.learning, this.sensitive] = await Promise.all(
+        [
+          apiFetch<DisplaySettings>("/admin/display"),
+          apiFetch<AudioSettings>("/admin/audio"),
+          apiFetch<AutolinkSettings>("/admin/autolink"),
+          apiFetch<LearningSettings>("/admin/learning"),
+          apiFetch<SensitiveSettings>("/admin/sensitive"),
+        ],
+      );
       this.loadError = undefined;
     } catch (err) {
       this.loadError = String(err);
@@ -223,7 +269,19 @@ export class SettingsPanel extends SectionPanel {
     const a = this.audio;
     const l = this.autolink;
     const w = this.learning;
-    if (!s || !a || !l || !w) return;
+    const sens = this.sensitive;
+    if (!s || !a || !l || !w || !sens) return;
+
+    const topicRow = (t: SensitiveTopic | undefined, i: number) => `
+        <tr class="st-row">
+          <td><input type="checkbox" class="st-on"${t?.enabled === false ? "" : " checked"} aria-label="Topic on" /></td>
+          <td><input type="text" class="st-name" value="${esc(t?.name ?? "")}" placeholder="new topic" maxlength="40" aria-label="Topic name ${i + 1}" /></td>
+          <td><textarea class="st-kw" rows="3" spellcheck="false" aria-label="Keywords for topic ${i + 1}">${esc((t?.keywords ?? []).join("\n"))}</textarea></td>
+        </tr>`;
+    const topicRows = [
+      ...sens.topics.map((t, i) => topicRow(t, i)),
+      topicRow(undefined, sens.topics.length),
+    ].join("");
 
     const row = (field: keyof DisplaySettings, label: string) => `
       <tr>
@@ -270,6 +328,14 @@ export class SettingsPanel extends SectionPanel {
         <span></span>
         <div><button id="save-learning">Save learning settings</button></div>
       </div>
+
+      <h2>Sensitive topics</h2>
+      <p class="sub">A message that mentions one of these is never absorbed, drafted, or sent. It becomes a Thought for you. Put one word or phrase per line. Matching is on whole words, and different forms of a word match ("surgeries" matches "surgery"), but "taxi" does not match "tax". The model can also flag a topic by name. Every hold is one more Thought, so keep the lists short. To remove a topic, clear its name and save. The defaults are English and a starting point.</p>
+      <table>
+        <thead><tr><th>On</th><th>Topic</th><th>Keywords, one per line</th></tr></thead>
+        <tbody>${topicRows}</tbody>
+      </table>
+      <div><button id="save-sensitive">Save sensitive topics</button></div>
 
       <h2>Audio summary</h2>
       <div class="form">

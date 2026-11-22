@@ -1,0 +1,9 @@
+name: legal
+scope:
+  kind: topic
+  value: "contract"
+posture: escalate
+autonomy: observe
+confidenceMin: 0.5
+standard: |
+  Anything about a contract needs the operator's own decision.

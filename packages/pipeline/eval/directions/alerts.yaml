@@ -1,0 +1,9 @@
+name: alerts
+scope:
+  kind: person
+  value: "alerts@eval.test"
+posture: surface
+autonomy: observe
+confidenceMin: 0.5
+standard: |
+  Monitoring alerts are for the operator to read. Never reply.

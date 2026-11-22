@@ -1,0 +1,10 @@
+name: boss
+scope:
+  kind: person
+  value: "boss@eval.test"
+posture: absorb
+autonomy: send
+confidenceMin: 0.8
+standard: |
+  Answer scheduling and status questions briefly from facts in the message.
+  Never promise anything that needs approval.
