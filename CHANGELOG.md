@@ -13,6 +13,10 @@ versions while the project is `0.x`).
   CLI, so rebuilding no longer needs a separate install step. Pass
   `--no-install` to package only; install is skipped in CI and when `code` is
   not on PATH.
+- `scripts/build-server.sh` now (re)starts the server after building it: a
+  running instance is stopped through `POST /admin/shutdown` first, then the
+  new build runs in the background (`server.log` and `server.pid` under the
+  mind data directory). Pass `--no-restart` to build only.
 - Sidebar: links show only their name. The grey text after each one ("goals, and
   what needs action" and the rest) is gone.
 - Sidebar: a link takes an accent color (background, left edge and icon) on hover

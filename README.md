@@ -30,21 +30,27 @@ belonging to the same person — a signal records which account it came from,
 and a reply leaves from that account. [LIVE.md](LIVE.md) has the setup
 and the order to add them in.
 
-## 1. Install and build
+## 1. Install, build, and start
 
 ```bash
 sh scripts/build-server.sh
 ```
 
-## 2. Start the server
+This installs dependencies, builds the packages, and starts the server on
+`http://127.0.0.1:8787`, running a database migration if needed and generating
+an API token at `~/.config/kIiYOSJe/mind/token` on first run. A server that is
+already running is stopped first. The new one runs in the background, with
+output in `~/.data/kIiYOSJe/mind/server.log` and its pid in `server.pid` beside
+it. Pass `--no-restart` to build only.
+
+## 2. Run it in the foreground (optional)
+
+To keep the server attached to a terminal instead, stop the background one and
+run:
 
 ```bash
 npm run dev
 ```
-
-This builds `packages/server` and starts it on `http://127.0.0.1:8787`,
-running a database migration if needed and generating an API token at
-`~/.config/kIiYOSJe/mind/token` on first run. Leave it running in a terminal.
 
 Directions (the rules it matches signals against) live in `directions/*.yaml`.
 Edit the example at `directions/work/boss.yaml` or add your own — the server
