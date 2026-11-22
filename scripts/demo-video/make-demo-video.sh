@@ -240,7 +240,7 @@ if [[ "$SKIP_BUILD" == "0" ]]; then
     echo "==> $(basename "$vsix") is newer than the extension sources; keeping it"
   else
     echo "==> building the extension"
-    bash scripts/build-extension.sh
+    bash scripts/build-extension.sh --no-install
   fi
 else
   [[ -n "$vsix" ]] || {

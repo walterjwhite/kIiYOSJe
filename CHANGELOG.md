@@ -9,6 +9,10 @@ versions while the project is `0.x`).
 
 ### Changed
 
+- `scripts/build-extension.sh` installs the built extension with the `code`
+  CLI, so rebuilding no longer needs a separate install step. Pass
+  `--no-install` to package only; install is skipped in CI and when `code` is
+  not on PATH.
 - Sidebar: links show only their name. The grey text after each one ("goals, and
   what needs action" and the rest) is gone.
 - Sidebar: a link takes an accent color (background, left edge and icon) on hover

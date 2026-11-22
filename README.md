@@ -58,8 +58,11 @@ you approve them. Autonomous sending is off until you explicitly opt in
 
 ```bash
 bash scripts/build-extension.sh
-code --install-extension extension/mind-vscode-0.0.1.vsix
 ```
+
+This builds the `.vsix` and installs it into VS Code with the `code` CLI
+(skipped when the CLI is missing or `CI` is set; `--no-install` packages
+only).
 
 Reload VS Code. A **mind** icon appears in the Activity Bar (the far-left
 icon rail). Its sidebar is deliberately thin — one link per section, no

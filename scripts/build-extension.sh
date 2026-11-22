@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 #
-# build.sh — build the mind VS Code extension into an installable .vsix.
+# build-extension.sh — build the mind VS Code extension into a .vsix and
+# install it with the `code` CLI.
 #
 # Usage:
-#   ./build.sh            build packages + extension, then package the .vsix
-#   ./build.sh --no-build skip the TypeScript build step (package only)
+#   ./build-extension.sh              build, package, then install
+#   ./build-extension.sh --no-build   skip the TypeScript build step (package only)
+#   ./build-extension.sh --no-install package only; print the install command
 #
 # Output: extension/mind-vscode-<version>.vsix
 #
-# Install it with:
-#   code --install-extension extension/mind-vscode-<version>.vsix
-# or via the Extensions view -> "..." menu -> "Install from VSIX...".
+# Install is skipped automatically when CI is set or the `code` CLI is not on
+# PATH; the script then prints the command to run by hand.
 
 set -euo pipefail
 
@@ -18,13 +19,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 EXT_DIR="$ROOT_DIR/extension"
 SKIP_BUILD=0
+SKIP_INSTALL=0
 
 for arg in "$@"; do
   case "$arg" in
     --no-build) SKIP_BUILD=1 ;;
+    --no-install) SKIP_INSTALL=1 ;;
     *)
       echo "Unknown argument: $arg" >&2
-      echo "Usage: $0 [--no-build]" >&2
+      echo "Usage: $0 [--no-build] [--no-install]" >&2
       exit 1
       ;;
   esac
@@ -57,6 +60,19 @@ npx --yes @vscode/vsce package --no-dependencies --allow-missing-repository
 VSIX_FILE="$(ls -t "$EXT_DIR"/*.vsix | head -n1)"
 echo ""
 echo "Built: $VSIX_FILE"
+echo "Manual install: code --install-extension \"$VSIX_FILE\" --force"
 echo ""
-echo "Install with:"
-echo "  code --install-extension \"$VSIX_FILE\""
+
+if [[ "$SKIP_INSTALL" -eq 1 ]]; then
+  echo "Skipping install (--no-install)."
+elif [[ -n "${CI:-}" ]]; then
+  echo "Skipping install (CI is set)."
+elif ! command -v code >/dev/null 2>&1; then
+  echo "Skipping install ('code' CLI not found on PATH)."
+else
+  echo "==> Installing into VS Code"
+  # --force replaces an installed copy, so a rebuild is picked up instead of
+  # being ignored as "already installed".
+  code --install-extension "$VSIX_FILE" --force
+  echo "Reload VS Code (Developer: Reload Window) to activate the new build."
+fi

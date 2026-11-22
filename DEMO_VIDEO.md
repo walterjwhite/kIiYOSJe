@@ -95,8 +95,10 @@ Build and install the extension once:
 
 ```bash
 bash scripts/build-extension.sh
-code --install-extension extension/mind-vscode-0.0.1.vsix
 ```
+
+It installs the built `.vsix` into VS Code automatically (`--no-install` to
+package only).
 
 Build and install the Android client (JDK 21, SDK 35):
 
