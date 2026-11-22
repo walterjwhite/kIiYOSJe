@@ -1,3 +1,4 @@
+import { duration } from "./format.js";
 /**
  * Plain-language wording for the Learnings view. No vscode import, so it is
  * unit-tested. Everything here describes a proposal the rule-based loop already
@@ -103,7 +104,14 @@ export function describeProposal(p: ProposalView): ProposalText {
 
 export interface ScheduleView {
   window: { windowStart: string; windowEnd: string };
-  lastRun: { at: string; trigger: "schedule" | "manual"; proposalCount: number } | null;
+  lastRun: {
+    at: string;
+    trigger: "schedule" | "manual";
+    proposalCount: number;
+    durationMs?: number;
+  } | null;
+  /** True while a run is in progress on the server. */
+  running?: boolean;
 }
 
 export function describeSchedule(s: ScheduleView, format: (iso: string) => string): string {
@@ -112,7 +120,9 @@ export function describeSchedule(s: ScheduleView, format: (iso: string) => strin
       ? "at any time of day"
       : `between ${s.window.windowStart} and ${s.window.windowEnd}`;
   const next = `Runs by itself once a night ${window}, in this computer's time. Change it in Settings.`;
-  if (!s.lastRun) return `${next} It has not run yet.`;
+  const now = s.running ? " Running now." : "";
+  if (!s.lastRun) return `${next} It has not run yet.${now}`;
   const who = s.lastRun.trigger === "schedule" ? "overnight" : "by you";
-  return `${next} Last run: ${format(s.lastRun.at)}, ${who}, ${plural(s.lastRun.proposalCount, "new suggestion")}.`;
+  const took = s.lastRun.durationMs === undefined ? "" : `took ${duration(s.lastRun.durationMs)}, `;
+  return `${next} Last run: ${format(s.lastRun.at)}, ${who}, ${took}${plural(s.lastRun.proposalCount, "new suggestion")}.${now}`;
 }

@@ -4,6 +4,7 @@ import {
   type GoalLinks,
   localOllamaRoot,
   type RawEvent,
+  shouldReload,
   summarize,
   type TraceSummary,
 } from "./trace-model.js";
@@ -21,7 +22,10 @@ const RANGE_LABEL: Record<TraceRange, string> = {
   "30d": "30 days",
 };
 
+/** How often the panel asks whether a new signal was processed. One row per probe. */
 const LIVE_INTERVAL_MS = 3000;
+/** Full reload at least this often, so a sliding range ("Last hour") drops old calls. */
+const MAX_AGE_MS = 60_000;
 
 interface SignalInfo {
   sender: string;
@@ -38,7 +42,9 @@ interface SignalInfo {
 export class ModelTracePanel extends SectionPanel {
   private static current: ModelTracePanel | undefined;
   private range: TraceRange = "today";
-  private live = false;
+  private live = true;
+  private loadedId: string | undefined;
+  private loadedAt = 0;
   private timer: ReturnType<typeof setInterval> | undefined;
   private summary: TraceSummary | undefined;
   private loadError: string | undefined;
@@ -54,6 +60,10 @@ export class ModelTracePanel extends SectionPanel {
   private constructor() {
     super("mind.modelTrace", "Model Trace — mind");
     this.renderShell();
+    this.panel.onDidChangeViewState(() => {
+      if (this.panel.visible) void this.tick();
+    });
+    this.startTimer();
   }
 
   protected onDispose(): void {
@@ -74,9 +84,28 @@ export class ModelTracePanel extends SectionPanel {
 
   private setLive(on: boolean): void {
     this.live = on;
-    if (this.timer) clearInterval(this.timer);
-    this.timer = on ? setInterval(() => void this.load(), LIVE_INTERVAL_MS) : undefined;
+    this.startTimer();
     this.renderShell();
+  }
+
+  private startTimer(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = this.live ? setInterval(() => void this.tick(), LIVE_INTERVAL_MS) : undefined;
+  }
+
+  /** Cheap check: fetch the newest event only, and reload fully when it changed. Idle while hidden. */
+  private async tick(): Promise<void> {
+    if (!this.panel.visible) return;
+    try {
+      const [newest] = await apiFetch<RawEvent[]>("/events?kind=signal.processed&limit=1");
+      if (shouldReload(newest?.id, this.loadedId, this.loadedAt, Date.now(), MAX_AGE_MS)) {
+        await this.load();
+        // The newest event can be older than the range, so remember what the probe saw.
+        this.loadedId = newest?.id;
+      }
+    } catch {
+      /* server unreachable: keep what is shown and try again next tick */
+    }
   }
 
   private async load(): Promise<void> {
@@ -86,6 +115,8 @@ export class ModelTracePanel extends SectionPanel {
       );
       const signals = await this.signalLookup();
       this.summary = summarize(events, await this.goalLinks(signals));
+      this.loadedId = events[0]?.id;
+      this.loadedAt = Date.now();
       this.loadError = undefined;
       void this.panel.webview.postMessage({
         type: "data",

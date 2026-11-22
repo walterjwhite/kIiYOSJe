@@ -448,6 +448,7 @@ export class SignalDetailPanel extends SectionPanel {
             <span class="meta">${esc(e.at)} · ${esc(e.actor)}</span>
           </div>
           ${renderEventDetail(e.kind, payload)}
+          ${e.kind === "signal.processed" ? renderModelCalls(payload) : ""}
           ${debug ? renderDebugDetail(e, payload) : ""}
         </div>`;
       })
@@ -673,54 +674,56 @@ function fmtMs(ms: number | undefined): string {
 }
 
 /**
- * Extra detail shown only when mind.debug is on. For signal.processed it
- * says exactly which model calls were made (provider, model, endpoint,
- * duration, tokens) or why a step made none, then the raw event payload.
- * Other event kinds just get their ids and raw payload.
+ * Which model calls were made for a processed signal (provider, model,
+ * endpoint, duration, tokens), or why a step made none. Shown always, because
+ * it is the answer to "what did the model do for this signal?", the same data
+ * the Model Trace screen is built from. Contains no message text.
+ */
+function renderModelCalls(payload: Record<string, unknown>): string {
+  const ai = payload["ai"] as AiTrace | undefined;
+  if (!ai) {
+    return `<div class="sub">No model trace on this event. It was processed before tracing was added, or by a build without it.</div>`;
+  }
+  const rows: string[] = [];
+  const calls = ai.calls ?? [];
+  rows.push(`<tr><th>Total processing time</th><td>${esc(fmtMs(ai.totalMs))}</td></tr>`);
+  rows.push(`<tr><th>Time in model calls</th><td>${esc(fmtMs(ai.modelMs))}</td></tr>`);
+  if (calls.length === 0) {
+    rows.push(
+      `<tr><th>Model calls</th><td><strong>none</strong>${ai.configured ? "" : " (no AI provider configured)"}. No model was contacted for this signal.</td></tr>`,
+    );
+  }
+  calls.forEach((c, i) => {
+    const where =
+      c.transport === "acp"
+        ? `ACP agent (${c.provider ?? "?"})`
+        : `${c.provider ?? "?"} at ${c.endpoint ?? "?"}`;
+    const tokens =
+      c.inputTokens !== undefined || c.outputTokens !== undefined
+        ? ` · tokens in/out: ${c.inputTokens ?? "?"}/${c.outputTokens ?? "?"}`
+        : "";
+    rows.push(
+      `<tr><th>Call ${i + 1}: ${esc(c.operation ?? "?")}</th><td>
+        ${c.ok ? "ok" : '<span class="danger">failed</span>'} · ${esc(fmtMs(c.durationMs))}<br/>
+        model <code>${esc(c.model ?? "?")}</code> via ${esc(where)}<br/>
+        prompt ${esc(String(c.promptChars ?? "?"))} chars → response ${esc(String(c.responseChars ?? "?"))} chars${esc(tokens)}
+        ${c.error ? `<br/><span class="danger">${esc(c.error)}</span>` : ""}
+      </td></tr>`,
+    );
+  });
+  for (const [step, why] of Object.entries(ai.skipped ?? {})) {
+    rows.push(`<tr><th>Skipped: ${esc(step)}</th><td>${esc(why)}</td></tr>`);
+  }
+  return `<table class="debug">${rows.join("")}</table>`;
+}
+
+/**
+ * Extra detail shown only when mind.debug is on: the event id and the raw
+ * payload. The model calls are shown without debug (renderModelCalls).
  */
 function renderDebugDetail(e: JournalEvent, payload: Record<string, unknown>): string {
   const rows: string[] = [];
   rows.push(`<tr><th>Event id</th><td><code>${esc(e.id)}</code></td></tr>`);
-
-  if (e.kind === "signal.processed") {
-    const ai = payload["ai"] as AiTrace | undefined;
-    if (!ai) {
-      rows.push(
-        `<tr><th>AI</th><td>No AI trace on this event. It was processed before tracing was added, or by a build without it.</td></tr>`,
-      );
-    } else {
-      const calls = ai.calls ?? [];
-      rows.push(`<tr><th>AI provider configured</th><td>${ai.configured ? "yes" : "no"}</td></tr>`);
-      rows.push(`<tr><th>Total processing time</th><td>${esc(fmtMs(ai.totalMs))}</td></tr>`);
-      rows.push(`<tr><th>Time in model calls</th><td>${esc(fmtMs(ai.modelMs))}</td></tr>`);
-      if (calls.length === 0) {
-        rows.push(
-          `<tr><th>Model calls</th><td><strong>none</strong> — no model was contacted for this signal.</td></tr>`,
-        );
-      }
-      calls.forEach((c, i) => {
-        const where =
-          c.transport === "acp"
-            ? `ACP agent (${c.provider ?? "?"})`
-            : `${c.provider ?? "?"} at ${c.endpoint ?? "?"}`;
-        const tokens =
-          c.inputTokens !== undefined || c.outputTokens !== undefined
-            ? ` · tokens in/out: ${c.inputTokens ?? "?"}/${c.outputTokens ?? "?"}`
-            : "";
-        rows.push(
-          `<tr><th>Call ${i + 1}: ${esc(c.operation ?? "?")}</th><td>
-            ${c.ok ? "ok" : '<span class="danger">failed</span>'} · ${esc(fmtMs(c.durationMs))}<br/>
-            model <code>${esc(c.model ?? "?")}</code> via ${esc(where)}<br/>
-            prompt ${esc(String(c.promptChars ?? "?"))} chars → response ${esc(String(c.responseChars ?? "?"))} chars${esc(tokens)}
-            ${c.error ? `<br/><span class="danger">${esc(c.error)}</span>` : ""}
-          </td></tr>`,
-        );
-      });
-      for (const [step, why] of Object.entries(ai.skipped ?? {})) {
-        rows.push(`<tr><th>Skipped: ${esc(step)}</th><td>${esc(why)}</td></tr>`);
-      }
-    }
-  }
 
   return `<table class="debug">${rows.join("")}</table>
     <details><summary class="meta">Raw event payload</summary><pre class="json">${jsonToHtml(payload, 2)}</pre></details>`;

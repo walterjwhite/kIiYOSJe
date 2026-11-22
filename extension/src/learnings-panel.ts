@@ -28,6 +28,8 @@ interface StoredProposal {
   at: string;
   proposal: DirectionProposal;
   status: "pending" | "accepted" | "rejected";
+  /** For an accepted proposal: the edit to make by hand in directions/. */
+  yamlChange?: string | null;
 }
 
 interface JournalEvent {
@@ -68,6 +70,9 @@ export class LearningsPanel extends SectionPanel {
   private schedule: ScheduleView | undefined;
   private files: LearningFiles | undefined;
   private loadError: string | undefined;
+  /** True while a learning run is in progress, started here or by the nightly schedule. */
+  private running = false;
+  private pollTimer: ReturnType<typeof setTimeout> | undefined;
 
   static show(): void {
     if (LearningsPanel.current) {
@@ -83,6 +88,7 @@ export class LearningsPanel extends SectionPanel {
   }
 
   protected onDispose(): void {
+    if (this.pollTimer) clearTimeout(this.pollTimer);
     LearningsPanel.current = undefined;
   }
 
@@ -112,6 +118,7 @@ export class LearningsPanel extends SectionPanel {
         apiFetch<LearningFiles>("/learnings"),
       ]);
       this.schedule = schedule;
+      this.running = schedule.running === true;
       this.files = files;
       this.proposals = proposals;
       this.reclassifications = reclassifications;
@@ -121,9 +128,16 @@ export class LearningsPanel extends SectionPanel {
       this.loadError = String(err);
     }
     this.render();
+    // A run started elsewhere (the nightly schedule) is picked up here, and the
+    // panel keeps checking until it ends, so the button re-enables by itself.
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = this.running ? setTimeout(() => void this.load(), 2000) : undefined;
   }
 
   private async runLearningLoop(): Promise<void> {
+    if (this.running) return;
+    this.running = true;
+    this.render();
     try {
       const result = await apiFetch<{ proposals: unknown[]; insight: string | null }>(
         "/proposals/run",
@@ -137,6 +151,7 @@ export class LearningsPanel extends SectionPanel {
     } catch (err) {
       vscode.window.showErrorMessage(String(err));
     }
+    this.running = false;
     this.load();
   }
 
@@ -167,6 +182,10 @@ export class LearningsPanel extends SectionPanel {
 
     const card = (p: StoredProposal): string => {
       const t = describeProposal(p.proposal);
+      const next =
+        p.status === "accepted" && p.yamlChange
+          ? `<div class="sub"><strong>Your next step:</strong> ${esc(p.yamlChange)}. mind does not edit your Direction files, so until you make this change a restart will undo it.</div>`
+          : "";
       const actions =
         p.status === "pending"
           ? `<button data-action="accept" data-id="${esc(p.eventId)}">Accept</button>
@@ -177,6 +196,7 @@ export class LearningsPanel extends SectionPanel {
         <div>${esc(t.change)}</div>
         <div class="sub">Why: ${esc(t.why)}</div>
         <div class="sub">${esc(t.effect)}</div>
+        ${next}
         <div class="toolbar" style="margin-top: 6px; margin-bottom: 0;">${actions}</div>
       </div>`;
     };
@@ -245,7 +265,7 @@ export class LearningsPanel extends SectionPanel {
     const body = `
       <div class="toolbar">
         <button data-action="refresh">↺ Refresh</button>
-        <button data-action="run">Run learning loop now</button>
+        <button data-action="run"${this.running ? ' disabled title="The learning loop is running"' : ""}>${this.running ? "Running…" : "Run learning loop now"}</button>
       </div>
       <h2>Your learnings (${files?.learnings.length ?? 0})</h2>
       <p class="sub">Plain notes you write in <code>${esc(files?.dir ?? "learnings")}</code>, one <code>.md</code> file each. They are added to the prompts the classifier and drafter see, so edit them like any file and commit them to git. They can change how a message is judged or worded. They cannot allow a send.</p>

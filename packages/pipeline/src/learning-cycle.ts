@@ -23,6 +23,15 @@ export interface LearningRun {
   trigger: LearningTrigger;
   proposalCount: number;
   insight: boolean;
+  /** Wall-clock runtime in ms. Absent on runs recorded before this field existed. */
+  durationMs?: number;
+}
+
+let activeRuns = 0;
+
+/** True while a learning run (manual or scheduled) is in progress in this process. */
+export function isLearningRunning(): boolean {
+  return activeRuns > 0;
 }
 
 /** How often the scheduler checks the clock. */
@@ -34,6 +43,21 @@ export async function runLearningCycle(
   db: Db,
   trigger: LearningTrigger,
   now: Date = new Date(),
+): Promise<{ proposals: DirectionProposal[]; insight: string | null }> {
+  activeRuns++;
+  const started = Date.now();
+  try {
+    return await runCycle(db, trigger, now, started);
+  } finally {
+    activeRuns--;
+  }
+}
+
+async function runCycle(
+  db: Db,
+  trigger: LearningTrigger,
+  now: Date,
+  started: number,
 ): Promise<{ proposals: DirectionProposal[]; insight: string | null }> {
   const proposals = runLearningLoop(db, { now });
   const insight = await generateLearningInsight(proposals);
@@ -54,6 +78,7 @@ export async function runLearningCycle(
     trigger,
     proposalCount: proposals.length,
     insight: insight !== null,
+    durationMs: Date.now() - started,
   };
   db.insert(events)
     .values({ id: newId(), actor: "system", kind: "learning.run", payload: JSON.stringify(run) })

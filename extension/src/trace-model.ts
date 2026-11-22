@@ -8,6 +8,7 @@
  */
 
 export interface RawEvent {
+  id?: string;
   at: string;
   kind: string;
   payload: string;
@@ -326,4 +327,20 @@ export function localOllamaRoot(endpoint: string | null | undefined): string | u
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Whether the Model Trace should fetch its full data now. A one-row probe of the
+ * newest event is cheap; the full load runs only when that event changed, or
+ * when the data is older than maxAgeMs (so a sliding range such as "Last hour"
+ * still drops old calls).
+ */
+export function shouldReload(
+  newestId: string | undefined,
+  loadedId: string | undefined,
+  loadedAt: number,
+  now: number,
+  maxAgeMs: number,
+): boolean {
+  return newestId !== loadedId || now - loadedAt >= maxAgeMs;
 }

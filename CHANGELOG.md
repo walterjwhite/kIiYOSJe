@@ -9,6 +9,18 @@ versions while the project is `0.x`).
 
 ### Changed
 
+- Model Trace updates itself. Live is on by default: every 3 seconds the panel
+  asks for the newest `signal.processed` event (one row) and reloads only when
+  it changed or the data is a minute old. It pauses while the panel is hidden.
+- The signal screen always lists the model calls made for a signal (provider,
+  model, time, tokens, skipped steps). Debug mode now adds only the event id and
+  raw payload.
+- Learnings: "Run learning loop now" is disabled while a run is in progress,
+  including a nightly run. The last run shows when it ran and how long it took.
+  `GET /proposals/schedule` returns `running`, `POST /proposals/run` returns 409
+  during a run, and `learning.run` events record `durationMs`.
+- Learnings: an accepted suggestion shows "Your next step", the hand edit to make
+  in `directions/` (`GET /proposals` returns it as `yamlChange`).
 - `scripts/build-extension.sh` installs the built extension with the `code`
   CLI, so rebuilding no longer needs a separate install step. Pass
   `--no-install` to package only; install is skipped in CI and when `code` is

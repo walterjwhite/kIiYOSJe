@@ -98,4 +98,18 @@ describe("describeSchedule", () => {
       describeSchedule({ window, lastRun: { at: "T", trigger: "manual", proposalCount: 0 } }, fmt),
     ).toContain("by you, 0 new suggestions");
   });
+
+  it("includes the runtime when known and omits it for older runs", () => {
+    const run = { at: "T", trigger: "manual" as const, proposalCount: 2 };
+    expect(describeSchedule({ window, lastRun: { ...run, durationMs: 4200 } }, fmt)).toContain(
+      "by you, took 4.2 s, 2 new suggestions.",
+    );
+    expect(describeSchedule({ window, lastRun: run }, fmt)).toContain("by you, 2 new suggestions.");
+  });
+
+  it("says a run is in progress", () => {
+    expect(describeSchedule({ window, lastRun: null, running: true }, fmt)).toContain(
+      "Running now.",
+    );
+  });
 });

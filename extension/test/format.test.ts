@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ago, channelLabel, timingLabel } from "../src/format.js";
+import { ago, channelLabel, duration, timingLabel } from "../src/format.js";
 
 describe("channelLabel", () => {
   it("does not repeat the account when the adapter id already has it", () => {
@@ -33,5 +33,21 @@ describe("timingLabel", () => {
   });
   it("adds the deadline when there is one", () => {
     expect(timingLabel("now", "2026-11-14T15:00:00Z")).toMatch(/^Now · by /);
+  });
+});
+
+describe("duration", () => {
+  it("uses ms under a second, seconds under a minute, then minutes", () => {
+    expect(duration(850)).toBe("850 ms");
+    expect(duration(4200)).toBe("4.2 s");
+    expect(duration(59_900)).toBe("59.9 s");
+    expect(duration(60_000)).toBe("1 min");
+    expect(duration(125_000)).toBe("2 min 5 s");
+    expect(duration(3_600_000 + 120_000)).toBe("1 h 2 min");
+  });
+  it("rounds sub-second noise and rejects bad input", () => {
+    expect(duration(0)).toBe("0 ms");
+    expect(duration(-5)).toBe("");
+    expect(duration(Number.NaN)).toBe("");
   });
 });

@@ -26,12 +26,16 @@ const MIGRATIONS_DIR = join(
   "migrations",
 );
 
-function appWithDb() {
+function appAndDb() {
   const sqlite = new Database(":memory:");
   sqlite.pragma("foreign_keys = ON");
   const db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder: MIGRATIONS_DIR });
-  return buildApp(db, new AdapterRegistry());
+  return { db, app: buildApp(db, new AdapterRegistry()) };
+}
+
+function appWithDb() {
+  return appAndDb().app;
 }
 
 const headers = () => ({ Authorization: `Bearer ${auth.getToken()}` });
@@ -67,16 +71,69 @@ describe("/proposals/schedule", () => {
     const app = appWithDb();
     const before = (await (
       await app.request("/proposals/schedule", { headers: headers() })
-    ).json()) as { lastRun: unknown };
+    ).json()) as { lastRun: unknown; running: boolean };
     expect(before.lastRun).toBeNull();
+    expect(before.running).toBe(false);
 
     const run = await app.request("/proposals/run", { method: "POST", headers: headers() });
     expect(run.status).toBe(200);
     const after = (await (
       await app.request("/proposals/schedule", { headers: headers() })
-    ).json()) as { lastRun: { trigger: string } | null; lastScheduledRun: unknown };
+    ).json()) as {
+      lastRun: { trigger: string; durationMs?: number } | null;
+      lastScheduledRun: unknown;
+      running: boolean;
+    };
     expect(after.lastRun?.trigger).toBe("manual");
+    expect(after.lastRun?.durationMs).toBeGreaterThanOrEqual(0);
+    expect(after.running).toBe(false);
     expect(after.lastScheduledRun).toBeNull();
+  });
+});
+
+describe("/proposals/run while running", () => {
+  it("reports running and refuses a second run", async () => {
+    const app = appWithDb();
+    const first = app.request("/proposals/run", { method: "POST", headers: headers() });
+    const second = app.request("/proposals/run", { method: "POST", headers: headers() });
+    const statusRes = app.request("/proposals/schedule", { headers: headers() });
+    const status = (await (await statusRes).json()) as { running: boolean };
+    expect(status.running).toBe(true);
+    expect((await second).status).toBe(409);
+    expect((await first).status).toBe(200);
+  });
+});
+
+describe("accepting a proposal for a new Direction", () => {
+  it("lists the hand edit on the accepted proposal", async () => {
+    const { db, app } = appAndDb();
+    db.insert(schema.events)
+      .values({
+        id: "p1",
+        actor: "system",
+        kind: "direction.proposal",
+        payload: JSON.stringify({
+          kind: "new",
+          directionId: null,
+          field: "scope",
+          currentValue: null,
+          proposedValue: "alex@example.test",
+          rationale: "synthetic",
+          evidence: { total: 4, discarded: 0, sent: 0, overrideRate: 0 },
+        }),
+      })
+      .run();
+    const accept = await app.request("/proposals/p1/accept", {
+      method: "POST",
+      headers: headers(),
+    });
+    expect(accept.status).toBe(200);
+    const list = (await (await app.request("/proposals", { headers: headers() })).json()) as {
+      status: string;
+      yamlChange: string | null;
+    }[];
+    expect(list[0]?.status).toBe("accepted");
+    expect(list[0]?.yamlChange).toContain("alex@example.test");
   });
 });
 

@@ -31,6 +31,19 @@ export function ago(iso: string, now: number = Date.now()): string {
   return `${Math.round(h / 24)} d ago`;
 }
 
+/** A runtime for people: "850 ms", "4.2 s", "2 min 5 s", "1 h 2 min". Empty for bad input. */
+export function duration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  if (ms < 59_950) return `${(ms / 1000).toFixed(1)} s`;
+  const totalSec = Math.round(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const min = Math.floor((totalSec % 3600) / 60);
+  const sec = totalSec % 60;
+  if (h > 0) return min > 0 ? `${h} h ${min} min` : `${h} h`;
+  return sec > 0 ? `${min} min ${sec} s` : `${min} min`;
+}
+
 /** "Now · by Fri, Nov 14, 3:00 PM" or just "Can wait". */
 export function timingLabel(bucket: TimingBucket, actBy: string | null): string {
   const base = BUCKET_LABEL[bucket];

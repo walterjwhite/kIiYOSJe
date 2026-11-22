@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localOllamaRoot, type RawEvent, summarize } from "../src/trace-model.js";
+import { localOllamaRoot, type RawEvent, shouldReload, summarize } from "../src/trace-model.js";
 
 const call = (operation: string, durationMs: number, extra: Record<string, unknown> = {}) => ({
   operation,
@@ -145,5 +145,18 @@ describe("where a signal went", () => {
   it("works without any goal information", () => {
     const s = summarize([processed("a", "promoted")]);
     expect(s.records[0]?.destination).toBe("queue");
+  });
+});
+
+describe("shouldReload", () => {
+  it("reloads when a newer event appeared", () => {
+    expect(shouldReload("b", "a", 1000, 1500, 60_000)).toBe(true);
+  });
+  it("does not reload when nothing changed and the data is fresh", () => {
+    expect(shouldReload("a", "a", 1000, 1500, 60_000)).toBe(false);
+    expect(shouldReload(undefined, undefined, 1000, 1500, 60_000)).toBe(false);
+  });
+  it("reloads stale data even when nothing changed", () => {
+    expect(shouldReload("a", "a", 1000, 61_000, 60_000)).toBe(true);
   });
 });

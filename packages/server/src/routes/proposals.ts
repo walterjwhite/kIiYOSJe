@@ -14,7 +14,7 @@ import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { directions, events, learningSettings, newId } from "@mind/core";
 import type { Db } from "@mind/core";
-import { lastLearningRun, runLearningCycle } from "@mind/pipeline";
+import { isLearningRunning, lastLearningRun, runLearningCycle } from "@mind/pipeline";
 import type { DirectionProposal } from "@mind/pipeline";
 
 interface StoredProposal {
@@ -22,9 +22,21 @@ interface StoredProposal {
   at: string;
   proposal: DirectionProposal;
   status: "pending" | "accepted" | "rejected";
+  yamlChange?: string | null;
 }
 
 const APPLICABLE_FIELDS = new Set(["confidenceMin", "autonomy"]);
+
+/** The hand edit that makes an accepted proposal permanent. Null when nothing is applicable. */
+function yamlChangeFor(p: DirectionProposal): string | null {
+  if (p.kind !== "new" && p.directionId && APPLICABLE_FIELDS.has(p.field)) {
+    return `In directions/${p.directionId}.yaml set ${p.field}: ${JSON.stringify(p.proposedValue)}`;
+  }
+  if (p.kind === "new") {
+    return `Create a new direction file with scope: { kind: person, value: "${String(p.proposedValue)}" }`;
+  }
+  return null;
+}
 
 function loadProposals(db: Db): StoredProposal[] {
   const all = db.select().from(events).all();
@@ -39,12 +51,17 @@ function loadProposals(db: Db): StoredProposal[] {
   }
   return all
     .filter((e) => e.kind === "direction.proposal")
-    .map((e) => ({
-      eventId: e.id,
-      at: e.at,
-      proposal: JSON.parse(e.payload) as DirectionProposal,
-      status: resolved.get(e.id) ?? "pending",
-    }));
+    .map((e): StoredProposal => {
+      const proposal = JSON.parse(e.payload) as DirectionProposal;
+      const status = resolved.get(e.id) ?? "pending";
+      return {
+        eventId: e.id,
+        at: e.at,
+        proposal,
+        status,
+        yamlChange: status === "accepted" ? yamlChangeFor(proposal) : null,
+      };
+    });
 }
 
 export function proposalsRouter(db: Db) {
@@ -80,6 +97,7 @@ export function proposalsRouter(db: Db) {
       window: learningSettings(),
       lastRun: lastLearningRun(db),
       lastScheduledRun: lastLearningRun(db, "schedule"),
+      running: isLearningRunning(),
     });
   });
 
@@ -88,6 +106,7 @@ export function proposalsRouter(db: Db) {
   // rule-based loop decides every proposed value; the model only adds a
   // plain-language insight, skipped quietly if no provider is configured.
   app.post("/run", async (c) => {
+    if (isLearningRunning()) return c.json({ error: "The learning loop is already running" }, 409);
     const { proposals, insight } = await runLearningCycle(db, "manual");
     return c.json({ proposals, insight });
   });
@@ -100,16 +119,13 @@ export function proposalsRouter(db: Db) {
     if (stored.status !== "pending") return c.json({ error: `Already ${stored.status}` }, 409);
 
     const p = stored.proposal;
-    let yamlChange: string | null = null;
+    const yamlChange = yamlChangeFor(p);
 
     if (p.kind !== "new" && p.directionId && APPLICABLE_FIELDS.has(p.field)) {
       db.update(directions)
         .set({ [p.field]: p.proposedValue, updatedAt: new Date().toISOString() })
         .where(eq(directions.id, p.directionId))
         .run();
-      yamlChange = `In directions/${p.directionId}.yaml set ${p.field}: ${JSON.stringify(p.proposedValue)}`;
-    } else if (p.kind === "new") {
-      yamlChange = `Create a new direction file with scope: { kind: person, value: "${String(p.proposedValue)}" }`;
     }
 
     db.insert(events)
