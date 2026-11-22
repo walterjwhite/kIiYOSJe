@@ -45,6 +45,13 @@ android {
         // change. Bump versions deliberately, not to silence a warning.
         disable += "GradleDependency"
 
+        // Same reasoning for the target API level: lint starts reporting
+        // OldTargetApi the day a newer Android release ships, which turned a
+        // passing build red with no change in this repository. Raising targetSdk
+        // changes runtime behavior and needs a test on a device, so it is its own
+        // change, not a lint fix.
+        disable += "OldTargetApi"
+
         // The server speaks plain HTTP on a private address, and Android cannot
         // scope cleartext permission by CIDR range, so the base config permits it
         // by design. The tradeoff and the VPN/HTTPS guidance are documented in
