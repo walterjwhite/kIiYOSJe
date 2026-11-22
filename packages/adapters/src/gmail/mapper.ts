@@ -4,7 +4,7 @@
  * tests without network access.
  */
 
-import { parseAddressList } from "email-addresses";
+import emailAddresses from "email-addresses";
 import type { NewSignal } from "@mind/core";
 import { adapterIdForAccount } from "@mind/core";
 
@@ -63,7 +63,7 @@ function findDecoded(part: GmailPart | undefined, mimeType?: string): string | u
  * so one bad header never drops a sender.
  */
 export function parseAddresses(value: string): string[] {
-  const parsed = parseAddressList(value);
+  const parsed = emailAddresses.parseAddressList(value);
   if (parsed === null) return splitAddresses(value);
   return parsed
     .flatMap((entry) =>
