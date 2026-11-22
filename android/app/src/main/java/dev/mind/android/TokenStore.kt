@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.core.content.edit
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -49,12 +50,12 @@ class TokenStore(context: Context) {
     }
 
     fun save(session: Session) {
-        prefs.edit()
-            .putString("baseUrl", session.baseUrl)
-            .putString("token", encrypt(session.token))
-            .putString("scopes", session.scopes.joinToString(","))
-            .putString("deviceName", session.deviceName)
-            .apply()
+        prefs.edit {
+            putString("baseUrl", session.baseUrl)
+            putString("token", encrypt(session.token))
+            putString("scopes", session.scopes.joinToString(","))
+            putString("deviceName", session.deviceName)
+        }
     }
 
     fun scopes(): List<String> =
