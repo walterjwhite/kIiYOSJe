@@ -23,7 +23,7 @@
     "@ai-sdk/openai": "4.0.118",
     "@mind/core": "*",
     "@stackone/defender": "0.9.6",
-    "ai": "7.0.173",
+    "ai": "7.0.177",
     "chrono-node": "2.10.3",
     "cockatiel": "4.0.0",
     "email-reply-parser": "3.0.0",
