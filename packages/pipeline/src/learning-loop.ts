@@ -1,10 +1,14 @@
 /**
  * Learning loop — P5.
  *
- * Runs weekly. Analyses the last 7 days of override data and produces
- * DirectionProposal records stored in the events table (kind='direction.proposal').
- * They are never applied automatically; the operator accepts or rejects via
- * the extension or the API.
+ * Runs nightly (see learning-cycle.ts). Analyses the last 7 days of override
+ * data and produces DirectionProposal records stored in the events table
+ * (kind='direction.proposal'). They are never applied automatically; the
+ * operator accepts or rejects via the extension or the API.
+ *
+ * Because every run looks at the same 7-day window, a proposal is only stored
+ * when it is not already pending and was not accepted or rejected recently
+ * (REPROPOSE_AFTER_DAYS). Spec: learning-loop-metrics, requirement 4.4.
  *
  * Three proposal kinds:
  *   narrow   — direction was overridden >20 % → raise confidenceMin
@@ -12,9 +16,9 @@
  *   new      — ≥ 3 unmatched signals share a sender or topic pattern → propose a new direction
  */
 
-import { sql, eq } from "drizzle-orm";
 import type { Db } from "@mind/core";
-import { directions, signals, actions, events, logger, newId } from "@mind/core";
+import { actions, directions, events, logger, newId, signals } from "@mind/core";
+import { eq, inArray, sql } from "drizzle-orm";
 
 export interface DirectionProposal {
   kind: "narrow" | "widen" | "new";
@@ -36,9 +40,61 @@ const MIN_SAMPLE = 3;
 const NARROW_THRESHOLD = 0.2; // override rate above this → narrow
 const WIDEN_THRESHOLD = 0.1; // override rate below this AND sent >= MIN_SAMPLE → widen
 const NEW_DIR_SIGNALS = 3; // unmatched signals from same sender → propose new direction
+/** A proposal the operator accepted or rejected is not proposed again for this long. */
+export const REPROPOSE_AFTER_DAYS = 30;
 
-export function runLearningLoop(db: Db): DirectionProposal[] {
-  const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
+export interface LearningLoopOptions {
+  /** Days a resolved (accepted or rejected) proposal suppresses an identical one. */
+  reproposeAfterDays?: number;
+  /** Injected clock for tests. */
+  now?: Date;
+}
+
+/** Identity of a proposal: the same change to the same Direction. */
+export function proposalKey(p: DirectionProposal): string {
+  return [p.kind, p.directionId ?? "", p.field, JSON.stringify(p.proposedValue)].join("|");
+}
+
+/**
+ * Keys that must not be proposed again: anything still pending, plus anything
+ * resolved within the cooldown.
+ */
+function suppressedKeys(db: Db, now: Date, reproposeAfterDays: number): Set<string> {
+  const cutoff = new Date(now.getTime() - reproposeAfterDays * 86_400_000).toISOString();
+  const rows = db
+    .select({ id: events.id, at: events.at, kind: events.kind, payload: events.payload })
+    .from(events)
+    .where(inArray(events.kind, ["direction.proposal", "direction.proposal.resolved"]))
+    .all();
+
+  const resolvedAt = new Map<string, string>();
+  for (const e of rows) {
+    if (e.kind !== "direction.proposal.resolved") continue;
+    try {
+      const id = (JSON.parse(e.payload) as { proposalEventId?: unknown }).proposalEventId;
+      if (typeof id === "string") resolvedAt.set(id, e.at);
+    } catch {
+      /* an unreadable resolution suppresses nothing */
+    }
+  }
+
+  const keys = new Set<string>();
+  for (const e of rows) {
+    if (e.kind !== "direction.proposal") continue;
+    const resolved = resolvedAt.get(e.id);
+    if (resolved !== undefined && resolved < cutoff) continue;
+    try {
+      keys.add(proposalKey(JSON.parse(e.payload) as DirectionProposal));
+    } catch {
+      /* skip */
+    }
+  }
+  return keys;
+}
+
+export function runLearningLoop(db: Db, options: LearningLoopOptions = {}): DirectionProposal[] {
+  const now = options.now ?? new Date();
+  const since = new Date(now.getTime() - WINDOW_DAYS * 86_400_000).toISOString();
   const proposals: DirectionProposal[] = [];
 
   // ── Narrow / widen existing directions ───────────────────────────────────
@@ -110,8 +166,18 @@ export function runLearningLoop(db: Db): DirectionProposal[] {
   const unmatchedProposals = proposeFromUnmatched(db, since);
   proposals.push(...unmatchedProposals);
 
-  // Persist each proposal as an event so the operator can review them.
+  // Drop what is already pending or was resolved recently, and repeats within this run.
+  const seen = suppressedKeys(db, now, options.reproposeAfterDays ?? REPROPOSE_AFTER_DAYS);
+  const fresh: DirectionProposal[] = [];
   for (const p of proposals) {
+    const key = proposalKey(p);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    fresh.push(p);
+  }
+
+  // Persist each proposal as an event so the operator can review them.
+  for (const p of fresh) {
     db.insert(events)
       .values({
         id: newId(),
@@ -122,8 +188,11 @@ export function runLearningLoop(db: Db): DirectionProposal[] {
       .run();
   }
 
-  logger.info({ count: proposals.length }, "learning loop: proposals generated");
-  return proposals;
+  logger.info(
+    { count: fresh.length, suppressed: proposals.length - fresh.length },
+    "learning loop: proposals generated",
+  );
+  return fresh;
 }
 
 function directionStats(
@@ -179,16 +248,4 @@ function proposeFromUnmatched(db: Db, since: string): DirectionProposal[] {
     rationale: `${row.count} unmatched signals from ${row.sender} in the last ${WINDOW_DAYS} days. Consider adding a person-scoped direction.`,
     evidence: { total: row.count, discarded: 0, sent: 0, overrideRate: 0 },
   }));
-}
-
-const WEEKLY_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
-
-export function startLearningLoop(db: Db, intervalMs = WEEKLY_INTERVAL_MS): NodeJS.Timeout {
-  return setInterval(() => {
-    try {
-      runLearningLoop(db);
-    } catch (err) {
-      logger.error({ err }, "learning loop: error");
-    }
-  }, intervalMs);
 }

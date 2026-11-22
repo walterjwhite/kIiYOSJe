@@ -12,9 +12,9 @@
 
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
-import { directions, events, newId } from "@mind/core";
+import { directions, events, learningSettings, newId } from "@mind/core";
 import type { Db } from "@mind/core";
-import { runLearningLoop, generateLearningInsight } from "@mind/pipeline";
+import { lastLearningRun, runLearningCycle } from "@mind/pipeline";
 import type { DirectionProposal } from "@mind/pipeline";
 
 interface StoredProposal {
@@ -74,29 +74,21 @@ export function proposalsRouter(db: Db) {
     return c.json(rows);
   });
 
-  // POST /proposals/run — generate proposals now instead of waiting a week.
-  // Also asks the configured model (Ollama by default) for a plain-language
-  // explanation of the pattern behind this batch — an insight, not a
-  // decision; the rule-based thresholds above are what actually produced
-  // the proposed values. Stored as its own event so it's visible without
-  // re-running the loop, and skipped quietly if no provider is configured.
+  // GET /proposals/schedule — when the loop runs on its own and when it last did.
+  app.get("/schedule", (c) => {
+    return c.json({
+      window: learningSettings(),
+      lastRun: lastLearningRun(db),
+      lastScheduledRun: lastLearningRun(db, "schedule"),
+    });
+  });
+
+  // POST /proposals/run — generate proposals now instead of waiting for the
+  // nightly window. Same function the scheduler uses (learning-cycle.ts): the
+  // rule-based loop decides every proposed value; the model only adds a
+  // plain-language insight, skipped quietly if no provider is configured.
   app.post("/run", async (c) => {
-    const proposals = runLearningLoop(db);
-    const insight = await generateLearningInsight(proposals);
-    if (insight) {
-      db.insert(events)
-        .values({
-          id: newId(),
-          actor: "system",
-          kind: "learning.insight",
-          payload: JSON.stringify({
-            at: new Date().toISOString(),
-            insight,
-            proposalCount: proposals.length,
-          }),
-        })
-        .run();
-    }
+    const { proposals, insight } = await runLearningCycle(db, "manual");
     return c.json({ proposals, insight });
   });
 

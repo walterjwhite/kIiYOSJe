@@ -19,4 +19,6 @@ export * from "./backup.js";
 export * from "./status-writer.js";
 export * from "./learning-loop.js";
 export * from "./learning-insight.js";
+export * from "./learning-cycle.js";
+export * from "./learnings.js";
 export * from "./coverage.js";

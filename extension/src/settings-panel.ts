@@ -1,5 +1,5 @@
 import { apiFetch } from "./api-client.js";
-import { SectionPanel, esc, toggleSwitch } from "./webview-base.js";
+import { esc, SectionPanel, toggleSwitch } from "./webview-base.js";
 
 interface AudioSettings {
   voice: string;
@@ -13,6 +13,11 @@ interface AudioSettings {
 interface AutolinkSettings {
   enabled: boolean;
   threshold: number;
+}
+
+interface LearningSettings {
+  windowStart: string;
+  windowEnd: string;
 }
 
 const SETTINGS_STYLE = `
@@ -33,6 +38,10 @@ const SETTINGS_SCRIPT = `
       speaker: val('a-speaker').trim() === '' ? null : Number(val('a-speaker')),
       piperCommand: val('a-command').trim()
     });
+  });
+  var learning = document.getElementById('save-learning');
+  if (learning) learning.addEventListener('click', function () {
+    post({ command: 'saveLearning', windowStart: val('lw-start'), windowEnd: val('lw-end') });
   });
   var link = document.getElementById('save-threshold');
   if (link) link.addEventListener('click', function () {
@@ -60,6 +69,7 @@ export class SettingsPanel extends SectionPanel {
   private settings: DisplaySettings | undefined;
   private audio: AudioSettings | undefined;
   private autolink: AutolinkSettings | undefined;
+  private learning: LearningSettings | undefined;
   private notice: string | undefined;
   private loadError: string | undefined;
 
@@ -90,6 +100,8 @@ export class SettingsPanel extends SectionPanel {
       speaker?: number | null;
       piperCommand?: string;
       threshold?: number;
+      windowStart?: string;
+      windowEnd?: string;
     };
     if (m.command === "refresh") this.load();
     else if (m.command === "toggleField" && m.field) this.toggleField(m.field);
@@ -106,6 +118,13 @@ export class SettingsPanel extends SectionPanel {
       });
     } else if (m.command === "toggleAutolink" && this.autolink) {
       void this.saveAutolink({ ...this.autolink, enabled: !this.autolink.enabled });
+    } else if (m.command === "saveLearning" && this.learning) {
+      void this.save(
+        "/admin/learning",
+        { windowStart: String(m.windowStart ?? ""), windowEnd: String(m.windowEnd ?? "") },
+        "Learning window saved.",
+        (v) => (this.learning = v),
+      );
     } else if (m.command === "saveThreshold" && this.autolink) {
       void this.saveAutolink({ ...this.autolink, threshold: Number(m.threshold) });
     }
@@ -113,10 +132,11 @@ export class SettingsPanel extends SectionPanel {
 
   private async load(): Promise<void> {
     try {
-      [this.settings, this.audio, this.autolink] = await Promise.all([
+      [this.settings, this.audio, this.autolink, this.learning] = await Promise.all([
         apiFetch<DisplaySettings>("/admin/display"),
         apiFetch<AudioSettings>("/admin/audio"),
         apiFetch<AutolinkSettings>("/admin/autolink"),
+        apiFetch<LearningSettings>("/admin/learning"),
       ]);
       this.loadError = undefined;
     } catch (err) {
@@ -179,7 +199,8 @@ export class SettingsPanel extends SectionPanel {
     const s = this.settings;
     const a = this.audio;
     const l = this.autolink;
-    if (!s || !a || !l) return;
+    const w = this.learning;
+    if (!s || !a || !l || !w) return;
 
     const row = (field: keyof DisplaySettings, label: string) => `
       <tr>
@@ -204,6 +225,17 @@ export class SettingsPanel extends SectionPanel {
         <div>${toggleSwitch(l.enabled, "toggleAutolink", {})}</div>
         <label for="l-threshold">Minimum confidence</label>
         <div><input id="l-threshold" type="number" min="0.5" max="1" step="0.05" value="${l.threshold}" /> <button id="save-threshold">Save</button></div>
+      </div>
+
+      <h2>Learning loop</h2>
+      <p class="sub">Once a night the learning loop reads the last 7 days of your decisions and suggests changes to Directions. It may also ask the AI model for an explanation, so it runs while you are likely away. Times are 24-hour, in this computer's time zone. If the end is earlier than the start, the window crosses midnight.</p>
+      <div class="form">
+        <label for="lw-start">Window starts</label>
+        <input id="lw-start" type="time" value="${esc(w.windowStart)}" />
+        <label for="lw-end">Window ends</label>
+        <input id="lw-end" type="time" value="${esc(w.windowEnd)}" />
+        <span></span>
+        <div><button id="save-learning">Save learning window</button></div>
       </div>
 
       <h2>Audio summary</h2>

@@ -1,16 +1,26 @@
-import { jsonToHtml } from "./json-html.js";
 import * as vscode from "vscode";
 import { apiFetch } from "./api-client.js";
-import { SectionPanel, esc } from "./webview-base.js";
+import { ago } from "./format.js";
+import type { ProposalView, ScheduleView } from "./learnings-model.js";
+import { describeProposal, describeSchedule } from "./learnings-model.js";
+import { esc, SectionPanel } from "./webview-base.js";
 
-interface DirectionProposal {
-  kind: "narrow" | "widen" | "new";
-  directionId: string | null;
-  field: string;
-  currentValue: unknown;
-  proposedValue: unknown;
-  rationale: string;
-  evidence: { total: number; discarded: number; sent: number; overrideRate: number };
+type DirectionProposal = ProposalView;
+
+interface LearningFile {
+  id: string;
+  path: string;
+  title: string;
+  applies: "classify" | "draft" | "both";
+  direction: string | null;
+  enabled: boolean;
+  body: string;
+}
+
+interface LearningFiles {
+  dir: string;
+  learnings: LearningFile[];
+  problems: { id: string; path: string; reason: string }[];
 }
 
 interface StoredProposal {
@@ -35,11 +45,14 @@ interface LearningInsight {
 }
 
 /**
- * Learnings — the durable record behind Directions, matching the mockup's
- * Learnings tab. The actual proposals are still rule-based and deterministic
- * (GET /proposals): a periodic pass scans events and proposes narrow/widen/
- * new only when an override rate crosses a fixed threshold — nothing here
- * is decided by a model. Running the loop also asks the configured model
+ * Learnings — two things. Your learnings: the notes in learnings/*.md that
+ * are added to the classifier and drafter prompts (GET /learnings). And
+ * suggestions: the rule-based loop's proposals to change a Direction
+ * (GET /proposals), shown in plain language (learnings-model.ts).
+ *
+ * The suggestions are rule-based and deterministic: a nightly pass scans
+ * events and proposes narrow/widen/new only when an override rate crosses a
+ * fixed threshold — nothing here is decided by a model. Running the loop also asks the configured model
  * (Ollama by default) for a short, plain-language explanation of *why*
  * the pattern is happening, shown separately as an Insight — never a
  * substitute for the counted evidence above it, and skipped quietly if
@@ -52,6 +65,8 @@ export class LearningsPanel extends SectionPanel {
   private proposals: StoredProposal[] = [];
   private reclassifications: JournalEvent[] = [];
   private insights: LearningInsight[] = [];
+  private schedule: ScheduleView | undefined;
+  private files: LearningFiles | undefined;
   private loadError: string | undefined;
 
   static show(): void {
@@ -73,6 +88,14 @@ export class LearningsPanel extends SectionPanel {
 
   protected onMessage(msg: unknown): void {
     const m = msg as { command?: string; id?: string };
+    if (m.command === "openLearning" && m.id) {
+      // The path comes from the server's list, never from the message.
+      const file =
+        this.files?.learnings.find((l) => l.id === m.id)?.path ??
+        this.files?.problems.find((l) => l.id === m.id)?.path;
+      if (file) void vscode.window.showTextDocument(vscode.Uri.file(file));
+      return;
+    }
     if (m.command === "refresh") this.load();
     else if (m.command === "run") this.runLearningLoop();
     else if (m.command === "accept" && m.id) this.resolve(m.id, "accept");
@@ -81,11 +104,15 @@ export class LearningsPanel extends SectionPanel {
 
   private async load(): Promise<void> {
     try {
-      const [proposals, reclassifications, insights] = await Promise.all([
+      const [proposals, reclassifications, insights, schedule, files] = await Promise.all([
         apiFetch<StoredProposal[]>("/proposals"),
         apiFetch<JournalEvent[]>("/events?kind=signal.reclassified&limit=100"),
         apiFetch<LearningInsight[]>("/proposals/insights?limit=5"),
+        apiFetch<ScheduleView>("/proposals/schedule"),
+        apiFetch<LearningFiles>("/learnings"),
       ]);
+      this.schedule = schedule;
+      this.files = files;
       this.proposals = proposals;
       this.reclassifications = reclassifications;
       this.insights = insights;
@@ -104,7 +131,7 @@ export class LearningsPanel extends SectionPanel {
       );
       if (!result.insight) {
         vscode.window.showInformationMessage(
-          "mind: learning loop ran. No AI insight — configure a provider (mind: Configure AI Provider) to get a plain-language explanation of the pattern.",
+          "mind: learning loop ran. No AI explanation — configure a provider (mind: Configure AI Provider) to get a plain-language explanation of the pattern.",
         );
       }
     } catch (err) {
@@ -138,21 +165,50 @@ export class LearningsPanel extends SectionPanel {
       return;
     }
 
-    const proposalRows = this.proposals
-      .map((p) => {
-        const d = p.proposal;
-        const actions =
-          p.status === "pending"
-            ? `<button data-action="accept" data-id="${esc(p.eventId)}">Accept</button>
-               <button data-action="reject" data-id="${esc(p.eventId)}">Reject</button>`
-            : `<span class="badge">${esc(p.status)}</span>`;
+    const card = (p: StoredProposal): string => {
+      const t = describeProposal(p.proposal);
+      const actions =
+        p.status === "pending"
+          ? `<button data-action="accept" data-id="${esc(p.eventId)}">Accept</button>
+             <button data-action="reject" data-id="${esc(p.eventId)}">Reject</button>`
+          : `<span class="badge">${esc(p.status)}</span>`;
+      return `<div class="card">
+        <div><strong>${esc(t.headline)}</strong></div>
+        <div>${esc(t.change)}</div>
+        <div class="sub">Why: ${esc(t.why)}</div>
+        <div class="sub">${esc(t.effect)}</div>
+        <div class="toolbar" style="margin-top: 6px; margin-bottom: 0;">${actions}</div>
+      </div>`;
+    };
+    const pending = this.proposals.filter((p) => p.status === "pending");
+    const resolved = this.proposals.filter((p) => p.status !== "pending");
+    const proposalRows = pending.map(card).join("");
+    const resolvedRows = resolved.map(card).join("");
+
+    const files = this.files;
+    const learningRows = (files?.learnings ?? [])
+      .map((l) => {
+        const scope = [
+          l.applies === "both" ? "classify and draft" : l.applies,
+          l.direction ? `only ${l.direction}` : "every Direction",
+          l.enabled ? "on" : "off",
+        ].join(" · ");
         return `<div class="card">
-          <div><span class="badge">${esc(d.kind)}</span> ${esc(d.directionId ?? "new direction")} — <strong>${esc(d.field)}</strong>: <span class="json">${jsonToHtml(d.currentValue)}</span> → <span class="json">${jsonToHtml(d.proposedValue)}</span></div>
-          <div class="sub">${esc(d.rationale)}</div>
-          <div class="sub">evidence: ${d.evidence.total} total, ${d.evidence.discarded} discarded, ${(d.evidence.overrideRate * 100).toFixed(0)}% override rate</div>
-          <div class="toolbar" style="margin-top: 6px; margin-bottom: 0;">${actions}</div>
+          <div><strong>${esc(l.title)}</strong> <span class="sub">${esc(scope)}</span></div>
+          <div class="sub">${esc(l.body)}</div>
+          <div class="toolbar" style="margin-top: 6px; margin-bottom: 0;">
+            <button data-action="openLearning" data-id="${esc(l.id)}">Edit file</button>
+          </div>
         </div>`;
       })
+      .join("");
+    const problemRows = (files?.problems ?? [])
+      .map(
+        (
+          p,
+        ) => `<div class="card"><div class="danger">${esc(p.id)}.md is not used: ${esc(p.reason)}</div>
+          <div class="toolbar" style="margin-top: 6px; margin-bottom: 0;"><button data-action="openLearning" data-id="${esc(p.id)}">Edit file</button></div></div>`,
+      )
       .join("");
 
     const reclassRows = this.reclassifications
@@ -191,11 +247,19 @@ export class LearningsPanel extends SectionPanel {
         <button data-action="refresh">↺ Refresh</button>
         <button data-action="run">Run learning loop now</button>
       </div>
-      <h2>AI insight</h2>
-      ${insightCards || '<p class="empty">No insight yet — run the learning loop with an AI provider configured.</p>'}
-      <h2>Proposals (${this.proposals.length})</h2>
-      ${proposalRows || '<p class="empty">No proposals yet.</p>'}
-      <h2>Reclassifications</h2>
+      <h2>Your learnings (${files?.learnings.length ?? 0})</h2>
+      <p class="sub">Plain notes you write in <code>${esc(files?.dir ?? "learnings")}</code>, one <code>.md</code> file each. They are added to the prompts the classifier and drafter see, so edit them like any file and commit them to git. They can change how a message is judged or worded. They cannot allow a send.</p>
+      ${learningRows || '<p class="empty">No learnings yet. Add a file such as learnings/tone.md. See learnings/README.md.</p>'}
+      ${problemRows}
+      <h2>Suggested changes to Directions (${pending.length})</h2>
+      <p class="sub">${esc(this.schedule ? describeSchedule(this.schedule, (iso) => `${new Date(iso).toLocaleString()} (${ago(iso)})`) : "")}</p>
+      <p class="sub">Each suggestion comes from counting what you approved and discarded in the last 7 days. Nothing changes until you accept it.</p>
+      ${proposalRows || '<p class="empty">Nothing to suggest right now.</p>'}
+      ${resolvedRows ? `<h2>Already answered (${resolved.length})</h2>${resolvedRows}` : ""}
+      <h2>AI explanation</h2>
+      <p class="sub">A model's short reading of why the suggestions above came up. It is commentary, not a decision.</p>
+      ${insightCards || '<p class="empty">None yet. It appears after a run when an AI provider is configured.</p>'}
+      <h2>Moved to a different Direction by you</h2>
       ${
         this.reclassifications.length > 0
           ? `<table>

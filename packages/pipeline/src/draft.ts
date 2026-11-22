@@ -19,6 +19,8 @@ export interface DraftInput {
   classifierOutput: ClassifierOutput;
   /** Matched direction's responsePrompt, if any — specific handling guidance beyond `standard`. */
   responsePrompt?: string | null;
+  /** Operator learnings for this stage (learnings.ts), already delimited. Empty or absent adds nothing. */
+  learnings?: string;
   /** Receives a trace of the model call (timing, model, provider). */
   onTrace?: (trace: ModelTrace) => void;
 }
@@ -52,7 +54,7 @@ function buildPrompt(input: DraftInput): string {
 
   return `Direction standard:
 ${input.standard}
-${input.responsePrompt ? `\nAdditional response guidance for this direction:\n${input.responsePrompt}\n` : ""}
+${input.responsePrompt ? `\nAdditional response guidance for this direction:\n${input.responsePrompt}\n` : ""}${input.learnings ? `\n${input.learnings}` : ""}
 Classifier notes:
   kind: ${co.signalKind}
   intent: ${co.intent}
@@ -75,7 +77,11 @@ export async function draft(input: DraftInput): Promise<string | null> {
   }
 
   try {
-    const budget = bodyBudget(contextTokens(), SYSTEM + buildPrompt({ ...input, senderBody: "" }), DRAFT_ANSWER_TOKENS);
+    const budget = bodyBudget(
+      contextTokens(),
+      SYSTEM + buildPrompt({ ...input, senderBody: "" }),
+      DRAFT_ANSWER_TOKENS,
+    );
     const text = await withShrinkingBody(budget, (tokens) => {
       const body = fitToTokens(input.senderBody, tokens);
       return generateReply({

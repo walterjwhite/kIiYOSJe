@@ -9,7 +9,13 @@
  * provider, so classify() calls a real model out of the box at zero cost.
  */
 
-import { ClassifierOutputSchema, aiConfigured, aiProvider, contextTokens, logger } from "@mind/core";
+import {
+  ClassifierOutputSchema,
+  aiConfigured,
+  aiProvider,
+  contextTokens,
+  logger,
+} from "@mind/core";
 import type { z } from "zod";
 import { bodyBudget, fitToTokens, withShrinkingBody } from "./fit.js";
 import { generateStructured } from "./model.js";
@@ -25,6 +31,8 @@ export interface ClassifyInput {
   receivedAt: Date;
   /** Matched direction's matchPrompt, if any — how it recognizes a match, for context only. */
   matchPrompt?: string | null;
+  /** Operator learnings for this stage (learnings.ts), already delimited. Empty or absent adds nothing. */
+  learnings?: string;
   /** Receives a trace of the model call (timing, model, provider). */
   onTrace?: (trace: ModelTrace) => void;
 }
@@ -54,7 +62,7 @@ function buildPrompt(input: ClassifyInput): string {
 
   return `Current date/time (use this to resolve relative deadlines): ${input.receivedAt.toISOString()}
 
-${directionContext}${matchContext}
+${directionContext}${matchContext}${input.learnings ? `\n${input.learnings}` : ""}
 From: ${input.sender}
 
 Message:
@@ -82,7 +90,11 @@ export async function classify(input: ClassifyInput): Promise<ClassifierOutput> 
 
   try {
     // The structured answer is short; the rest of the window is for the message.
-    const budget = bodyBudget(contextTokens(), SYSTEM + buildPrompt({ ...input, signalBody: "" }), CLASSIFY_ANSWER_TOKENS);
+    const budget = bodyBudget(
+      contextTokens(),
+      SYSTEM + buildPrompt({ ...input, signalBody: "" }),
+      CLASSIFY_ANSWER_TOKENS,
+    );
     const object = await withShrinkingBody(budget, (tokens) => {
       const body = fitToTokens(input.signalBody, tokens);
       return generateStructured(ClassifierOutputSchema, {

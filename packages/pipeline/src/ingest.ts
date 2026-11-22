@@ -43,6 +43,7 @@ import {
 } from "@mind/core";
 import { and, desc, eq, gte, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { AdapterRegistry } from "./adapter-registry.js";
+import { learningsForPrompt } from "./learnings.js";
 import type { ClassifierOutput } from "./classify.js";
 import { classify } from "./classify.js";
 import { decide } from "./decide.js";
@@ -121,6 +122,11 @@ export async function ingest(
   const match = matchSignal(db, signal);
 
   // ── 4. Classify ──────────────────────────────────────────────────────────
+  const classifyLearnings = learningsForPrompt("classify", match?.direction.id ?? null);
+  const learningIds: { classify: string[]; draft: string[] } = {
+    classify: classifyLearnings.ids,
+    draft: [],
+  };
   if (overrides?.classifierOutput) aiSkipped["classify"] = "override supplied";
   else if (!aiOn) aiSkipped["classify"] = "no AI provider configured";
   const classifierOut =
@@ -131,6 +137,7 @@ export async function ingest(
       standard: match?.direction.standard ?? null,
       receivedAt: signal.receivedAt,
       matchPrompt: match?.direction.matchPrompt ?? null,
+      learnings: classifyLearnings.text,
       onTrace: (t) => aiCalls.push(t),
     }));
 
@@ -354,6 +361,8 @@ export async function ingest(
   // Absorbing one records it and stops: no draft, no Queue entry.
   if (match && disposition === "absorbed" && signal.kind !== "event") {
     const dir = match.direction;
+    const draftLearnings = learningsForPrompt("draft", dir.id);
+    learningIds.draft = draftLearnings.ids;
     const draftBody =
       overrides?.draftBody !== undefined
         ? overrides.draftBody
@@ -363,6 +372,7 @@ export async function ingest(
             standard: dir.standard,
             classifierOutput: classifierOut,
             responsePrompt: dir.responsePrompt,
+            learnings: draftLearnings.text,
             onTrace: (t) => aiCalls.push(t),
           });
     if (overrides?.draftBody !== undefined) aiSkipped["draft"] = "override supplied";
@@ -546,6 +556,7 @@ export async function ingest(
         thoughtId,
         actionId,
         replyReceivedFrom: replyAnsweredThread ? signal.sender : null,
+        learnings: learningIds,
         ai: {
           configured: aiOn,
           calls: aiCalls,

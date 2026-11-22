@@ -16,6 +16,7 @@ import { directionsRouter } from "./routes/directions.js";
 import { eventsRouter } from "./routes/events.js";
 import { healthRouter } from "./routes/health.js";
 import { metricsRouter } from "./routes/metrics.js";
+import { learningsRouter } from "./routes/learnings.js";
 import { proposalsRouter } from "./routes/proposals.js";
 import { queueRouter } from "./routes/queue.js";
 import { signalsRouter } from "./routes/signals-ingress.js";
@@ -41,6 +42,7 @@ export function buildApp(db: Db, adapters: AdapterRegistry) {
   app.route("/metrics", metricsRouter(db));
   app.route("/admin", adminRouter());
   app.route("/proposals", proposalsRouter(db));
+  app.route("/learnings", learningsRouter());
   app.route("/events", eventsRouter(db));
   app.route("/queue", queueRouter(db));
   app.route("/summary", summaryRouter(db));

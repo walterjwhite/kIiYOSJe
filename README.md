@@ -92,8 +92,10 @@ themselves carry no instructions.
   New Directions are still authored as YAML (**mind: Edit Directions**).
   **Preview** dry-runs the saved rule against stored signals before you rely
   on it.
-- **Learnings** — policy narrow/widen proposals the learning loop generates
-  from override history, plus the reclassification log.
+- **Learnings** — your `learnings/*.md` notes (added to the classifier and
+  drafter prompts; see `learnings/README.md`), the suggested Direction changes
+  the learning loop works out from what you approved and discarded (it runs once
+  a night, 00:00 to 04:00 by default), and the reclassification log.
 - **Analytics** — the coverage curve first: weekly absorb rate against the
   number of Directions in force, with signals absorbed but never answered
   drawn beside it. Then per-Direction rates, the flow diagram and daily
@@ -184,6 +186,7 @@ names `demo.db`.
 - `config/notifications.json` — notification quiet period
 - `config/display.json` — which signal fields the extension shows
 - `config/autolink.json` — automatic goal linking: `enabled`, `threshold`
+- `config/learning.json` — the nightly window for the learning loop: `windowStart`, `windowEnd` (24-hour `HH:MM`, local time; default `00:00` to `04:00`). Also in Settings
 - `config/audio.json` — voice, speed, tone, speaker, Piper command, voice download
 - `config/token` — API bearer token
 - `config/paused` — send kill-switch flag
@@ -195,7 +198,7 @@ names `demo.db`.
 Environment overrides: `MIND_AI_PROVIDER`, `MIND_AI_API_KEY`, `MIND_AI_BASE_URL`,
 `MIND_CLASSIFY_MODEL`, `MIND_DRAFT_MODEL`, `MIND_CONTEXT_TOKENS`, `MIND_RETENTION_DAYS`,
 `MIND_SEND_ENABLED`, `MIND_LOG_LEVEL`, `MIND_DIRECTIONS_DIR`, `MIND_DB_PATH`,
-`MIND_ADAPTERS` (set it to `none` to start no live source),
+`MIND_ADAPTERS` (set it to `none` to start no live source), `MIND_LEARNINGS_DIR`,
 `MIND_CONFIG_DIR`, `MIND_DATA_DIR`, `MIND_TEST_TOKEN`.
 
 ## Long messages

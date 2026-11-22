@@ -15,6 +15,8 @@ egress needs, and let the operator delete or export everything.
 | Signals (normalized message content) | SQLite                       | `MIND_RETENTION_DAYS`                | Only the text of a signal in a classifier or drafting prompt to the configured model provider |
 | Thoughts, actions, events            | SQLite                       | same as signals unless kept as audit | No                                                                                            |
 | Directions                           | YAML under `directions/`     | operator-owned                       | No                                                                                            |
+| Learnings                            | Markdown under `learnings/`  | operator-owned                       | Yes: the text of each applicable learning is added to classifier and drafting prompts         |
+| Learning window                      | `learning.json` in config    | operator-owned                       | No                                                                                            |
 | Credentials, token                   | `~/.config/kIiYOSJe/mind/`   | until revoked                        | Credentials go only to their own provider                                                     |
 | Logs                                 | stdout / operator's log sink | operator-owned                       | No, and contain no content                                                                    |
 | Backups                              | operator-chosen path         | operator-owned                       | No                                                                                            |
@@ -28,7 +30,9 @@ Keep this table current whenever a column, file, or adapter is added.
    egress can be zero. Any other outbound call needs a spec and an explicit
    decision.
 2. **Minimize prompt content.** Strip quoted history and signatures, truncate,
-   and include only fields the task needs. Never include credentials, other
+   and include only fields the task needs. Learnings are capped at 4,000 characters
+   per call and are the operator's own text; the docs warn against secrets and real
+   personal data in them. Never include credentials, other
    people's addresses beyond the thread, or attachments unless a Direction needs them.
 3. **No content in logs, errors, metrics, or issue reports.** Error messages the
    operator may paste into a bug must be safe by construction.

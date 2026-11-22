@@ -9,6 +9,7 @@ export * from "./db/schema.js";
 export * from "./devices.js";
 export * from "./http.js";
 export * from "./id.js";
+export * from "./learning-settings.js";
 export * from "./logger.js";
 export * from "./schemas.js";
 export * from "./snapshot.js";

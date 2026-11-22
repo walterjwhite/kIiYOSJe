@@ -6,6 +6,6 @@
 - [ ] 4. Direction coverage figure
 - [ ] 5. `correction` events and false-absorb rate
 - [ ] 6. Warning when ratio and false-absorb rate rise together
-- [ ] 7. Rejected proposals are not re-proposed within the configured period
+- [x] 7. Rejected proposals are not re-proposed within the period (fixed 30 days; configurable period is open, see `learnings-files` task 12)
 - [ ] 8. Dated series kept for the write-up; negative findings recorded in STATUS.md
 - [ ] 9. Labelled evaluation set and harness (issue: "Build a labelled evaluation set and harness")

@@ -39,7 +39,8 @@ reach the operator.
 2. A proposal SHALL NOT change behavior. Accepting it SHALL return the YAML edit
    for the operator to apply by hand, because `directions/*.yaml` is authoritative.
 3. Proposals SHALL be generated on review cadence, not on every signal, and SHALL
-   cite signal ids rather than copying content.
+   cite signal ids rather than copying content. The cadence is nightly, inside the
+   operator's window (see `learnings-files`, requirement 3).
 4. Rejected proposals SHALL not be re-proposed within a configurable period.
 
 ## Requirement 5 — Falsifiability

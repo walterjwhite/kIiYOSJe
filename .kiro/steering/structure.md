@@ -13,6 +13,7 @@ packages/cli        `mind` client for the local API
 packages/demo-data  synthetic personas replayed through the real pipeline
 extension           VS Code client: Queue, Thoughts, Signals, Journal, webviews
 directions          operator-authored YAML (source of truth), hot-reloaded
+learnings           operator-authored Markdown notes added to classify and draft prompts
 mockup              standalone HTML/JS design prototype, no build step
 scripts             repo checks with no build step (check-licenses.mjs)
 ```

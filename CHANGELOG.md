@@ -47,6 +47,16 @@ versions while the project is `0.x`).
 
 ### Fixed
 
+- The learning loop no longer stores the same suggestion every run. A suggestion
+  is skipped while an identical one is pending, and for 30 days after it was
+  accepted or rejected.
+- Learnings view: suggestions read as sentences ("Be pickier about work/boss.
+  Minimum confidence 70% → 75%.") with the reason, the counts, and what Accept
+  does, in place of field names and raw values. It states when the loop runs and
+  last ran, lists pending suggestions before answered ones, and labels the model's
+  text as commentary.
+
+
 - The demo server could poll configured mail and calendar accounts into
   `demo.db`, mixing real messages with the synthetic personas. `npm run
   demo:serve` now sets `MIND_ADAPTERS=none`, and the server registers no live
@@ -57,6 +67,20 @@ versions while the project is `0.x`).
   switches the rest of the app uses.
 
 ### Added
+
+- Learnings files: write short notes in `learnings/*.md` (title, `applies`,
+  `direction`, `enabled`) and mind adds them to the classifier and drafter
+  prompts. Edit and commit them like Directions. They cannot allow a send. With no
+  files, prompts are unchanged. Each `signal.processed` event lists the learning
+  ids used (ids only). `GET /learnings` lists them and the files that were
+  skipped. See `learnings/README.md`. Learnings go to the configured model
+  provider with the prompt. Implemented and unit-tested; not evaluated with a
+  live model.
+- The learning loop runs once a night, 00:00 to 04:00 local time by default.
+  Change the window in Settings (Learning loop) or `learning.json`
+  (`GET`/`PUT /admin/learning`). `GET /proposals/schedule` returns the window
+  and the last run. A manual run does not use up the night's run.
+
 
 - Device pairing. **Devices** in the extension is a real registry: choose a
   name and scopes, show a six-digit code, and the new client exchanges it for

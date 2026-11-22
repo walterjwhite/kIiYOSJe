@@ -39,6 +39,9 @@ import {
   writeAutolinkSettings,
   AutolinkSettingsSchema,
   audioSettings,
+  learningSettings,
+  writeLearningSettings,
+  LearningSettingsSchema,
   writeAudioSettings,
   AudioSettingsSchema,
 } from "@mind/core";
@@ -152,6 +155,14 @@ export function adminRouter() {
   app.get("/autolink", (c) => c.json(autolinkSettings()));
   app.put("/autolink", zValidator("json", AutolinkSettingsSchema), (c) => {
     writeAutolinkSettings(c.req.valid("json"));
+    return c.json({ ok: true });
+  });
+
+  // GET/PUT /admin/learning — the nightly window in which the learning loop
+  // runs on its own (local time, 24-hour HH:MM; default 00:00 to 04:00).
+  app.get("/learning", (c) => c.json(learningSettings()));
+  app.put("/learning", zValidator("json", LearningSettingsSchema), (c) => {
+    writeLearningSettings(c.req.valid("json"));
     return c.json({ ok: true });
   });
 

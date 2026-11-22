@@ -25,6 +25,16 @@ export function configDir(): string {
   return process.env["MIND_CONFIG_DIR"] ?? join(homedir(), ".config", REPO_NAME, "mind");
 }
 
+/**
+ * Where the operator's learnings (`*.md`) are read from. Like directions/, this
+ * is a plain directory in the repo so it can be edited and committed.
+ */
+export function learningsDir(): string {
+  return (
+    process.env["MIND_LEARNINGS_DIR"] ?? join(import.meta.dirname, "..", "..", "..", "learnings")
+  );
+}
+
 export function dbPath(): string {
   return process.env["MIND_DB_PATH"] ?? join(dataDir(), "mind.db");
 }
